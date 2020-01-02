@@ -40,7 +40,7 @@ All keyword arguments not mentioned in the function definition are used to updat
 
 ## Installing
 
-todo
+pip install string-grouper
 
 ## Examples
 
