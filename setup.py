@@ -16,6 +16,7 @@ setup(
                 'Based on https://bergvca.github.io/2017/10/14/super-fast-string-matching.html',
     author='Chris van den Berg',
     long_description=README,
+    long_description_content_type="text/markdown",
     author_email='fake_email@gmail.com',
     url='https://github.com/Bergvca/string_grouper',
     zip_safe=False,

@@ -33,7 +33,7 @@ All keyword arguments not mentioned in the function definition are used to updat
 * ***ngram_size***: The amount of characters in each n-gram. Optional. Default is `3`
 * ***regex***: The regex string used to cleanup the input string. Optional. Default is `[,-./]|\s`
 * ***max_n_matches***: The maximum number of matches allowed per string. Default is `20`.
-* ***min_similarity***: The minium cossine similarity for two strings to be considered a match.
+* ***min_similarity***: The minimum cosine similarity for two strings to be considered a match.
     Defaults to `0.8`
 * ***number_of_processes***: The number of processes used by the cosine similarity calculation. Defaults to
     `1 - number of cores on a machine.`
@@ -70,19 +70,6 @@ matches[matches.left_side != matches.right_side].head()
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -146,19 +133,6 @@ matches
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -213,7 +187,7 @@ In the example above, it's possible that multiple matches are found for a single
 
 
 ```python
-# Create a small set of artifical company names
+# Create a small set of artificial company names
 new_companies = pd.Series(['S MEDIA GROUP', '012 SMILE.COMMUNICATIONS', 'foo bar', 'B4UTRADE COM CORP'])
 # Create all matches:
 matches = match_most_similar(companies['Company Name'], new_companies)
@@ -225,19 +199,6 @@ pd.DataFrame({'new_companies': new_companies, 'duplicates': matches})
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -310,7 +271,7 @@ The three functions mentioned above all create a `StringGrouper` object behind t
 
 1. Create matches
 2. Manually inspect the results
-3. Add and remove matches were neccesary
+3. Add and remove matches were necessary
 4. Create groups of similar Strings
 
 The `StringGrouper` allows for this without having to re-calculate the cosine similarity matrix. See below for an example. 
@@ -367,19 +328,6 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -427,19 +375,7 @@ companies[companies.deduplicated_name.str.contains('PWC')]
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
 
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -528,19 +464,7 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
 
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -601,19 +525,6 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -696,19 +607,6 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
 
 
 <div>
-<style scoped>
-    .dataframe tbody tr th:only-of-type {
-        vertical-align: middle;
-    }
-
-    .dataframe tbody tr th {
-        vertical-align: top;
-    }
-
-    .dataframe thead th {
-        text-align: right;
-    }
-</style>
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
