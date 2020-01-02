@@ -33,7 +33,7 @@ class StringGrouperConfigTest(unittest.TestCase):
 class StringGrouperTest(unittest.TestCase):
     def test_n_grams(self):
         """Should return all ngrams in a string"""
-        test_series = pd.Series()
+        test_series = pd.Series(pd.Series(['aa']))
         sg = StringGrouper(test_series)
         expected_result = ['McD', 'cDo', 'Don', 'ona', 'nal', 'ald', 'lds']
         self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
@@ -251,8 +251,14 @@ class StringGrouperTest(unittest.TestCase):
         matches = matches[(matches.left_side == 'foooo') & (matches.right_side == 'foooob')]
         self.assertEqual(0, matches.shape[0])
 
-
-
+    def test_string_grouper_type_error(self):
+        """StringGrouper should raise an typeerror master or duplicates are not a series of strings"""
+        with self.assertRaises(TypeError):
+            _ = StringGrouper('foo', 'bar')
+        with self.assertRaises(TypeError):
+            _ = StringGrouper(pd.Series(['foo', 'bar']), pd.Series(['foo', 1]))
+        with self.assertRaises(TypeError):
+            _ = StringGrouper(pd.Series(['foo', np.nan]), pd.Series(['foo', 'j']))
 
 if __name__ == '__main__':
     unittest.main()

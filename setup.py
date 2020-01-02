@@ -24,6 +24,7 @@ setup(
     install_requires=['pandas>=0.25.3'
                       , 'scipy'
                       , 'sklearn'
+                      , 'numpy'
                       , 'sparse_dot_topn>=0.2.6'
                       ]
 )

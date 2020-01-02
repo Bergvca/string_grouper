@@ -119,8 +119,11 @@ class StringGrouper(object):
         :param duplicates: pandas.Series. If set, for each string in duplicates a similar string is searched in Master.
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
+        # Validate input
+        if not StringGrouper._is_series_of_strings(master) or \
+                (duplicates is not None and not StringGrouper._is_series_of_strings(duplicates)):
+            raise TypeError('Input does not consist of pandas.Series containing only Strings')
 
-        # todo: verify master, duplicates are really series of strings
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         self._master: pd.Series = master.reset_index(drop=True)
         self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
@@ -378,3 +381,11 @@ class StringGrouper(object):
             raise ValueError(f'{master_side} not found in StringGrouper string series')
         elif not dupe_strings.isin([dupe_side]).any():
             raise ValueError(f'{dupe_side} not found in StringGrouper dupe string series')
+
+    @staticmethod
+    def _is_series_of_strings(series_to_test: pd.Series) -> bool:
+        if not isinstance(series_to_test, pd.Series):
+            return False
+        elif series_to_test.str.len().isna().any():
+            return False
+        return True
