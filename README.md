@@ -313,9 +313,6 @@ companies['deduplicated_name'] = string_grouper.get_groups()
 ```
 
 
-```python
-pd.set_option('display.max_colwidth', -1)
-```
 
 Suppose we know that PWC HOLDING CORP and PRICEWATERHOUSECOOPERS LLP are the same company. The StringGrouper will not match these, since they are not similar enough. 
 
