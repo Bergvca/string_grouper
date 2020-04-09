@@ -14,7 +14,7 @@ DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
-
+DEFAULT_IGNORE_CASE: bool = true # ignores case by default
 
 # High level functions
 
@@ -87,6 +87,7 @@ class StringGrouperConfig(NamedTuple):
     max_n_matches: int = DEFAULT_MAX_N_MATCHES
     min_similarity: float = DEFAULT_MIN_SIMILARITY
     number_of_processes: int = DEFAULT_N_PROCESSES
+    ignore_case: bool = DEFAULT_IGNORE_CASE
 
 
 def validate_is_fit(f):
@@ -139,6 +140,8 @@ class StringGrouper(object):
         """
         ngram_size = self._config.ngram_size
         regex_pattern = self._config.regex
+        if (self._config.ignore_case and string is not None):
+            string = string.lower() # lowercase to ignore all case
         string = re.sub(regex_pattern, r'', string)
         n_grams = zip(*[string[i:] for i in range(ngram_size)])
         return [''.join(n_gram) for n_gram in n_grams]
