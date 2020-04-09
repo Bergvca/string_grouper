@@ -14,7 +14,7 @@ DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
-DEFAULT_IGNORE_CASE: bool = true # ignores case by default
+DEFAULT_IGNORE_CASE: bool = True # ignores case by default
 
 # High level functions
 
@@ -80,6 +80,7 @@ class StringGrouperConfig(NamedTuple):
     Defaults to 0.8
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation. Defaults to
     1 - number of cores on a machine.
+    :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
