@@ -14,9 +14,10 @@ DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
-DEFAULT_IGNORE_CASE: bool = True # ignores case by default
+DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
 
 # High level functions
+
 
 def group_similar_strings(strings_to_group: pd.Series, **kwargs) -> pd.Series:
     """
@@ -141,8 +142,8 @@ class StringGrouper(object):
         """
         ngram_size = self._config.ngram_size
         regex_pattern = self._config.regex
-        if (self._config.ignore_case and string is not None):
-            string = string.lower() # lowercase to ignore all case
+        if self._config.ignore_case and string is not None:
+            string = string.lower()  # lowercase to ignore all case
         string = re.sub(regex_pattern, r'', string)
         n_grams = zip(*[string[i:] for i in range(ngram_size)])
         return [''.join(n_gram) for n_gram in n_grams]
