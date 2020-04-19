@@ -2,8 +2,10 @@ import unittest
 import pandas as pd
 import numpy as np
 from scipy.sparse.csr import csr_matrix
-from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, DEFAULT_MAX_N_MATCHES, DEFAULT_REGEX, \
-    DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, StringGrouperConfig, StringGrouper, StringGrouperNotFitException
+from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
+    DEFAULT_MAX_N_MATCHES, DEFAULT_REGEX, \
+    DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
+    StringGrouperConfig, StringGrouper, StringGrouperNotFitException
 
 
 class StringGrouperConfigTest(unittest.TestCase):
@@ -15,6 +17,7 @@ class StringGrouperConfigTest(unittest.TestCase):
         self.assertEqual(config.regex, DEFAULT_REGEX)
         self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
         self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
+        self.assertEqual(config.ignore_case, DEFAULT_IGNORE_CASE)
 
     def test_config_immutable(self):
         """Configurations should be immutable"""
@@ -31,11 +34,28 @@ class StringGrouperConfigTest(unittest.TestCase):
 
 
 class StringGrouperTest(unittest.TestCase):
-    def test_n_grams(self):
-        """Should return all ngrams in a string"""
+    def test_n_grams_case_unchanged(self):
+        """Should return all ngrams in a string with case"""
         test_series = pd.Series(pd.Series(['aa']))
-        sg = StringGrouper(test_series)
+        ## Explicit do not ignore case
+        sg = StringGrouper(test_series, ignore_case=False)
         expected_result = ['McD', 'cDo', 'Don', 'ona', 'nal', 'ald', 'lds']
+        self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
+
+    def test_n_grams_ignore_case_to_lower(self):
+        """Should return all case insensitive ngrams in a string"""
+        test_series = pd.Series(pd.Series(['aa'])) 
+        ## Explicit ignore case
+        sg = StringGrouper(test_series, ignore_case=True)
+        expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
+        self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
+
+    def test_n_grams_ignore_case_to_lower_with_defaults(self):
+        """Should return all case insensitive ngrams in a string"""
+        test_series = pd.Series(pd.Series(['aa'])) 
+        ## Implicit default case (i.e. default behaviour)
+        sg = StringGrouper(test_series)
+        expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
         self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
 
     def test_build_matrix(self):
@@ -89,6 +109,18 @@ class StringGrouperTest(unittest.TestCase):
         expected_df = pd.DataFrame({'master_side': master, 'dupe_side': dupe_side, 'similarity': similarity})
         pd.testing.assert_frame_equal(expected_df, sg._matches_list)
 
+    def test_case_insensitive_build_matches_list(self):
+        """Should create the cosine similarity matrix of two case insensitive series"""
+        test_series_1 = pd.Series(['foo', 'BAR', 'baz'])
+        test_series_2 = pd.Series(['FOO', 'bar', 'bop'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        sg = sg.fit()
+        master = [0, 1]
+        dupe_side = [0, 1]
+        similarity = [1.0, 1.0]
+        expected_df = pd.DataFrame({'master_side': master, 'dupe_side': dupe_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg._matches_list)
+
     def test_get_matches_two_dataframes(self):
         test_series_1 = pd.Series(['foo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
@@ -128,7 +160,7 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
-        pd.testing.assert_series_equal(expect ed_result, result)
+        pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_two_df_same_similarity(self):
         """Should return a pd.series object with the length of the dupes. If there are two dupes with the same
