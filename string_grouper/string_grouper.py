@@ -135,10 +135,11 @@ class StringGrouper(object):
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
         self._matches_list: pd.DataFrame = pd.DataFrame()
 
-    def n_grams(self, string: str) -> List[str]:
+    def n_grams(self, string: str, add_words: bool=False) -> List[str]:
         """
         :param string: string to create ngrams from
-        :return: list of ngrams
+        :param add_words: boolean. Add words to list of ngrams
+        :return: list of ngrams (or ngrams and words)
         """
         ngram_size = self._config.ngram_size
         regex_pattern = self._config.regex
@@ -146,7 +147,10 @@ class StringGrouper(object):
             string = string.lower()  # lowercase to ignore all case
         string = re.sub(regex_pattern, r'', string)
         n_grams = zip(*[string[i:] for i in range(ngram_size)])
-        return [''.join(n_gram) for n_gram in n_grams]
+        if add_words==True:
+            return string.split(' ') + [''.join(ngram) for ngram in ngrams]
+        else:
+            return [''.join(n_gram) for n_gram in n_grams]
 
     def fit(self) -> 'StringGrouper':
         """Builds the _matches list which contains string matches indices and similarity"""
