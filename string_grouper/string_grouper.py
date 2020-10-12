@@ -193,8 +193,9 @@ class StringGrouper(object):
         """Adds a match if it wasn't found by the fit function"""
         master_indices, dupe_indices = self._get_indices_of(master_side, dupe_side)
 
-        # add prior matches to new match 
-        dupe_indices = dupe_indices.append( self._matches_list.master_side[self._matches_list.dupe_side.isin(dupe_indices)] )
+        # add prior matches to new match
+        prior_matches = self._matches_list.master_side[self._matches_list.dupe_side.isin(dupe_indices)]
+        dupe_indices = dupe_indices.append(prior_matches)
         dupe_indices.drop_duplicates(inplace=True)
 
         similarities = [1]

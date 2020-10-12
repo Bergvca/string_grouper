@@ -282,9 +282,8 @@ class StringGrouperTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             _ = StringGrouper(pd.Series(['foo', np.nan]), pd.Series(['foo', 'j']))
 
-
     def test_prior_matches_added(self):
-        """When a new match is added, any pre-existing matches should also be updated""""
+        """When a new match is added, any pre-existing matches should also be updated"""
         sample = [
             'microsoftoffice 365 home',
             'microsoftoffice 365 pers',
@@ -296,11 +295,12 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(df['name'])
         sg = sg.fit()
 
-        sg = sg.add_match('microsoft office','microsoftoffice 365 home')
-        sg = sg.add_match('microsoftoffice 365 pers','microsoft office')
+        sg = sg.add_match('microsoft office', 'microsoftoffice 365 home')
+        sg = sg.add_match('microsoftoffice 365 pers', 'microsoft office')
         df['deduped'] = sg.get_groups()
-
+        # All strings should now match to the same "master" string
         self.assertEqual(1, len(df.deduped.unique()))
+
 
 if __name__ == '__main__':
     unittest.main()
