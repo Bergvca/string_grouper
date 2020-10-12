@@ -192,6 +192,11 @@ class StringGrouper(object):
     def add_match(self, master_side: str, dupe_side: str) -> 'StringGrouper':
         """Adds a match if it wasn't found by the fit function"""
         master_indices, dupe_indices = self._get_indices_of(master_side, dupe_side)
+
+        # add prior matches to new match 
+        dupe_indices = dupe_indices.append( self._matches_list.master_side[self._matches_list.dupe_side.isin(dupe_indices)] )
+        dupe_indices.drop_duplicates(inplace=True)
+
         similarities = [1]
 
         # cross join the indices
@@ -200,7 +205,8 @@ class StringGrouper(object):
         if self._duplicates is None:
             new_matches = StringGrouper._make_symmetric(new_matches)
         # update the matches
-        self._matches_list = pd.concat([self._matches_list, new_matches])
+        self._matches_list = pd.concat([self._matches_list.drop_duplicates(), new_matches], ignore_index=True)
+        
         return self
 
     @validate_is_fit
