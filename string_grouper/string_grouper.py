@@ -14,7 +14,7 @@ DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
-DEFAULT_ID_COL: pd.Series = None  # No named column to be used for ID by default
+DEFAULT_ID_COL: Optional[pd.Series]  # No named column to be used for ID by default
 
 
 # High level functions
