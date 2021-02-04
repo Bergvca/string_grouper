@@ -8,13 +8,14 @@ from typing import Tuple, NamedTuple, List, Optional
 from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
 
-
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
+DEFAULT_ID_COL: pd.Series = None  # No named column to be used for ID by default
+
 
 # High level functions
 
@@ -77,11 +78,15 @@ class StringGrouperConfig(NamedTuple):
     :param ngram_size: int. The amount of characters in each n-gram. Optional. Default is 3
     :param regex: str. The regex string used to cleanup the input string. Optional. Default is [,-./]|\s
     :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20
-    :param min_similarity: float. The minium cossine similarity for two strings to be considered a match.
+    :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
     Defaults to 0.8
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation. Defaults to
     1 - number of cores on a machine.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
+    :param id_col: pd.Series. Whether or not a named column Series should be used as ID's for the data column.
+    Defaults to None (no ID's for the ground truth data)
+    :param dup_id_col: pd.Series. Whether or not a named column Series should be used as ID's for the duplicates
+    data column. Defaults to None (no ID's for the duplicates data)
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -90,10 +95,13 @@ class StringGrouperConfig(NamedTuple):
     min_similarity: float = DEFAULT_MIN_SIMILARITY
     number_of_processes: int = DEFAULT_N_PROCESSES
     ignore_case: bool = DEFAULT_IGNORE_CASE
+    id_col: pd.Series = DEFAULT_ID_COL
+    dup_id_col: pd.Series = DEFAULT_ID_COL
 
 
 def validate_is_fit(f):
     """Validates if the StringBuilder was fit before calling certain public functions"""
+
     @wraps(f)
     def wrapper(*args, **kwargs):
         if args[0].is_build:
@@ -102,6 +110,7 @@ def validate_is_fit(f):
             raise StringGrouperNotFitException(f'{f.__name__} was called before the "fit" function was called.'
                                                f' Make sure to run fit the StringGrouper first using '
                                                f'StringGrouper.fit()')
+
     return wrapper
 
 
@@ -127,9 +136,9 @@ class StringGrouper(object):
                 (duplicates is not None and not StringGrouper._is_series_of_strings(duplicates)):
             raise TypeError('Input does not consist of pandas.Series containing only Strings')
 
-        self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         self._master: pd.Series = master.reset_index(drop=True)
         self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
+        self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
@@ -169,11 +178,50 @@ class StringGrouper(object):
             right_side = self._master[self._matches_list.dupe_side].reset_index(drop=True)
 
         similarity = self._matches_list.similarity.reset_index(drop=True)
-        return pd.DataFrame({
-            'left_side': left_side,
-            'right_side': right_side,
-            'similarity': similarity
-        })
+        if self._config.id_col is None:
+            if self._config.dup_id_col is None:
+                return pd.DataFrame(
+                    {
+                        'left_side': left_side,
+                        'right_side': right_side,
+                        'similarity': similarity
+                    }
+                )
+            else:
+                right_side_id = self._config.dup_id_col[self._matches_list.dupe_side].reset_index(drop=True)
+                return pd.DataFrame(
+                    {
+                        'left_side': left_side,
+                        'right_side_id': right_side_id,
+                        'right_side': right_side,
+                        'similarity': similarity
+                    }
+                )
+        else:
+            left_side_id = self._config.id_col[self._matches_list.master_side].reset_index(drop=True)
+            if self._config.dup_id_col is None and self._duplicates is not None:
+                return pd.DataFrame(
+                    {
+                        'left_side_id': left_side_id,
+                        'left_side': left_side,
+                        'right_side': right_side,
+                        'similarity': similarity
+                    }
+                )
+            else:
+                if self._config.dup_id_col is not None and self._duplicates is not None:
+                    right_side_id = self._config.dup_id_col[self._matches_list.dupe_side].reset_index(drop=True)
+                else:
+                    right_side_id = self._config.id_col[self._matches_list.dupe_side].reset_index(drop=True)
+                return pd.DataFrame(
+                    {
+                        'left_side_id': left_side_id,
+                        'left_side': left_side,
+                        'right_side_id': right_side_id,
+                        'right_side': right_side,
+                        'similarity': similarity
+                    }
+                )
 
     @validate_is_fit
     def get_groups(self) -> pd.Series:
@@ -193,20 +241,21 @@ class StringGrouper(object):
         """Adds a match if it wasn't found by the fit function"""
         master_indices, dupe_indices = self._get_indices_of(master_side, dupe_side)
 
-        # add prior matches to new match 
-        dupe_indices = dupe_indices.append( self._matches_list.master_side[self._matches_list.dupe_side.isin(dupe_indices)] )
+        # add prior matches to new match
+        prior_matches = self._matches_list.master_side[self._matches_list.dupe_side.isin(dupe_indices)]
+        dupe_indices = dupe_indices.append(prior_matches)
         dupe_indices.drop_duplicates(inplace=True)
 
         similarities = [1]
 
         # cross join the indices
         new_matches = StringGrouper._cross_join(dupe_indices, master_indices, similarities)
-        # If we are deduping within one Series, we need to make sure the matches stay symmetric
+        # If we are de-duping within one Series, we need to make sure the matches stay symmetric
         if self._duplicates is None:
             new_matches = StringGrouper._make_symmetric(new_matches)
         # update the matches
         self._matches_list = pd.concat([self._matches_list.drop_duplicates(), new_matches], ignore_index=True)
-        
+
         return self
 
     @validate_is_fit
