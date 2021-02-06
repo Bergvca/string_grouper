@@ -141,6 +141,72 @@ class StringGrouperTest(unittest.TestCase):
         expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
+    def test_get_matches_1_series_1_id_series(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz', 'foo'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
+        sg = StringGrouper(test_series_1, id_col=test_series_id_1)
+        sg = sg.fit()
+        left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
+        right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        right_side_id = ['A3', 'A0', 'A1', 'A2', 'A3', 'A0']
+        similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
+                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_2_series_2_id_series(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2'])
+        sg = StringGrouper(test_series_1, test_series_2, id_col=test_series_id_1, dup_id_col=test_series_id_2).fit()
+        left_side = ['foo', 'bar']
+        left_side_id = ['A0', 'A1']
+        right_side = ['foo', 'bar']
+        right_side_id = ['B0', 'B1']
+        similarity = [1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
+                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_raises_exception_if_unexpected_options_given(self):
+        # When the input id data does not correspond with its string data:
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1'])
+        with self.assertRaises(Exception):
+            StringGrouper(test_series_1, id_col=test_series_id_1)
+        with self.assertRaises(Exception):
+            StringGrouper(test_series_1, test_series_2, id_col=test_series_id_1, dup_id_col=test_series_id_2)
+        with self.assertRaises(Exception):
+            StringGrouper(test_series_1, test_series_2, id_col=test_series_id_1)
+        with self.assertRaises(Exception):
+            StringGrouper(test_series_1, test_series_2, dup_id_col=test_series_id_2)
+        with self.assertRaises(Exception):
+            StringGrouper(test_series_1, dup_id_col=test_series_id_2)
+        with self.assertRaises(Exception):
+            StringGrouper(test_series_1, id_col=test_series_id_1, dup_id_col=test_series_id_2)
+
+        # When the input data is ok but the option combinations are invalid:
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2'])
+        sg1 = StringGrouper(test_series_1, test_series_2, id_col=test_series_id_1).fit()
+        sg2 = StringGrouper(test_series_1, test_series_2, dup_id_col=test_series_id_2).fit()
+        sg3 = StringGrouper(test_series_1, dup_id_col=test_series_id_2).fit()
+        sg4 = StringGrouper(test_series_1, id_col=test_series_id_1, dup_id_col=test_series_id_2).fit()
+        with self.assertRaises(Exception):
+            sg1.get_matches()
+        with self.assertRaises(Exception):
+            sg2.get_matches()
+        with self.assertRaises(Exception):
+            sg3.get_matches()
+        with self.assertRaises(Exception):
+            sg4.get_matches()
+
     def test_get_groups_single_df(self):
         """Should return a pd.series object with the same length as the original df. The series object will contain
         a list of the grouped strings"""
@@ -282,9 +348,8 @@ class StringGrouperTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             _ = StringGrouper(pd.Series(['foo', np.nan]), pd.Series(['foo', 'j']))
 
-
     def test_prior_matches_added(self):
-        """When a new match is added, any pre-existing matches should also be updated""""
+        """When a new match is added, any pre-existing matches should also be updated"""
         sample = [
             'microsoftoffice 365 home',
             'microsoftoffice 365 pers',

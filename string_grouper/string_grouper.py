@@ -141,12 +141,12 @@ class StringGrouper(object):
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         # Validate Optional ID input
         if self._config.id_col is not None and len(master) != len(self._config.id_col):
-            raise UserWarning('parameters master and id_col must be pandas.Series of the same length')
+            raise Exception('Master and id_col must be pandas.Series of the same length.')
         if duplicates is not None:
             if self._config.dup_id_col is not None and len(duplicates) != len(self._config.dup_id_col):
-                raise UserWarning('parameters duplicates and dup_id_col must be pandas.Series of the same length')
+                raise Exception('Duplicates and dup_id_col must be pandas.Series of the same length.')
         elif self._config.dup_id_col is not None and len(master) != len(self._config.dup_id_col):
-            raise UserWarning('parameters master and dup_id_col must be pandas.Series of the same length')
+            raise Exception('Master and dup_id_col must be pandas.Series of the same length.')
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
