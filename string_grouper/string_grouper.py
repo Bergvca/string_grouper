@@ -169,59 +169,48 @@ class StringGrouper(object):
 
     @validate_is_fit
     def get_matches(self) -> pd.DataFrame:
-        """Returns a DataFrame with all the matches and their cosine similarity"""
+        """
+        Returns a DataFrame with all the matches and their cosine similarity.
+        If optional IDs are used, returned as extra columns with IDs matched to respective data rows
+        """
         left_side = self._master[self._matches_list.master_side].reset_index(drop=True)
-
-        if self._duplicates is not None:
-            right_side = self._duplicates[self._matches_list.dupe_side].reset_index(drop=True)
-        else:
-            right_side = self._master[self._matches_list.dupe_side].reset_index(drop=True)
-
         similarity = self._matches_list.similarity.reset_index(drop=True)
-        if self._config.id_col is None:
-            if self._config.dup_id_col is None:
-                return pd.DataFrame(
-                    {
-                        'left_side': left_side,
-                        'right_side': right_side,
-                        'similarity': similarity
-                    }
-                )
-            else:
-                right_side_id = self._config.dup_id_col[self._matches_list.dupe_side].reset_index(drop=True)
-                return pd.DataFrame(
-                    {
-                        'left_side': left_side,
-                        'right_side_id': right_side_id,
-                        'right_side': right_side,
-                        'similarity': similarity
-                    }
-                )
+        left_side_id = None
+        right_side_id = None
+
+        if self._duplicates is None:
+            right_side = self._master[self._matches_list.dupe_side].reset_index(drop=True)
+            if self._config.id_col is not None and self._config.dup_id_col is None:
+                left_side_id = self._config.id_col[self._matches_list.master_side].reset_index(drop=True)
+                right_side_id = self._config.id_col[self._matches_list.dupe_side].reset_index(drop=True)
+            elif self._config.id_col is not None or self._config.dup_id_col is not None:
+                raise Exception('Master only match column can only have Master ID column set.')
         else:
-            left_side_id = self._config.id_col[self._matches_list.master_side].reset_index(drop=True)
-            if self._config.dup_id_col is None and self._duplicates is not None:
-                return pd.DataFrame(
-                    {
-                        'left_side_id': left_side_id,
-                        'left_side': left_side,
-                        'right_side': right_side,
-                        'similarity': similarity
-                    }
-                )
-            else:
-                if self._config.dup_id_col is not None and self._duplicates is not None:
-                    right_side_id = self._config.dup_id_col[self._matches_list.dupe_side].reset_index(drop=True)
-                else:
-                    right_side_id = self._config.id_col[self._matches_list.dupe_side].reset_index(drop=True)
-                return pd.DataFrame(
-                    {
-                        'left_side_id': left_side_id,
-                        'left_side': left_side,
-                        'right_side_id': right_side_id,
-                        'right_side': right_side,
-                        'similarity': similarity
-                    }
-                )
+            right_side = self._duplicates[self._matches_list.dupe_side].reset_index(drop=True)
+            if self._config.id_col is not None and self._config.dup_id_col is not None:
+                left_side_id = self._config.id_col[self._matches_list.master_side].reset_index(drop=True)
+                right_side_id = self._config.dup_id_col[self._matches_list.dupe_side].reset_index(drop=True)
+            elif self._config.id_col is not None or self._config.dup_id_col is not None:
+                raise Exception('Duplicate value column set, but only one of the ID columns set.')
+
+        if right_side_id is None:
+            return pd.DataFrame(
+                {
+                    'left_side': left_side,
+                    'right_side': right_side,
+                    'similarity': similarity
+                }
+            )
+        else:
+            return pd.DataFrame(
+                {
+                    'left_side': left_side,
+                    'left_side_id': left_side_id,
+                    'right_side': right_side,
+                    'right_side_id': right_side_id,
+                    'similarity': similarity
+                }
+            )
 
     @validate_is_fit
     def get_groups(self) -> pd.Series:
