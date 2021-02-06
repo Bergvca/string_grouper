@@ -212,10 +212,10 @@ class StringGrouper(object):
         else:
             return pd.DataFrame(
                 {
-                    'left_side': left_side,
                     'left_side_id': left_side_id,
-                    'right_side': right_side,
+                    'left_side': left_side,
                     'right_side_id': right_side_id,
+                    'right_side': right_side,
                     'similarity': similarity
                 }
             )
