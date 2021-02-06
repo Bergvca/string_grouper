@@ -14,7 +14,7 @@ DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
-DEFAULT_ID_COL: Optional[pd.Series]  # No named column to be used for ID by default
+DEFAULT_ID_COL: Optional[pd.Series] = None  # No named column to be used for ID by default
 
 
 # High level functions
@@ -139,6 +139,14 @@ class StringGrouper(object):
         self._master: pd.Series = master.reset_index(drop=True)
         self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
+        # Validate Optional ID input
+        if self._config.id_col is not None and len(master) != len(self._config.id_col):
+            raise UserWarning('parameters master and id_col must be pandas.Series of the same length')
+        if duplicates is not None:
+            if self._config.dup_id_col is not None and len(duplicates) != len(self._config.dup_id_col):
+                raise UserWarning('parameters duplicates and dup_id_col must be pandas.Series of the same length')
+        elif self._config.dup_id_col is not None and len(master) != len(self._config.dup_id_col):
+            raise UserWarning('parameters master and dup_id_col must be pandas.Series of the same length')
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
