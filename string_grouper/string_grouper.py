@@ -8,13 +8,13 @@ from typing import Tuple, NamedTuple, List, Optional
 from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
 
-
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
+
 
 # High level functions
 
@@ -55,7 +55,11 @@ def match_most_similar(master: pd.Series, duplicates: pd.Series, **kwargs) -> pd
     return string_grouper.get_groups()
 
 
-def match_strings(master: pd.Series, duplicates: Optional[pd.Series] = None, **kwargs) -> pd.DataFrame:
+def match_strings(master: pd.Series,
+                  duplicates: Optional[pd.Series] = None,
+                  master_id: Optional[pd.Series] = None,
+                  duplicates_id: Optional[pd.Series] = None,
+                  **kwargs):
     """
     Returns all highly similar strings. If only 'master' is given, it will return highly similar strings within master.
     This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
@@ -63,10 +67,16 @@ def match_strings(master: pd.Series, duplicates: Optional[pd.Series] = None, **k
 
     :param master: pandas.Series. Series of strings against which matches are calculated
     :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional)
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional)
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional)
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig
     :return: pandas.Dataframe
     """
-    string_grouper = StringGrouper(master, duplicates=duplicates, **kwargs).fit()
+    string_grouper = StringGrouper(master,
+                                   duplicates=duplicates,
+                                   master_id=master_id,
+                                   duplicates_id=duplicates_id,
+                                   **kwargs).fit()
     return string_grouper.get_matches()
 
 
@@ -77,7 +87,7 @@ class StringGrouperConfig(NamedTuple):
     :param ngram_size: int. The amount of characters in each n-gram. Optional. Default is 3
     :param regex: str. The regex string used to cleanup the input string. Optional. Default is [,-./]|\s
     :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20
-    :param min_similarity: float. The minium cossine similarity for two strings to be considered a match.
+    :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
     Defaults to 0.8
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation. Defaults to
     1 - number of cores on a machine.
@@ -94,6 +104,7 @@ class StringGrouperConfig(NamedTuple):
 
 def validate_is_fit(f):
     """Validates if the StringBuilder was fit before calling certain public functions"""
+
     @wraps(f)
     def wrapper(*args, **kwargs):
         if args[0].is_build:
@@ -102,6 +113,7 @@ def validate_is_fit(f):
             raise StringGrouperNotFitException(f'{f.__name__} was called before the "fit" function was called.'
                                                f' Make sure to run fit the StringGrouper first using '
                                                f'StringGrouper.fit()')
+
     return wrapper
 
 
@@ -111,7 +123,11 @@ class StringGrouperNotFitException(Exception):
 
 
 class StringGrouper(object):
-    def __init__(self, master: pd.Series, duplicates: Optional[pd.Series] = None, **kwargs):
+    def __init__(self, master: pd.Series,
+                 duplicates: Optional[pd.Series] = None,
+                 master_id: Optional[pd.Series] = None,
+                 duplicates_id: Optional[pd.Series] = None,
+                 **kwargs):
         """
         StringGrouper is a class that holds the matrix with cosine similarities between the master and duplicates
         matrix. If duplicates is not given it is replaced by master. To build this matrix the `fit` function must be
@@ -120,16 +136,24 @@ class StringGrouper(object):
         :param master: pandas.Series. A series of strings in which similar strings are searched, either against itself
         or against the `duplicates` series.
         :param duplicates: pandas.Series. If set, for each string in duplicates a similar string is searched in Master.
+        :param master_id: pandas.Series. If set, contains ID values for each row in master series.
+        :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates series.
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
-        # Validate input
+        # Validate match strings input
         if not StringGrouper._is_series_of_strings(master) or \
                 (duplicates is not None and not StringGrouper._is_series_of_strings(duplicates)):
             raise TypeError('Input does not consist of pandas.Series containing only Strings')
+        # Validate optional IDs input
+        if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
+            raise Exception('List of data Series options is invalid')
+        StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
 
-        self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         self._master: pd.Series = master.reset_index(drop=True)
         self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
+        self._master_id: pd.Series = master_id.reset_index(drop=True) if master_id is not None else None
+        self._duplicates_id: pd.Series = duplicates_id.reset_index(drop=True) if duplicates_id is not None else None
+        self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
@@ -160,20 +184,39 @@ class StringGrouper(object):
 
     @validate_is_fit
     def get_matches(self) -> pd.DataFrame:
-        """Returns a DataFrame with all the matches and their cosine similarity"""
-        left_side = self._master[self._matches_list.master_side].reset_index(drop=True)
+        """
+        Returns a DataFrame with all the matches and their cosine similarity.
+        If optional IDs are used, returned as extra columns with IDs matched to respective data rows
+        """
+        def get_both_sides(master, duplicates):
+            left = master[self._matches_list.master_side].reset_index(drop=True)
+            if self._duplicates is None:
+                right = master[self._matches_list.dupe_side].reset_index(drop=True)
+            else:
+                right = duplicates[self._matches_list.dupe_side].reset_index(drop=True)
+            return left, right
 
-        if self._duplicates is not None:
-            right_side = self._duplicates[self._matches_list.dupe_side].reset_index(drop=True)
-        else:
-            right_side = self._master[self._matches_list.dupe_side].reset_index(drop=True)
-
+        left_side, right_side = get_both_sides(self._master, self._duplicates)
         similarity = self._matches_list.similarity.reset_index(drop=True)
-        return pd.DataFrame({
-            'left_side': left_side,
-            'right_side': right_side,
-            'similarity': similarity
-        })
+        if self._master_id is None:
+            return pd.DataFrame(
+                {
+                    'left_side': left_side,
+                    'right_side': right_side,
+                    'similarity': similarity
+                }
+            )
+        else:
+            left_side_id, right_side_id = get_both_sides(self._master_id, self._duplicates_id)
+            return pd.DataFrame(
+                {
+                    'left_side_id': left_side_id,
+                    'left_side': left_side,
+                    'right_side_id': right_side_id,
+                    'right_side': right_side,
+                    'similarity': similarity
+                }
+            )
 
     @validate_is_fit
     def get_groups(self) -> pd.Series:
@@ -202,12 +245,12 @@ class StringGrouper(object):
 
         # cross join the indices
         new_matches = StringGrouper._cross_join(dupe_indices, master_indices, similarities)
-        # If we are deduping within one Series, we need to make sure the matches stay symmetric
+        # If we are de-duping within one Series, we need to make sure the matches stay symmetric
         if self._duplicates is None:
             new_matches = StringGrouper._make_symmetric(new_matches)
         # update the matches
         self._matches_list = pd.concat([self._matches_list.drop_duplicates(), new_matches], ignore_index=True)
-        
+
         return self
 
     @validate_is_fit
@@ -401,3 +444,18 @@ class StringGrouper(object):
         elif series_to_test.str.len().isna().any():
             return False
         return True
+
+    @staticmethod
+    def _is_input_data_combination_valid(duplicates, master_id, duplicates_id) -> bool:
+        if duplicates is None and (duplicates_id is not None) \
+                or duplicates is not None and ((master_id is None) ^ (duplicates_id is None)):
+            return False
+        else:
+            return True
+
+    @staticmethod
+    def _validate_id_data(master, duplicates, master_id, duplicates_id):
+        if master_id is not None and len(master) != len(master_id):
+            raise Exception('Both master and master_id must be pandas.Series of the same length.')
+        if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
+            raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
