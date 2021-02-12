@@ -4,6 +4,7 @@ import re
 import multiprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse.csr import csr_matrix
+from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional
 from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
@@ -386,25 +387,20 @@ class StringGrouper(object):
         return dupes_max_sim['master'].rename(None)
 
     def _deduplicate(self) -> pd.Series:
-        master_indices = self._master.index.to_series()
-        index_to_index = pd.DataFrame({
-            'master_side': master_indices,
-            'dupe_side': master_indices,
-            'similarity': np.full(master_indices.shape[0], 1)
-        })
-        all_id_tuples = pd.concat([self._matches_list, index_to_index])
-
-        # get the groups
-        grouped_id_tuples = all_id_tuples.groupby('dupe_side').agg('min').reset_index()
-        grouped_id_tuples.columns = ['original_id', 'group_id', 'min_similarity']
-
-        # clean the groups:
-        grouped_id_tuples = StringGrouper._clean_groups(grouped_id_tuples)
-        grouped_id_tuples = grouped_id_tuples.sort_values(by='original_id')
-
-        # Get the strings belonging to the group ids
-        group_id_strings = self._master[grouped_id_tuples.group_id].reset_index(drop=True)
-        return group_id_strings
+        n = len(self._master)
+        graph = csr_matrix(
+            (
+                np.full(len(self._matches_list), 1),
+                (self._matches_list.master_side.to_numpy(), self._matches_list.dupe_side.to_numpy())
+            ),
+            shape=(n, n)
+        )
+        group_labels = pd.Series(connected_components(csgraph=graph, directed=False)[1])
+        grouped = pd.DataFrame({'group_label': group_labels, 'master_id': self._master.index.to_series()})
+        first_id_in_group = grouped.groupby('group_label')['master_id'].first().rename('nominal_group').reset_index()
+        group_id = grouped.merge(first_id_in_group, how='right',
+                                 on='group_label').sort_values('master_id').reset_index(drop=True)
+        return self._master[group_id.nominal_group].reset_index(drop=True)
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
