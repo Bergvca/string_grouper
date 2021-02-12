@@ -33,7 +33,7 @@ from string_grouper import match_strings
 
 ### Import Data
 
-***Tip:*** Assuming the data set will come from an external database for optimum performance only export the ID column and the text column that matching will be done on, and convert the text data to lower case.
+***Tip:*** Assuming the data set will come from an external database for optimum performance only export the ID column and the text column that matching will be done on, and convert the text data column (**not the ID column**) to lower case.
 
 #### Import the sample data.
 
@@ -82,13 +82,13 @@ accounts
 
 ### Find matches, assign to new pandas variable
 
-Next use the match_strings function and pass the 'name' column as the values, and the 'id' column as the optional master_id.
+Next, use the match_strings function and pass the 'name' column as the values, and the 'id' column as the master_id.
 
 ```python
 matches = match_strings(accounts['name'], master_id = accounts['id'])
 matches
 ```
-This will return a pandas data frame as below. The values (company) we will focus on in this example will be those that have variations of a fictitious company 'Hyper Startup Inc.' in the resultant data frame.
+This will return a pandas data frame as below. The values (company) we will focus on in this example will be those that have variations of a fictitious company 'Hyper Startup Inc.'.
 
 
 <div>
@@ -165,7 +165,7 @@ This will return a pandas data frame as below. The values (company) we will focu
 </div>
 
 
-In the pattern matching process each value in the row of the column for matching is checked against every other row. If there were 100,000 rows the total iterations would be 100,000^2 = 10 Billion. Processing that number of iterations in a normal Python loop (not using String Grouper) would require replacing the CPU of the computer for each investigation. Well maybe not... but you *would* have time for a few cups of coffee.
+In the pattern matching process each value in the row of the column for matching is checked against every other row. If there were 100,000 rows the total iterations would be 100,000^2 = 10 Billion. Processing that number of iterations in a normal Python loop (not using String Grouper) would require replacing the CPU of the computer after each investigation. Well maybe not... but you *would* have time for a few cups of coffee.
 
 In the result data frame above we see the IDs (AA098762D, BB099931J) having each a group of two values — once where a close match is found, and once where it's own record (value) is found. The third ID, CC082744L, is only returned once, even though it is pretty clear that it would be a variation of our factitious company 'Hyper Startup Inc.'
 
@@ -180,7 +180,7 @@ The default minimum similarity is `0.8`, it may be found that more matches may b
 matches = match_strings(accounts['name'], master_id = accounts['id'], min_similarity = 0.7)
 ```
 
-***Tip:*** If the data set being matched is large and you wish to experiment with the minimum similarity option, it may be helpful to import a limited data set — this can be done when importing.
+***Tip:*** If the data set being matched is large and you wish to experiment with the minimum similarity option, it may be helpful to import only a limited data set during testing and increase to the full data set when ready. The number of rows imported can be specified when importing.
 
 ```python
 # We only look at the first 50k as an example
@@ -396,9 +396,9 @@ And we see the following for the company name we have been following. N.B. the p
 </div>
 
 
-### Reduce to rows having duplicate IDs
+### Reduce to unique rows having duplicate IDs
 
-Finally we reduce the data to a pandas series ready for exporting with one row for each record that has duplicates in the matched row.
+Finally we reduce the data to a pandas series ready for exporting with one row for each record that has any duplicates.
 
 ```python
 company_dupes = pd.DataFrame(dupes.left_side_id.unique()).squeeze().rename('company_id')
@@ -420,3 +420,10 @@ With the following result.
 9    BB750431M
 Name: company_id, dtype: object
 ```
+
+How this is processed, any database clean up, is out of the scope of this tutorial. A first step however could be:
+
+1. Import the list of database IDs into the relevant database as temporary table
+1. Do an inner-join with the original table the data was exported from and sort ascending by the 'name' column
+
+This will returned filtered rows with the 'name' field in adjacent rows showing similar matched strings.
