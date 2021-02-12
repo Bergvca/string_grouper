@@ -2,7 +2,7 @@
 
 ## Introduction
 
-A common requirement in data clean up is the situation where a data set (database, pandas DataFrame) has multiple database records for the same entity and the duplicates need to be found. This example will not cover the task of merging or removing duplicate records — what it will do is use String Grouper to find duplicate records using the match_strings function with its optional IDs functionality.
+A common requirement in data clean-up is the situation where a data set (database, pandas DataFrame) has multiple database records for the same entity and the duplicates need to be found. This example will not cover the task of merging or removing duplicate records — what it will do is use String Grouper to find duplicate records using the match_strings function with its optional IDs functionality.
 
 For the example we will use [this](accounts.csv) simple data set. The number of rows is not important, the name column has a number of typical cases of types of variations in spelling.
 
@@ -47,7 +47,7 @@ accounts = pd.read_csv('string_grouper/tutorials/accounts.csv')
 accounts
 ```
 
-#### Result, first three rows shown.
+#### Result (first three rows shown):
 
 <div>
 <table border="1" class="dataframe">
@@ -173,14 +173,14 @@ This will return a pandas data frame as below. The values (company) we will focu
 
 In the pattern matching process each value in the row of the column for matching is checked against every other row. If there were 100,000 rows the total iterations would be 100,000^2 = 10 Billion. Processing that number of iterations in a normal Python loop (not using String Grouper) would require replacing the CPU of the computer after each investigation. Well maybe not... but you *would* have time for a few cups of coffee.
 
-In the result data frame above we see the IDs (AA098762D, BB099931J) having each a group of two values — once where a close match is found, and once where it's own record (value) is found. The third ID, CC082744L, is only returned once, even though it is pretty clear that it would be a variation of our factitious company 'Hyper Startup Inc.'
+In the result data frame above we see the IDs (AA098762D, BB099931J) having each a group of two values — once where a close match is found, and once where it's own record (value) is found. The third ID, CC082744L, is only returned once, even though it is pretty clear that it would be a variation of our fictitious company 'Hyper Startup Inc.'
 
 
 ### Using the 'Minimum Similarity' keyword argument
 
 String Grouper has a number of configuration options (see kwargs in README.md), the option of interest for the above case is `min_similarity`. 
 
-The default minimum similarity is `0.8`, it may be found that more matches may be found by reducing the `min_similarity` numerical value, from 0.8 to say 0.7
+The default minimum similarity is `0.8`, it can be seen that more matches may be found by reducing the `min_similarity` numerical value, from 0.8 to say 0.7
 
 ```python
 matches = match_strings(accounts['name'], master_id = accounts['id'], min_similarity = 0.7)
@@ -312,13 +312,13 @@ Now we see the IDs — AA098762D, BB099931J, CC082744L — have further matches,
 
 ### Removing identical rows
 
-Once we are happy with the level of matching we can remove the rows where the IDs are the same. Having the original (database) IDs for the rows means that we can precisely remove identical rows.
+Once we are happy with the level of matching, we can remove the rows where the IDs are the same. Having the original (database) IDs for the rows means that we can precisely remove identical rows.
 
 ```python
 dupes = matches[matches.left_side_id != matches.right_side_id]
 dupes
 ```
-And we see the following for the company name we have been following. N.B. the pandas index number 14 has gone because the left and right side **IDs** were identical.
+And we see the following for the company name we have been following. **N.B.** the pandas index number 14 has gone because the left and right side **IDs** were identical.
 
 <div>
 <table border="1" class="dataframe">
