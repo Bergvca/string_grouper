@@ -24,6 +24,10 @@ BB750431M,a.b.c. enterprises inc.
 ZZ123456H,one and only inc.
 ```
 
+## Example
+
+The steps below will process the above sample file using String Grouper to search for matches in the values in the 'name' column. The results shown in tables at each step are based on the sample.
+
 ### Setup
 
 ```python
@@ -83,6 +87,8 @@ accounts
 ### Find matches, assign to new pandas variable
 
 Next, use the match_strings function and pass the 'name' column as the values, and the 'id' column as the master_id.
+
+**N.B.** In production with a real data set, depending on its size, the following command can/may take a number of minutes — ***no update/progress indicator is shown***. This obviously also depends on the performance of the computer used. Memory and hard disk performance are a factor as well as the CPU. String Grouper is using pandas which, in turn, is using NumPy, so matching is not done by computationally intensive looping, but by [array mathematics](https://realpython.com/numpy-array-programming/) — but it still may take some time on large data sets.
 
 ```python
 matches = match_strings(accounts['name'], master_id = accounts['id'])
@@ -184,7 +190,7 @@ matches = match_strings(accounts['name'], master_id = accounts['id'], min_simila
 
 ```python
 # We only look at the first 50k as an example
-accounts = pd.read_csv('/path/to/file/huge_file.csv')[0:50000]
+accounts = pd.read_csv('/path/to/folder/huge_file.csv')[0:50000]
 ```
 
 Changing the option to `min_similarity = 0.7` returns this:
@@ -423,7 +429,7 @@ Name: company_id, dtype: object
 
 How this is processed, any database clean up, is out of the scope of this tutorial. A first step however could be:
 
-1. Import the list of database IDs into the relevant database as temporary table
+1. Import the list of database IDs into the relevant database as a temporary table
 1. Do an inner-join with the original table the data was exported from and sort ascending by the 'name' column
 
 This will returned filtered rows with the 'name' field in adjacent rows showing similar matched strings.
