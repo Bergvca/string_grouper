@@ -1,0 +1,422 @@
+# Finding Duplicates With IDs In String Grouper
+
+## Introduction
+
+A common requirement in data clean up is the situation where a data set (database, pandas DataFrame) has multiple database records for the same entity and the duplicates need to be found. This example will not cover the task of merging or removing duplicate records — what it will do is use String Grouper to find duplicate records using the match_strings function with its optional IDs functionality.
+
+For the example we will use [this](accounts.csv) simple data set. The number of rows is not important, the name column has a number of typical cases of types of variations in spelling.
+
+```
+id,name
+AA012345X,mega enterprises corp.
+BB016741P,mega enterprises corporation
+CC052345T,mega corp.
+AA098762D,hyper startup inc.
+BB099931J,hyper-startup inc.
+CC082744L,hyper startup incorporated
+HH072982K,hyper hyper inc.
+AA903844B,slow and steady inc.
+BB904941H,slow and steady incorporated
+CC903844B,slow steady inc.
+AA777431C,abc enterprises inc.
+BB760431Y,a.b.c. enterprises incorporated
+BB750431M,a.b.c. enterprises inc.
+ZZ123456H,one and only inc.
+```
+
+### Setup
+
+```python
+import pandas as pd
+from string_grouper import match_strings
+```
+
+### Import Data
+
+***Tip:*** Assuming the data set will come from an external database for optimum performance only export the ID column and the text column that matching will be done on, and convert the text data to lower case.
+
+#### Import the sample data.
+
+```python
+accounts = pd.read_csv('string_grouper/tutorials/accounts.csv')
+# Show data frame
+accounts
+```
+
+#### Result, first three rows shown.
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>id</th>
+      <th>name</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>AA012345X</td>
+      <td>mega enterprises corp.</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>BB016741P</td>
+      <td>mega enterprises corporation</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>CC052345T</td>
+      <td>mega corp.</td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+### Find matches, assign to new pandas variable
+
+Next use the match_strings function and pass the 'name' column as the values, and the 'id' column as the optional master_id.
+
+```python
+matches = match_strings(accounts['name'], master_id = accounts['id'])
+matches
+```
+This will return a pandas data frame as below. The values (company) we will focus on in this example will be those that have variations of a fictitious company 'Hyper Startup Inc.' in the resultant data frame.
+
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>left_side_id</th>
+      <th>left_side</th>
+      <th>right_side_id</th>
+      <th>right_side</th>
+      <th>similarity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+In the pattern matching process each value in the row of the column for matching is checked against every other row. If there were 100,000 rows the total iterations would be 100,000^2 = 10 Billion. Processing that number of iterations in a normal Python loop (not using String Grouper) would require replacing the CPU of the computer for each investigation. Well maybe not... but you *would* have time for a few cups of coffee.
+
+In the result data frame above we see the IDs (AA098762D, BB099931J) having each a group of two values — once where a close match is found, and once where it's own record (value) is found. The third ID, CC082744L, is only returned once, even though it is pretty clear that it would be a variation of our factitious company 'Hyper Startup Inc.'
+
+
+### Using the 'Minimum Similarity' keyword argument
+
+String Grouper has a number of configuration options (see kwargs in README.md), the option of interest for the above case is `min_similarity`. 
+
+The default minimum similarity is `0.8`, it may be found that more matches may be found by reducing the `min_similarity` numerical value, from 0.8 to say 0.7
+
+```python
+matches = match_strings(accounts['name'], master_id = accounts['id'], min_similarity = 0.7)
+```
+
+***Tip:*** If the data set being matched is large and you wish to experiment with the minimum similarity option, it may be helpful to import a limited data set — this can be done when importing.
+
+```python
+# We only look at the first 50k as an example
+accounts = pd.read_csv('/path/to/file/huge_file.csv')[0:50000]
+```
+
+Changing the option to `min_similarity = 0.7` returns this:
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>left_side_id</th>
+      <th>left_side</th>
+      <th>right_side_id</th>
+      <th>right_side</th>
+      <th>similarity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>HH072982K</td>
+      <td>hyper hyper inc.</td>
+      <td>HH072982K</td>
+      <td>hyper hyper inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+Now we see the IDs — AA098762D, BB099931J, CC082744L — have further matches, each name value has two other matching rows (IDs). However we see that setting similarity to 0.7 has still not matched 'hyper hyper inc.' (ID HH072982K) even though a person would judge that the name is a match (duplicate). The similarity setting can be adjusted up and down until it is considered that most duplicates are being matched. If so we can progress.
+
+### Removing identical rows
+
+Once we are happy with the level of matching we can remove the rows where the IDs are the same. Having the original (database) IDs for the rows means that we can precisely remove identical rows.
+
+```python
+dupes = matches[matches.left_side_id != matches.right_side_id]
+dupes
+```
+And we see the following for the company name we have been following. N.B. the pandas index number 14 has gone because the left and right side **IDs** were identical.
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>left_side_id</th>
+      <th>left_side</th>
+      <th>right_side_id</th>
+      <th>right_side</th>
+      <th>similarity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>1.00</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>BB099931J</td>
+      <td>hyper-startup inc.</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>CC082744L</td>
+      <td>hyper startup incorporated</td>
+      <td>AA098762D</td>
+      <td>hyper startup inc.</td>
+      <td>0.78</td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+### Reduce to rows having duplicate IDs
+
+Finally we reduce the data to a pandas series ready for exporting with one row for each record that has duplicates in the matched row.
+
+```python
+company_dupes = pd.DataFrame(dupes.left_side_id.unique()).squeeze().rename('company_id')
+company_dupes
+```
+
+With the following result.
+
+```
+0    AA012345X
+1    BB016741P
+2    AA098762D
+3    BB099931J
+4    CC082744L
+5    AA903844B
+6    BB904941H
+7    AA777431C
+8    BB760431Y
+9    BB750431M
+Name: company_id, dtype: object
+```

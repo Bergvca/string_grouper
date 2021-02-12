@@ -1,17 +1,20 @@
 
-# string_grouper
+# String Grouper
 
-*string_grouper* is a library that makes finding groups of similar strings within a single or within multiple lists of strings easy. *string_grouper* uses **tf-idf** to calculate **cosine similarities** within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
+*string_grouper* is a library that makes finding groups of similar strings within a single or, multiple, lists of strings easy — and fast. *string_grouper* uses **tf-idf** to calculate [**cosine similarities**](https://towardsdatascience.com/understanding-cosine-similarity-and-its-application-fd42f585296a) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
 
 The library contains 3 high level functions that can be used directly, and 1 class that allows for a more iterative approach. The three functions are:
 
-* **match_strings**(**master**: pd.Series, **duplicates**: Optional[pd.Series] = None, \**kwargs) -> pd.DataFrame:
+* **match_strings**(**master**: pd.Series, **duplicates**: Optional[pd.Series] = *None*, **master_id**: Optional[pd.Series] = *None*, **duplicates_id**: Optional[pd.Series] = *None*, **\*\*kwargs**) -> pd.DataFrame:
 Returns all highly similar strings. If only 'master' is given, it will return highly similar strings within master.
-    This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
+    This can be seen as an self-join. If both 'master' and 'duplicates' are given, it will return highly similar strings
     between master and duplicates. This can be seen as an inner-join.
+
+    The function also supports optionally supplying IDs for the rows of hte text values being matched. If 'master_id' is given the value from its column in the same row as the value in the master column will be returned. If both 'master_id' and 'duplicates_id' are given, the respective values from their columns in the same row of the relevant master and duplicates values will be returned.
    
    
-* **match_most_similar**(**master**: pd.Series, **duplicates**: pd.Series, \**kwargs) -> pd.Series:     Returns a series of strings of the same length as *'duplicates'* where for each string in duplicates the most similar
+* **match_most_similar**(**master**: pd.Series, **duplicates**: pd.Series, **\*\*kwargs**) -> pd.Series:
+Returns a series of strings of the same length as *'duplicates'* where for each string in duplicates the most similar
     string in **'master'** is returned. If there are no similar strings in master for a given string in duplicates
     (there is no potential match where the cosine similarity is above the threshold (default: 0.8)) 
     the original string in duplicates is returned.
@@ -20,7 +23,8 @@ Returns all highly similar strings. If only 'master' is given, it will return hi
     `[foooo, bar, new]`
     
     
-* **group_similar_strings**(**strings_to_group**: pandas.Series, \**kwargs) -> pandas.Series: Takes a single series of strings and groups these together by picking a single string in each group of similar strings, and return this as output. 
+* **group_similar_strings**(**strings_to_group**: pandas.Series, **\*\*kwargs**) -> pandas.Series: 
+Takes a single series of strings and groups these together by picking a single string in each group of similar strings, and return this as output. 
    
    For example the input series: `[foooo, foooob, bar]` will return `[foooo, foooo, bar]`. Here `foooo` and `foooob` are grouped together into group `foooo` because they are found to be similar.
    
@@ -65,8 +69,6 @@ matches = match_strings(companies['Company Name'])
 # Look at only the non-exact matches:
 matches[matches.left_side != matches.right_side].head()
 ```
-
-
 
 
 <div>
@@ -115,10 +117,8 @@ matches[matches.left_side != matches.right_side].head()
 </div>
 
 
-
 ### Find all matches in between two datasets. 
 The match_string function allows to find similar items between two datasets as well. This can be seen as an inner join between two datasets:
-
 
 
 ```python
@@ -128,8 +128,6 @@ duplicates = pd.Series(['S MEDIA GROUP', '012 SMILE.COMMUNICATIONS', 'foo bar', 
 matches = match_strings(companies['Company Name'], duplicates)
 matches
 ```
-
-
 
 
 <div>
@@ -178,12 +176,14 @@ matches
 </div>
 
 
-
 Out ouf the 4 company names in `duplicates`, 3 companies are found in the original company dataset. One company is found 3 times.
+
+### Finding duplicates from a database extract/Pandas DataFrame where IDs for rows are supplied.
+A very common scenario is the case where duplicate records for an entity have been entered into a database. That is there are two or more records where, typically, a name field has slightly different spelling. For example "A.B. Corporation" and "AB Corporation". Using the optional 'ID' parameter in the match_strings function duplicates can be found easily. A [tutorial](tutorials/tutorial_1.md) that steps though the process with an example data set is available.
+
 
 ### For a second dataset, find only the most similar match
 In the example above, it's possible that multiple matches are found for a single string. Sometimes we just want a string to match with a single most similar string. If there are no similar strings found, the original string should be returned:
-
 
 
 ```python
@@ -194,8 +194,6 @@ matches = match_most_similar(companies['Company Name'], new_companies)
 # Display the results:
 pd.DataFrame({'new_companies': new_companies, 'duplicates': matches})
 ```
-
-
 
 
 <div>
@@ -362,17 +360,12 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
 </div>
 
 
-
-
 ```python
 companies[companies.deduplicated_name.str.contains('PWC')]
 ```
 
 
-
-
 <div>
-
 <table border="1" class="dataframe">
   <thead>
     <tr style="text-align: right;">
@@ -646,5 +639,4 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
   </tbody>
 </table>
 </div>
-
 
