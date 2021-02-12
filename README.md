@@ -10,12 +10,12 @@ Returns all highly similar strings. If only 'master' is given, it will return hi
     This can be seen as an self-join. If both 'master' and 'duplicates' are given, it will return highly similar strings
     between master and duplicates. This can be seen as an inner-join.
 
-    The function also supports optionally supplying IDs for the rows of hte text values being matched. If 'master_id' is given the value from its column in the same row as the value in the master column will be returned. If both 'master_id' and 'duplicates_id' are given, the respective values from their columns in the same row of the relevant master and duplicates values will be returned.
+    The function also supports optionally supplying IDs for the rows of the text values being matched. If 'master_id' is given the value from its column in the same row as the value in the master column will be returned. If both 'master_id' and 'duplicates_id' are given, the respective values from their columns in the same row of the relevant master and duplicates values will be returned.
    
    
 * **match_most_similar**(**master**: pd.Series, **duplicates**: pd.Series, **\*\*kwargs**) -> pd.Series:
-Returns a series of strings of the same length as *'duplicates'* where for each string in duplicates the most similar
-    string in **'master'** is returned. If there are no similar strings in master for a given string in duplicates
+Returns a series of strings of the same length as 'duplicates' where for each string in duplicates the most similar
+    string in 'master' is returned. If there are no similar strings in master for a given string in duplicates
     (there is no potential match where the cosine similarity is above the threshold (default: 0.8)) 
     the original string in duplicates is returned.
   
