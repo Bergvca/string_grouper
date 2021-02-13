@@ -395,12 +395,21 @@ class StringGrouper(object):
             ),
             shape=(n, n)
         )
-        group_labels = pd.Series(connected_components(csgraph=graph, directed=False)[1])
-        grouped = pd.DataFrame({'group_label': group_labels, 'master_id': self._master.index.to_series()})
-        first_id_in_group = grouped.groupby('group_label')['master_id'].first().rename('nominal_group').reset_index()
-        group_id = grouped.merge(first_id_in_group, how='right',
-                                 on='group_label').sort_values('master_id').reset_index(drop=True)
-        return self._master[group_id.nominal_group].reset_index(drop=True)
+        old_group_id_of_master_id = pd.DataFrame(
+            {
+                'old_group_id': pd.Series(connected_components(csgraph=graph, directed=False)[1]),
+                'master_id': self._master.index.to_series()
+            }
+        )
+        first_master_id_in_group = old_group_id_of_master_id.groupby('old_group_id')['master_id']\
+            .first()\
+            .rename('new_group_id')\
+            .reset_index()
+        new_group_id_of_master_id = first_master_id_in_group\
+            .merge(old_group_id_of_master_id, how='left', on='old_group_id')\
+            .sort_values('master_id')\
+            .reset_index(drop=True)
+        return self._master[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
