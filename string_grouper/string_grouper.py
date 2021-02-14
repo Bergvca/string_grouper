@@ -334,33 +334,6 @@ class StringGrouper(object):
                                      'similarity': similarity})
         return matches_list
 
-    @staticmethod
-    def _clean_groups(grouped_id_tuples: pd.DataFrame) -> pd.DataFrame:
-        """Clean groups by merging groups that have an item in between them with a high similarity"""
-        # Find the groups where the min id is not equal to the group id
-        id_tuples_min = grouped_id_tuples.groupby('group_id').agg('min').reset_index()
-        orphans = id_tuples_min[id_tuples_min.group_id != id_tuples_min.original_id].copy()
-        if orphans.shape[0] > 0:
-            # Get the new group id's
-            new_group_id = (orphans
-                            .merge(grouped_id_tuples,
-                                   left_on='group_id', right_on='original_id', suffixes=('_orig', '_new'))
-                            [['group_id_orig', 'group_id_new']]
-                            .drop_duplicates())
-            # join them with the old group ids
-            new_grouped_id_tuples = grouped_id_tuples.merge(new_group_id,
-                                                            how='outer',
-                                                            left_on='group_id', right_on='group_id_orig')
-            # update the old ones
-            rows_to_update = ~new_grouped_id_tuples.group_id_new.isnull()
-            new_grouped_id_tuples.loc[rows_to_update, 'group_id'] = new_grouped_id_tuples[rows_to_update].group_id_new
-            grouped_id_tuples = new_grouped_id_tuples[['original_id', 'group_id', 'min_similarity']].copy()
-            grouped_id_tuples.group_id = grouped_id_tuples.group_id.astype('int64')
-            # repeat if necessary
-            return StringGrouper._clean_groups(grouped_id_tuples)
-        else:
-            return grouped_id_tuples
-
     def _get_nearest_matches(self) -> pd.Series:
 
         dupes = self._duplicates.rename('duplicates')
