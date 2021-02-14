@@ -1,7 +1,7 @@
 
 # String Grouper
 
-*string_grouper* is a library that makes finding groups of similar strings within a single or, multiple, lists of strings easy — and fast. *string_grouper* uses **tf-idf** to calculate [**cosine similarities**](https://towardsdatascience.com/understanding-cosine-similarity-and-its-application-fd42f585296a) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
+*string_grouper* is a library that makes finding groups of similar strings within a single, or multiple, lists of strings easy — and fast. *string_grouper* uses **tf-idf** to calculate [**cosine similarities**](https://towardsdatascience.com/understanding-cosine-similarity-and-its-application-fd42f585296a) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
 
 The library contains 3 high level functions that can be used directly, and 1 class that allows for a more iterative approach. The three functions are:
 
@@ -28,7 +28,7 @@ Takes a single series of strings and groups these together by picking a single s
    
    For example the input series: `[foooo, foooob, bar]` will return `[foooo, foooo, bar]`. Here `foooo` and `foooob` are grouped together into group `foooo` because they are found to be similar.
    
-All functions are built using a class **StringGrouper**. This class can be used directly as well to allow for a more an more iterative approach where matches can be added or removed if needed. 
+All functions are built using a class **StringGrouper**. This class can be used directly, as well to allow for a more an more iterative approach where matches can be added or removed if needed. 
    
 ### kwargs
 
@@ -236,7 +236,7 @@ pd.DataFrame({'new_companies': new_companies, 'duplicates': matches})
 
 ### Deduplicate a single dataset and show items with most duplicates
 
-The `group_similar_strings` functions groups strings that are similar using a single linkage clustering algorithm. That is, if item A and item B are similar, and item B and item C are similar but the similarity between A and C is below the threshold, all three items are grouped together. 
+The `group_similar_strings` function groups strings that are similar using a single linkage clustering algorithm. That is, if item A and item B are similar, and item B and item C are similar, but the similarity between A and C is below the threshold, all three items are grouped together. 
 
 
 ```python
@@ -271,10 +271,10 @@ The three functions mentioned above all create a `StringGrouper` object behind t
 
 1. Create matches
 2. Manually inspect the results
-3. Add and remove matches were necessary
-4. Create groups of similar Strings
+3. Add and remove matches where necessary
+4. Create groups of similar strings
 
-The `StringGrouper` allows for this without having to re-calculate the cosine similarity matrix. See below for an example. 
+The `StringGrouper` class allows for this without having to re-calculate the cosine similarity matrix. See below for an example. 
 
 
 ```python
@@ -293,9 +293,6 @@ string_grouper = StringGrouper(companies['Company Name'])
 string_grouper.n_grams('McDonalds')
 ```
 
-
-
-
     ['McD', 'cDo', 'Don', 'ona', 'nal', 'ald', 'lds']
 
 
@@ -304,14 +301,12 @@ string_grouper.n_grams('McDonalds')
 string_grouper = string_grouper.fit()
 ```
 
-
 ```python
 # Add the grouped strings
 companies['deduplicated_name'] = string_grouper.get_groups()
 ```
 
-
-Suppose we know that PWC HOLDING CORP and PRICEWATERHOUSECOOPERS LLP are the same company. The StringGrouper will not match these, since they are not similar enough. 
+Suppose we know that PWC HOLDING CORP and PRICEWATERHOUSECOOPERS LLP are the same company. StringGrouper will not match these since they are not similar enough. 
 
 
 ```python
