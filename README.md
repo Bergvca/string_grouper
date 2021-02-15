@@ -3,23 +3,23 @@
 
 *string_grouper* is a library that makes finding groups of similar strings within a single, or multiple, lists of strings easy — and fast. *string_grouper* uses **tf-idf** to calculate [**cosine similarities**](https://towardsdatascience.com/understanding-cosine-similarity-and-its-application-fd42f585296a) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
 
-The library contains 3 high level functions that can be used directly, and 1 class that allows for a more iterative approach. The three functions are:
+The library contains three high level functions that can be used directly, and one class that allows for a more iterative approach. The three functions are:
 
 * **match_strings**(**master**: pd.Series, **duplicates**: Optional[pd.Series] = *None*, **master_id**: Optional[pd.Series] = *None*, **duplicates_id**: Optional[pd.Series] = *None*, **\*\*kwargs**) -> pd.DataFrame:
-Returns all highly similar strings. If only `master` is given, it will return highly similar strings within master.
-    This can be seen as an self-join. If both `master` and `duplicates` are given, it will return highly similar strings
+Returns all highly similar strings. If only the `master` parameter is given an argument, it will return highly similar strings within master.
+    This can be seen as a self-join. If both `master` and `duplicates` are given, it will return highly similar strings
     between master and duplicates. This can be seen as an inner-join.
 
-    The function also supports optionally supplying IDs for the rows of the text values being matched. If `master_id` is given the value from its column in the same row as the value in the master column will be returned. If both `master_id` and `duplicates_id` are given, the respective values from their columns in the same row of the relevant master and duplicates values will be returned.
+    The function also supports optionally supplying IDs for the rows of the text values being matched. If an argument is given to the `master_id` parameter the value from its column (master_id) in the same row as the value in the master column will be returned. If both `master_id` and `duplicates_id` are given, the respective values from their columns in the same row of the relevant master and duplicates values will be returned.
    
    
 * **match_most_similar**(**master**: pd.Series, **duplicates**: pd.Series, **\*\*kwargs**) -> pd.Series:
-Returns a series of strings of the same length as `duplicates` where for each string in duplicates the most similar
+Returns a series of strings of the same length as the parameter`duplicates` where for each string in duplicates the most similar
     string in `master` is returned. If there are no similar strings in master for a given string in duplicates
     (there is no potential match where the cosine similarity is above the threshold (default: 0.8)) 
     the original string in duplicates is returned.
   
-   For example the input series `[foooo, bar, baz]` (master) and `[foooob, bar, new]` (duplicates) will return:
+   For example if the input series `[foooo, bar, baz]` is passed as the argument to `master`, and `[foooob, bar, new]` as the argument to `duplicates`, the function will return:
     `[foooo, bar, new]`
     
     
@@ -28,7 +28,7 @@ Takes a single series of strings and groups these together by picking a single s
    
    For example the input series: `[foooo, foooob, bar]` will return `[foooo, foooo, bar]`. Here `foooo` and `foooob` are grouped together into group `foooo` because they are found to be similar.
    
-All functions are built using a class **StringGrouper**. This class can be used directly, as well to allow for a more an more iterative approach where matches can be added or removed if needed. 
+All functions are built using a class **StringGrouper**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the `StringGrouper` class directly.
    
 ### kwargs
 
@@ -118,7 +118,7 @@ matches[matches.left_side != matches.right_side].head()
 
 
 ### Find all matches in between two datasets. 
-The match_string function allows to find similar items between two datasets as well. This can be seen as an inner join between two datasets:
+The `match_strings` function finds similar items between two datasets as well. This can be seen as an inner join between two datasets:
 
 
 ```python
