@@ -215,6 +215,17 @@ class StringGrouperTest(unittest.TestCase):
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
         pd.testing.assert_series_equal(expected_result, result)
 
+    def test_get_groups_1_string_series_1_id_series(self):
+        """Should return a pd.series object with the same length as the original df. The series object will contain
+        a list of the grouped strings"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
+        sg = StringGrouper(test_series_1, master_id=test_series_id_1)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['A0', 'A1', 'A2', 'A0'])
+        pd.testing.assert_series_equal(expected_result, result)
+
     def test_get_groups_two_df(self):
         """Should return a pd.series object with the length of the dupes. The series will contain the master string
         that matches the dupe with the highest similarity"""
@@ -224,6 +235,19 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        pd.testing.assert_series_equal(expected_result, result)
+
+    def test_get_groups_2_string_series_2_id_series(self):
+        """Should return a pd.series object with the length of the dupes. The series will contain the master string
+        that matches the dupe with the highest similarity"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2', 'B3'])
+        sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['A0', 'A1', 'A2', 'A0'])
         pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_two_df_same_similarity(self):
@@ -237,6 +261,19 @@ class StringGrouperTest(unittest.TestCase):
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
         pd.testing.assert_series_equal(expected_result, result)
 
+    def test_get_groups_4_df_same_similarity(self):
+        """Should return a pd.series object with the length of the dupes. If there are two dupes with the same
+        similarity, the first one is chosen"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2', 'B3'])
+        sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['A0', 'A1', 'A2', 'A0'])
+        pd.testing.assert_series_equal(expected_result, result)
+
     def test_get_groups_two_df_no_match(self):
         """Should return a pd.series object with the length of the dupes. If no match is found in dupes,
         the original will be returned"""
@@ -248,6 +285,19 @@ class StringGrouperTest(unittest.TestCase):
         expected_result = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooo'])
         pd.testing.assert_series_equal(expected_result, result)
 
+    def test_get_groups_4_df_no_match(self):
+        """Should return a pd.series object with the length of the dupes. If no match is found in dupes,
+        the original will be returned"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooob'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2', 'B3', 'B4'])
+        sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['A0', 'B1', 'A1', 'A2', 'A0'])
+        pd.testing.assert_series_equal(expected_result, result)
+
     def test_get_groups_raises_exception(self):
         """Should raise an exception if called before the StringGrouper is fit"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
@@ -255,18 +305,6 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, test_series_2)
         with self.assertRaises(StringGrouperNotFitException):
             _ = sg.get_groups()
-
-    def test_clean_groups(self):
-        """Should clean up groups where the group id index is not in the group"""
-        orig_id = [0, 1, 2, 3]
-        group_id = [0, 0, 1, 2]
-        similarities = [1, 1, 1, 1]
-        grouped_id_tuples = pd.DataFrame({'original_id': orig_id,
-                                          'group_id': group_id,
-                                          'min_similarity': similarities})
-        expected_group_id = pd.Series([0, 0, 0, 0]).rename('group_id')
-        result = StringGrouper._clean_groups(grouped_id_tuples).group_id
-        pd.testing.assert_series_equal(expected_group_id, result)
 
     def test_add_match_raises_exception_if_string_not_present(self):
         test_series_1 = pd.Series(['foooo', 'no match', 'baz', 'foooo'])

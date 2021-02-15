@@ -20,39 +20,57 @@ DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
 # High level functions
 
 
-def group_similar_strings(strings_to_group: pd.Series, **kwargs) -> pd.Series:
+def group_similar_strings(strings_to_group: pd.Series, string_ids: Optional[pd.Series] = None, **kwargs) -> pd.Series:
     """
-    Finds all similar strings in 'strings_to_group' and returns a Series of strings of the same length as
-    strings_to_group. For each group of similar strings a single string is chosen as the 'master' string and is
-    returned for each member of the group.
+    If 'string_ids' is not given, finds all similar strings in 'strings_to_group' and returns a Series of strings
+    of the same length as 'strings_to_group'. For each group of similar strings a single string is chosen as the
+    'master' string and is returned for each member of the group.
 
-    For example the input series: [foooo, foooob, bar] will return [foooo, foooo, bar]
+    If string_ids is also given, a Series of the ids of the strings corresponding to the output of the case
+    case is instead returned.
+
+    For example the input Series: [foooo, foooob, bar] will return [foooo, foooo, bar]
     Here 'foooo' and 'foooob' are grouped together into group 'foooo' because they are found to be very similar
 
-    :param strings_to_group: pandas.Series. The input series of strings to be grouped
+    :param strings_to_group: pandas.Series. The input Series of strings to be grouped
+    :param string_ids: pandas.Series. The input Series of the ids of the strings to be grouped
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig
     :return: pandas.Series
     """
-    string_grouper = StringGrouper(strings_to_group, **kwargs).fit()
+    string_grouper = StringGrouper(strings_to_group, master_id=string_ids, **kwargs).fit()
     return string_grouper.get_groups()
 
 
-def match_most_similar(master: pd.Series, duplicates: pd.Series, **kwargs) -> pd.Series:
+def match_most_similar(master: pd.Series,
+                       duplicates: pd.Series,
+                       master_id: Optional[pd.Series] = None,
+                       duplicates_id: Optional[pd.Series] = None,
+                       **kwargs) -> pd.Series:
     """
-    Returns a series of strings of the same length as 'duplicates' where for each string in duplicates the most similar
-    string in 'master' is returned. If there are no similar strings in master for a given string in duplicates
+    If no IDs ('master_id' and 'duplicates_id') are given, returns a Series of strings of the same length
+    as 'duplicates' where for each string in duplicates the most similar string in 'master' is returned.
+    If there are no similar strings in master for a given string in duplicates
     (there is no potential match where the cosine similarity is above the threshold (default: 0.8))
     the original string in duplicates is returned.
 
-    For example the input series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
+    If IDs (both 'master_id' and 'duplicates_id') are given, returns a Series of IDs corresponding to the
+    values (or rows) of the Series in the former case.
+
+    For example the input Series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
     [foooo, bar, new]
 
     :param master: pandas.Series. Series of strings that the duplicates will be matched with
     :param duplicates: pandas.Series. Series of strings that will me matched with the master
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional)
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional)
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig
     :return: pandas.Series
     """
-    string_grouper = StringGrouper(master, duplicates=duplicates, **kwargs).fit()
+    string_grouper = StringGrouper(master,
+                                   duplicates=duplicates,
+                                   master_id=master_id,
+                                   duplicates_id=duplicates_id,
+                                   **kwargs).fit()
     return string_grouper.get_groups()
 
 
@@ -134,11 +152,11 @@ class StringGrouper(object):
         matrix. If duplicates is not given it is replaced by master. To build this matrix the `fit` function must be
         called. It is possible to add and remove matches after building with the add_match and remove_match functions
 
-        :param master: pandas.Series. A series of strings in which similar strings are searched, either against itself
-        or against the `duplicates` series.
+        :param master: pandas.Series. A Series of strings in which similar strings are searched, either against itself
+        or against the `duplicates` Series.
         :param duplicates: pandas.Series. If set, for each string in duplicates a similar string is searched in Master.
-        :param master_id: pandas.Series. If set, contains ID values for each row in master series.
-        :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates series.
+        :param master_id: pandas.Series. If set, contains ID values for each row in master Series.
+        :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates Series.
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
         # Validate match strings input
@@ -221,11 +239,13 @@ class StringGrouper(object):
 
     @validate_is_fit
     def get_groups(self) -> pd.Series:
-        """If there is only a master series of strings, this will return the 'master' strings.
-         A single string in a group of near duplicates is chosen for as 'master' and is returned for each string
-         in the master series.
-         If there is a master series and a duplicate series, the most similar master is picked
-         for each duplicate and returned
+        """If there is only a master Series of strings, this will return a Series of 'master' strings.
+         A single string in a group of near duplicates is chosen as 'master' and is returned for each string
+         in the master Series.
+         If there is a master Series and a duplicate Series, the most similar master is picked
+         for each duplicate and returned.
+         If there are IDs (master_id and/or duplicates_id) then the IDs corresponding to the string outputs above are
+         returned instead.
          """
         if self._duplicates is None:
             return self._deduplicate()
@@ -335,9 +355,12 @@ class StringGrouper(object):
         return matches_list
 
     def _get_nearest_matches(self) -> pd.Series:
-
-        dupes = self._duplicates.rename('duplicates')
-        master = self._master.rename('master')
+        if self._master_id is None:
+            dupes = self._duplicates.rename('duplicates')
+            master = self._master.rename('master')
+        else:
+            dupes = self._duplicates_id.rename('duplicates')
+            master = self._master_id.rename('master')
 
         dupes_max_sim = self._matches_list.groupby('dupe_side').agg({'similarity': 'max'}).reset_index()
         dupes_max_sim = dupes_max_sim.merge(self._matches_list, on=['dupe_side', 'similarity'])
@@ -382,7 +405,10 @@ class StringGrouper(object):
             .merge(old_group_id_of_master_id, how='left', on='old_group_id')\
             .sort_values('master_id')\
             .reset_index(drop=True)
-        return self._master[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
+        if self._master_id is None:
+            return self._master[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
+        else:
+            return self._master_id[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
