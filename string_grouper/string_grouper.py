@@ -391,18 +391,18 @@ class StringGrouper(object):
             ),
             shape=(n, n)
         )
-        old_group_id_of_master_id = pd.DataFrame(
+        raw_group_id_of_master_id = pd.DataFrame(
             {
-                'old_group_id': pd.Series(connected_components(csgraph=graph, directed=False)[1]),
+                'raw_group_id': pd.Series(connected_components(csgraph=graph, directed=False)[1]),
                 'master_id': self._master.index.to_series()
             }
         )
-        first_master_id_in_group = old_group_id_of_master_id.groupby('old_group_id')['master_id']\
+        first_master_id_in_group = raw_group_id_of_master_id.groupby('raw_group_id')['master_id']\
             .first()\
             .rename('new_group_id')\
             .reset_index()
         new_group_id_of_master_id = first_master_id_in_group\
-            .merge(old_group_id_of_master_id, how='left', on='old_group_id')\
+            .merge(raw_group_id_of_master_id, how='left', on='raw_group_id')\
             .sort_values('master_id')\
             .reset_index(drop=True)
         if self._master_id is None:
