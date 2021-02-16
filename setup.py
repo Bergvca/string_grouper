@@ -12,7 +12,7 @@ setup(
     version='0.2.2',
     packages=['string_grouper'],
     license='MIT License',
-    description='String grouper contains functions to do string matching using TF-IDF and the cossine similarity. '
+    description='String grouper contains functions to do string matching using TF-IDF and the cosine similarity. '
                 'Based on https://bergvca.github.io/2017/10/14/super-fast-string-matching.html',
     author='Chris van den Berg',
     long_description=README,
