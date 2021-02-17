@@ -463,3 +463,4 @@ class StringGrouper(object):
             raise Exception('Both master and master_id must be pandas.Series of the same length.')
         if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
             raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
+
