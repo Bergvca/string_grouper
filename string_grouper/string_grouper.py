@@ -36,7 +36,7 @@ def group_similar_strings(strings_to_group: pd.Series,
     :param strings_to_group: pandas.Series. The input Series of strings to be grouped
     :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series
+    :return: pandas.Series or pandas.DataFrame
     """
     string_grouper = StringGrouper(strings_to_group, master_id=string_ids, **kwargs).fit()
     return string_grouper.get_groups()
@@ -65,7 +65,7 @@ def match_most_similar(master: pd.Series,
     :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional)
     :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional)
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series
+    :return: pandas.Series or pandas.DataFrame
     """
     string_grouper = StringGrouper(master,
                                    duplicates=duplicates,
