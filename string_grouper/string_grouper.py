@@ -358,8 +358,8 @@ class StringGrouper(object):
         dupes = self._duplicates.rename('duplicates')
         master = self._master.rename('master')
         if self._master_id is not None:
-            dupes = dupes.to_frame().insert(0, self._duplicates_id.rename('duplicates_id'))
-            master = master.to_frame().insert(0, self._master_id.rename('master_id'))
+            dupes = pd.concat([dupes, self._duplicates_id.rename('duplicates_id')], axis=1)
+            master = pd.concat([master, self._master_id.rename('master_id')], axis=1)
 
         dupes_max_sim = self._matches_list.groupby('dupe_side').agg({'similarity': 'max'}).reset_index()
         dupes_max_sim = dupes_max_sim.merge(self._matches_list, on=['dupe_side', 'similarity'])
@@ -380,6 +380,7 @@ class StringGrouper(object):
             # make sure to keep same order as duplicates
             dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
         else:
+            # update the master_id series with the duplicates_id in cases were there is no match
             dupes_max_sim.loc[rows_to_update, 'master_id'] = dupes_max_sim[rows_to_update].duplicates_id
             # make sure to keep same order as duplicates
             dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('master_id')
