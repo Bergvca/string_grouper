@@ -223,8 +223,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, master_id=test_series_id_1)
         sg = sg.fit()
         result = sg.get_groups()
-        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], index=['A0', 'A1', 'A2', 'A0'])
-        pd.testing.assert_series_equal(expected_result, result)
+        expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])))
+        pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df(self):
         """Should return a pd.series object with the length of the dupes. The series will contain the master string
@@ -247,8 +247,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
         sg = sg.fit()
         result = sg.get_groups()
-        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], index=['A0', 'A1', 'A2', 'A0'])
-        pd.testing.assert_series_equal(expected_result, result)
+        expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])))
+        pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df_same_similarity(self):
         """Should return a pd.series object with the length of the dupes. If there are two dupes with the same
@@ -271,8 +271,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
         sg = sg.fit()
         result = sg.get_groups()
-        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], index=['A0', 'A1', 'A2', 'A0'])
-        pd.testing.assert_series_equal(expected_result, result)
+        expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])))
+        pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df_no_match(self):
         """Should return a pd.series object with the length of the dupes. If no match is found in dupes,
@@ -295,8 +295,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
         sg = sg.fit()
         result = sg.get_groups()
-        expected_result = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooo'], index=['A0', 'B1', 'A1', 'A2', 'A0'])
-        pd.testing.assert_series_equal(expected_result, result)
+        expected_result = pd.DataFrame(list(zip(['A0', 'B1', 'A1', 'A2', 'A0'], ['foooo', 'dooz', 'bar', 'baz', 'foooo'])))
+        pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_raises_exception(self):
         """Should raise an exception if called before the StringGrouper is fit"""
