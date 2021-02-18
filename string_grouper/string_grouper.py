@@ -355,12 +355,11 @@ class StringGrouper(object):
         return matches_list
 
     def _get_nearest_matches(self) -> pd.Series:
-        if self._master_id is None:
-            dupes = self._duplicates.rename('duplicates')
-            master = self._master.rename('master')
-        else:
-            dupes = self._duplicates_id.rename('duplicates')
-            master = self._master_id.rename('master')
+        dupes = self._duplicates.rename('duplicates')
+        master = self._master.rename('master')
+        if self._master_id is not None:
+            dupes = dupes.to_frame().insert(0, self._duplicates_id.rename('duplicates_id'))
+            master = master.to_frame().insert(0, self._master_id.rename('master_id'))
 
         dupes_max_sim = self._matches_list.groupby('dupe_side').agg({'similarity': 'max'}).reset_index()
         dupes_max_sim = dupes_max_sim.merge(self._matches_list, on=['dupe_side', 'similarity'])
@@ -377,8 +376,13 @@ class StringGrouper(object):
         # update the master series with the duplicates in cases were there is no match
         rows_to_update = dupes_max_sim.master.isnull()
         dupes_max_sim.loc[rows_to_update, 'master'] = dupes_max_sim[rows_to_update].duplicates
-        # make sure to keep same order as duplicates
-        dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
+        if self._master_id is None:
+            # make sure to keep same order as duplicates
+            dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
+        else:
+            dupes_max_sim.loc[rows_to_update, 'master_id'] = dupes_max_sim[rows_to_update].duplicates_id
+            # make sure to keep same order as duplicates
+            dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('master_id')
         dupes_max_sim.index.rename(None, inplace=True)
         return dupes_max_sim['master'].rename(None)
 
@@ -405,10 +409,12 @@ class StringGrouper(object):
             .merge(raw_group_id_of_master_id, how='left', on='raw_group_id')\
             .sort_values('master_id')\
             .reset_index(drop=True)
+        output = self._master[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
         if self._master_id is None:
-            return self._master[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
+            return output
         else:
-            return self._master_id[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
+            output.index = self._master_id[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
+            return output
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
