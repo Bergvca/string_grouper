@@ -109,8 +109,8 @@ class StringGrouperConfig(NamedTuple):
     :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20
     :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
     Defaults to 0.8
-    :param number_of_processes: int. The number of processes used by the cosine similarity calculation. Defaults to
-    1 - number of cores on a machine.
+    :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
+    Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
     """
 
