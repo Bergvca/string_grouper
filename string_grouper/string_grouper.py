@@ -4,6 +4,7 @@ import re
 import multiprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse.csr import csr_matrix
+from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional
 from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
@@ -333,33 +334,6 @@ class StringGrouper(object):
                                      'similarity': similarity})
         return matches_list
 
-    @staticmethod
-    def _clean_groups(grouped_id_tuples: pd.DataFrame) -> pd.DataFrame:
-        """Clean groups by merging groups that have an item in between them with a high similarity"""
-        # Find the groups where the min id is not equal to the group id
-        id_tuples_min = grouped_id_tuples.groupby('group_id').agg('min').reset_index()
-        orphans = id_tuples_min[id_tuples_min.group_id != id_tuples_min.original_id].copy()
-        if orphans.shape[0] > 0:
-            # Get the new group id's
-            new_group_id = (orphans
-                            .merge(grouped_id_tuples,
-                                   left_on='group_id', right_on='original_id', suffixes=('_orig', '_new'))
-                            [['group_id_orig', 'group_id_new']]
-                            .drop_duplicates())
-            # join them with the old group ids
-            new_grouped_id_tuples = grouped_id_tuples.merge(new_group_id,
-                                                            how='outer',
-                                                            left_on='group_id', right_on='group_id_orig')
-            # update the old ones
-            rows_to_update = ~new_grouped_id_tuples.group_id_new.isnull()
-            new_grouped_id_tuples.loc[rows_to_update, 'group_id'] = new_grouped_id_tuples[rows_to_update].group_id_new
-            grouped_id_tuples = new_grouped_id_tuples[['original_id', 'group_id', 'min_similarity']].copy()
-            grouped_id_tuples.group_id = grouped_id_tuples.group_id.astype('int64')
-            # repeat if necessary
-            return StringGrouper._clean_groups(grouped_id_tuples)
-        else:
-            return grouped_id_tuples
-
     def _get_nearest_matches(self) -> pd.Series:
 
         dupes = self._duplicates.rename('duplicates')
@@ -386,25 +360,29 @@ class StringGrouper(object):
         return dupes_max_sim['master'].rename(None)
 
     def _deduplicate(self) -> pd.Series:
-        master_indices = self._master.index.to_series()
-        index_to_index = pd.DataFrame({
-            'master_side': master_indices,
-            'dupe_side': master_indices,
-            'similarity': np.full(master_indices.shape[0], 1)
-        })
-        all_id_tuples = pd.concat([self._matches_list, index_to_index])
-
-        # get the groups
-        grouped_id_tuples = all_id_tuples.groupby('dupe_side').agg('min').reset_index()
-        grouped_id_tuples.columns = ['original_id', 'group_id', 'min_similarity']
-
-        # clean the groups:
-        grouped_id_tuples = StringGrouper._clean_groups(grouped_id_tuples)
-        grouped_id_tuples = grouped_id_tuples.sort_values(by='original_id')
-
-        # Get the strings belonging to the group ids
-        group_id_strings = self._master[grouped_id_tuples.group_id].reset_index(drop=True)
-        return group_id_strings
+        n = len(self._master)
+        graph = csr_matrix(
+            (
+                np.full(len(self._matches_list), 1),
+                (self._matches_list.master_side.to_numpy(), self._matches_list.dupe_side.to_numpy())
+            ),
+            shape=(n, n)
+        )
+        old_group_id_of_master_id = pd.DataFrame(
+            {
+                'old_group_id': pd.Series(connected_components(csgraph=graph, directed=False)[1]),
+                'master_id': self._master.index.to_series()
+            }
+        )
+        first_master_id_in_group = old_group_id_of_master_id.groupby('old_group_id')['master_id']\
+            .first()\
+            .rename('new_group_id')\
+            .reset_index()
+        new_group_id_of_master_id = first_master_id_in_group\
+            .merge(old_group_id_of_master_id, how='left', on='old_group_id')\
+            .sort_values('master_id')\
+            .reset_index(drop=True)
+        return self._master[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
