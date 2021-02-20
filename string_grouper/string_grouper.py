@@ -1,461 +1,370 @@
+import unittest
 import pandas as pd
 import numpy as np
-import re
-import multiprocessing
-from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse.csr import csr_matrix
-from typing import Tuple, NamedTuple, List, Optional
-from sparse_dot_topn import awesome_cossim_topn
-from functools import wraps
-
-DEFAULT_NGRAM_SIZE: int = 3
-DEFAULT_REGEX: str = r'[,-./]|\s'
-DEFAULT_MAX_N_MATCHES: int = 20
-DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
-DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
-DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
-
-
-# High level functions
-
-
-def group_similar_strings(strings_to_group: pd.Series, **kwargs) -> pd.Series:
-    """
-    Finds all similar strings in 'strings_to_group' and returns a Series of strings of the same length as
-    strings_to_group. For each group of similar strings a single string is chosen as the 'master' string and is
-    returned for each member of the group.
-
-    For example the input series: [foooo, foooob, bar] will return [foooo, foooo, bar]
-    Here 'foooo' and 'foooob' are grouped together into group 'foooo' because they are found to be very similar
-
-    :param strings_to_group: pandas.Series. The input series of strings to be grouped
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series
-    """
-    string_grouper = StringGrouper(strings_to_group, **kwargs).fit()
-    return string_grouper.get_groups()
-
-
-def match_most_similar(master: pd.Series, duplicates: pd.Series, **kwargs) -> pd.Series:
-    """
-    Returns a series of strings of the same length as 'duplicates' where for each string in duplicates the most similar
-    string in 'master' is returned. If there are no similar strings in master for a given string in duplicates
-    (there is no potential match where the cosine similarity is above the threshold (default: 0.8))
-    the original string in duplicates is returned.
-
-    For example the input series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
-    [foooo, bar, new]
-
-    :param master: pandas.Series. Series of strings that the duplicates will be matched with
-    :param duplicates: pandas.Series. Series of strings that will me matched with the master
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series
-    """
-    string_grouper = StringGrouper(master, duplicates=duplicates, **kwargs).fit()
-    return string_grouper.get_groups()
-
-
-def match_strings(master: pd.Series,
-                  duplicates: Optional[pd.Series] = None,
-                  master_id: Optional[pd.Series] = None,
-                  duplicates_id: Optional[pd.Series] = None,
-                  **kwargs):
-    """
-    Returns all highly similar strings. If only 'master' is given, it will return highly similar strings within master.
-    This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
-    between master and duplicates. This can be seen as an inner-join.
-
-    :param master: pandas.Series. Series of strings against which matches are calculated
-    :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional)
-    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional)
-    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional)
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Dataframe
-    """
-    string_grouper = StringGrouper(master,
-                                   duplicates=duplicates,
-                                   master_id=master_id,
-                                   duplicates_id=duplicates_id,
-                                   **kwargs).fit()
-    return string_grouper.get_matches()
-
-
-class StringGrouperConfig(NamedTuple):
-    """
-    Class with configuration variables
-
-    :param ngram_size: int. The amount of characters in each n-gram. Optional. Default is 3
-    :param regex: str. The regex string used to cleanup the input string. Optional. Default is [,-./]|\s
-    :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20
-    :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
-    Defaults to 0.8
-    :param number_of_processes: int. The number of processes used by the cosine similarity calculation. Defaults to
-    1 - number of cores on a machine.
-    :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
-    """
-
-    ngram_size: int = DEFAULT_NGRAM_SIZE
-    regex: str = DEFAULT_REGEX
-    max_n_matches: int = DEFAULT_MAX_N_MATCHES
-    min_similarity: float = DEFAULT_MIN_SIMILARITY
-    number_of_processes: int = DEFAULT_N_PROCESSES
-    ignore_case: bool = DEFAULT_IGNORE_CASE
-
-
-def validate_is_fit(f):
-    """Validates if the StringBuilder was fit before calling certain public functions"""
-
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if args[0].is_build:
-            return f(*args, **kwargs)
-        else:
-            raise StringGrouperNotFitException(f'{f.__name__} was called before the "fit" function was called.'
-                                               f' Make sure to run fit the StringGrouper first using '
-                                               f'StringGrouper.fit()')
-
-    return wrapper
-
-
-class StringGrouperNotFitException(Exception):
-    """Raised when one of the public functions is called which requires the StringGrouper to be fit first"""
-    pass
-
-
-class StringGrouper(object):
-    def __init__(self, master: pd.Series,
-                 duplicates: Optional[pd.Series] = None,
-                 master_id: Optional[pd.Series] = None,
-                 duplicates_id: Optional[pd.Series] = None,
-                 **kwargs):
-        """
-        StringGrouper is a class that holds the matrix with cosine similarities between the master and duplicates
-        matrix. If duplicates is not given it is replaced by master. To build this matrix the `fit` function must be
-        called. It is possible to add and remove matches after building with the add_match and remove_match functions
-
-        :param master: pandas.Series. A series of strings in which similar strings are searched, either against itself
-        or against the `duplicates` series.
-        :param duplicates: pandas.Series. If set, for each string in duplicates a similar string is searched in Master.
-        :param master_id: pandas.Series. If set, contains ID values for each row in master series.
-        :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates series.
-        :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-        """
-        # Validate match strings input
-        if not StringGrouper._is_series_of_strings(master) or \
-                (duplicates is not None and not StringGrouper._is_series_of_strings(duplicates)):
-            raise TypeError('Input does not consist of pandas.Series containing only Strings')
-        # Validate optional IDs input
-        if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
-            raise Exception('List of data Series options is invalid')
-        StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
-
-        self._master: pd.Series = master.reset_index(drop=True)
-        self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
-        self._master_id: pd.Series = master_id.reset_index(drop=True) if master_id is not None else None
-        self._duplicates_id: pd.Series = duplicates_id.reset_index(drop=True) if duplicates_id is not None else None
-        self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
-        self.is_build = False  # indicates if the grouper was fit or not
-        self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
-        # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
-        self._matches_list: pd.DataFrame = pd.DataFrame()
-
-    def n_grams(self, string: str) -> List[str]:
-        """
-        :param string: string to create ngrams from
-        :return: list of ngrams
-        """
-        ngram_size = self._config.ngram_size
-        regex_pattern = self._config.regex
-        if self._config.ignore_case and string is not None:
-            string = string.lower()  # lowercase to ignore all case
-        string = re.sub(regex_pattern, r'', string)
-        n_grams = zip(*[string[i:] for i in range(ngram_size)])
-        return [''.join(n_gram) for n_gram in n_grams]
-
-    def fit(self) -> 'StringGrouper':
-        """Builds the _matches list which contains string matches indices and similarity"""
-        master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
-        # Calculate the matches using the cosine similarity
-        matches = self._build_matches(master_matrix, duplicate_matrix)
-        # retrieve all matches
-        self._matches_list = self._get_matches_list(matches)
-        self.is_build = True
-        return self
-
-    @validate_is_fit
-    def get_matches(self) -> pd.DataFrame:
-        """
-        Returns a DataFrame with all the matches and their cosine similarity.
-        If optional IDs are used, returned as extra columns with IDs matched to respective data rows
-        """
-        def get_both_sides(master, duplicates):
-            left = master[self._matches_list.master_side].reset_index(drop=True)
-            if self._duplicates is None:
-                right = master[self._matches_list.dupe_side].reset_index(drop=True)
-            else:
-                right = duplicates[self._matches_list.dupe_side].reset_index(drop=True)
-            return left, right
-
-        left_side, right_side = get_both_sides(self._master, self._duplicates)
-        similarity = self._matches_list.similarity.reset_index(drop=True)
-        if self._master_id is None:
-            return pd.DataFrame(
-                {
-                    'left_side': left_side,
-                    'right_side': right_side,
-                    'similarity': similarity
-                }
-            )
-        else:
-            left_side_id, right_side_id = get_both_sides(self._master_id, self._duplicates_id)
-            return pd.DataFrame(
-                {
-                    'left_side_id': left_side_id,
-                    'left_side': left_side,
-                    'right_side_id': right_side_id,
-                    'right_side': right_side,
-                    'similarity': similarity
-                }
-            )
-
-    @validate_is_fit
-    def get_groups(self) -> pd.Series:
-        """If there is only a master series of strings, this will return the 'master' strings.
-         A single string in a group of near duplicates is chosen for as 'master' and is returned for each string
-         in the master series.
-         If there is a master series and a duplicate series, the most similar master is picked
-         for each duplicate and returned
-         """
-        if self._duplicates is None:
-            return self._deduplicate()
-        else:
-            return self._get_nearest_matches()
-
-    @validate_is_fit
-    def add_match(self, master_side: str, dupe_side: str) -> 'StringGrouper':
-        """Adds a match if it wasn't found by the fit function"""
-        master_indices, dupe_indices = self._get_indices_of(master_side, dupe_side)
-
-        # add prior matches to new match
-        prior_matches = self._matches_list.master_side[self._matches_list.dupe_side.isin(dupe_indices)]
-        dupe_indices = dupe_indices.append(prior_matches)
-        dupe_indices.drop_duplicates(inplace=True)
-
-        similarities = [1]
-
-        # cross join the indices
-        new_matches = StringGrouper._cross_join(dupe_indices, master_indices, similarities)
-        # If we are de-duping within one Series, we need to make sure the matches stay symmetric
-        if self._duplicates is None:
-            new_matches = StringGrouper._make_symmetric(new_matches)
-        # update the matches
-        self._matches_list = pd.concat([self._matches_list.drop_duplicates(), new_matches], ignore_index=True)
-
-        return self
-
-    @validate_is_fit
-    def remove_match(self, master_side: str, dupe_side: str) -> 'StringGrouper':
-        """ Removes a match from the StringGrouper"""
-        master_indices, dupe_indices = self._get_indices_of(master_side, dupe_side)
-        # In the case of having only a master series, we need to remove both the master - dupe match
-        # and the dupe - master match:
-        if self._duplicates is None:
-            master_indices = pd.concat([master_indices, dupe_indices])
-            dupe_indices = master_indices
-
-        self._matches_list = self._matches_list[
-            ~(
-                    (self._matches_list.master_side.isin(master_indices)) &
-                    (self._matches_list.dupe_side.isin(dupe_indices))
-            )]
-        return self
-
-    def _get_tf_idf_matrices(self) -> Tuple[csr_matrix, csr_matrix]:
-        # Fit the tf-idf vectorizer
-        self._vectorizer = self._fit_vectorizer()
-        # Build the two matrices
-        master_matrix = self._vectorizer.transform(self._master)
-
-        if self._duplicates is not None:
-            duplicate_matrix = self._vectorizer.transform(self._duplicates)
-        # IF there is no duplicate matrix, we assume we want to match on the master matrix itself
-        else:
-            duplicate_matrix = master_matrix
-
-        return master_matrix, duplicate_matrix
-
-    def _fit_vectorizer(self) -> TfidfVectorizer:
-        # if both dupes and master string series are set - we concat them to fit the vectorizer on all
-        # strings
-        if self._duplicates is not None:
-            strings = pd.concat([self._master, self._duplicates])
-        else:
-            strings = self._master
-        self._vectorizer.fit(strings)
-        return self._vectorizer
-
-    def _build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
-        """Builds the cossine similarity matrix of two csr matrices"""
-        tf_idf_matrix_1 = master_matrix
-        tf_idf_matrix_2 = duplicate_matrix.transpose()
-
-        optional_kwargs = dict()
-        if self._config.number_of_processes > 1:
-            optional_kwargs = {
-                'use_threads': True,
-                'n_jobs': self._config.number_of_processes
-            }
-
-        return awesome_cossim_topn(tf_idf_matrix_1, tf_idf_matrix_2,
-                                   self._config.max_n_matches,
-                                   self._config.min_similarity,
-                                   **optional_kwargs)
-
-    @staticmethod
-    def _get_matches_list(matches) -> pd.DataFrame:
-        """Returns a list of all the indices of matches"""
-        non_zeros = matches.nonzero()
-
-        sparserows = non_zeros[0]
-        sparsecols = non_zeros[1]
-        nr_matches = sparsecols.size
-        master_side = np.empty([nr_matches], dtype=int)
-        dupe_side = np.empty([nr_matches], dtype=int)
-        similarity = np.zeros(nr_matches)
-
-        for index in range(0, nr_matches):
-            master_side[index] = sparserows[index]
-            dupe_side[index] = sparsecols[index]
-            similarity[index] = matches.data[index]
-
-        matches_list = pd.DataFrame({'master_side': master_side,
-                                     'dupe_side': dupe_side,
-                                     'similarity': similarity})
-        return matches_list
-
-    @staticmethod
-    def _clean_groups(grouped_id_tuples: pd.DataFrame) -> pd.DataFrame:
-        """Clean groups by merging groups that have an item in between them with a high similarity"""
-        # Find the groups where the min id is not equal to the group id
-        id_tuples_min = grouped_id_tuples.groupby('group_id').agg('min').reset_index()
-        orphans = id_tuples_min[id_tuples_min.group_id != id_tuples_min.original_id].copy()
-        if orphans.shape[0] > 0:
-            # Get the new group id's
-            new_group_id = (orphans
-                            .merge(grouped_id_tuples,
-                                   left_on='group_id', right_on='original_id', suffixes=('_orig', '_new'))
-                            [['group_id_orig', 'group_id_new']]
-                            .drop_duplicates())
-            # join them with the old group ids
-            new_grouped_id_tuples = grouped_id_tuples.merge(new_group_id,
-                                                            how='outer',
-                                                            left_on='group_id', right_on='group_id_orig')
-            # update the old ones
-            rows_to_update = ~new_grouped_id_tuples.group_id_new.isnull()
-            new_grouped_id_tuples.loc[rows_to_update, 'group_id'] = new_grouped_id_tuples[rows_to_update].group_id_new
-            grouped_id_tuples = new_grouped_id_tuples[['original_id', 'group_id', 'min_similarity']].copy()
-            grouped_id_tuples.group_id = grouped_id_tuples.group_id.astype('int64')
-            # repeat if necessary
-            return StringGrouper._clean_groups(grouped_id_tuples)
-        else:
-            return grouped_id_tuples
-
-    def _get_nearest_matches(self) -> pd.Series:
-
-        dupes = self._duplicates.rename('duplicates')
-        master = self._master.rename('master')
-
-        dupes_max_sim = self._matches_list.groupby('dupe_side').agg({'similarity': 'max'}).reset_index()
-        dupes_max_sim = dupes_max_sim.merge(self._matches_list, on=['dupe_side', 'similarity'])
-
-        # in case there are multiple equal similarities, we pick the one that comes first
-        dupes_max_sim = dupes_max_sim.groupby(['dupe_side']).agg({'master_side': 'min'}).reset_index()
-
-        # First we add the duplicate strings
-        dupes_max_sim = dupes_max_sim.merge(dupes, left_on='dupe_side', right_index=True, how='outer')
-
-        # Now add the master strings
-        dupes_max_sim = dupes_max_sim.merge(master, left_on='master_side', right_index=True, how='left')
-
-        # update the master series with the duplicates in cases were there is no match
-        rows_to_update = dupes_max_sim.master.isnull()
-        dupes_max_sim.loc[rows_to_update, 'master'] = dupes_max_sim[rows_to_update].duplicates
-        # make sure to keep same order as duplicates
-        dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
-        dupes_max_sim.index.rename(None, inplace=True)
-        return dupes_max_sim['master'].rename(None)
-
-    def _deduplicate(self) -> pd.Series:
-        master_indices = self._master.index.to_series()
-        index_to_index = pd.DataFrame({
-            'master_side': master_indices,
-            'dupe_side': master_indices,
-            'similarity': np.full(master_indices.shape[0], 1)
-        })
-        all_id_tuples = pd.concat([self._matches_list, index_to_index])
-
-        # get the groups
-        grouped_id_tuples = all_id_tuples.groupby('dupe_side').agg('min').reset_index()
-        grouped_id_tuples.columns = ['original_id', 'group_id', 'min_similarity']
-
-        # clean the groups:
-        grouped_id_tuples = StringGrouper._clean_groups(grouped_id_tuples)
-        grouped_id_tuples = grouped_id_tuples.sort_values(by='original_id')
-
-        # Get the strings belonging to the group ids
-        group_id_strings = self._master[grouped_id_tuples.group_id].reset_index(drop=True)
-        return group_id_strings
-
-    def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
-        master_strings = self._master
-        dupe_strings = self._master if self._duplicates is None else self._duplicates
-        # Check if input is valid:
-        self._validate_strings_exist(master_side, dupe_side, master_strings, dupe_strings)
-        # Get the indices of the two strings
-        master_indices = master_strings[master_strings == master_side].index.to_series().reset_index(drop=True)
-        dupe_indices = dupe_strings[dupe_strings == dupe_side].index.to_series().reset_index(drop=True)
-        return master_indices, dupe_indices
-
-    @staticmethod
-    def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
-        columns_switched = pd.DataFrame({'master_side': new_matches.dupe_side,
-                                         'dupe_side': new_matches.master_side,
-                                         'similarity': new_matches.similarity})
-        return pd.concat([new_matches, columns_switched])
-
-    @staticmethod
-    def _cross_join(dupe_indices, master_indices, similarities) -> pd.DataFrame:
-        x_join_index = pd.MultiIndex.from_product([master_indices, dupe_indices, similarities],
-                                                  names=['master_side', 'dupe_side', 'similarity'])
-        x_joined_df = pd.DataFrame(index=x_join_index).reset_index()
-        return x_joined_df
-
-    @staticmethod
-    def _validate_strings_exist(master_side, dupe_side, master_strings, dupe_strings):
-        if not master_strings.isin([master_side]).any():
-            raise ValueError(f'{master_side} not found in StringGrouper string series')
-        elif not dupe_strings.isin([dupe_side]).any():
-            raise ValueError(f'{dupe_side} not found in StringGrouper dupe string series')
-
-    @staticmethod
-    def _is_series_of_strings(series_to_test: pd.Series) -> bool:
-        if not isinstance(series_to_test, pd.Series):
-            return False
-        elif series_to_test.str.len().isna().any():
-            return False
-        return True
-
-    @staticmethod
-    def _is_input_data_combination_valid(duplicates, master_id, duplicates_id) -> bool:
-        if duplicates is None and (duplicates_id is not None) \
-                or duplicates is not None and ((master_id is None) ^ (duplicates_id is None)):
-            return False
-        else:
-            return True
-
-    @staticmethod
-    def _validate_id_data(master, duplicates, master_id, duplicates_id):
-        if master_id is not None and len(master) != len(master_id):
-            raise Exception('Both master and master_id must be pandas.Series of the same length.')
-        if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
-            raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
+from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
+    DEFAULT_MAX_N_MATCHES, DEFAULT_REGEX, \
+    DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
+    StringGrouperConfig, StringGrouper, StringGrouperNotFitException
+
+
+class StringGrouperConfigTest(unittest.TestCase):
+    def test_config_defaults(self):
+        """Empty initialisation should set default values"""
+        config = StringGrouperConfig()
+        self.assertEqual(config.min_similarity, DEFAULT_MIN_SIMILARITY)
+        self.assertEqual(config.max_n_matches, DEFAULT_MAX_N_MATCHES)
+        self.assertEqual(config.regex, DEFAULT_REGEX)
+        self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
+        self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
+        self.assertEqual(config.ignore_case, DEFAULT_IGNORE_CASE)
+
+    def test_config_immutable(self):
+        """Configurations should be immutable"""
+        config = StringGrouperConfig()
+        with self.assertRaises(Exception) as _:
+            config.min_similarity = 0.1
+
+    def test_config_non_default_values(self):
+        """Configurations should be immutable"""
+        config = StringGrouperConfig(min_similarity=0.1, max_n_matches=100, number_of_processes=1)
+        self.assertEqual(0.1, config.min_similarity)
+        self.assertEqual(100, config.max_n_matches)
+        self.assertEqual(1, config.number_of_processes)
+
+
+class StringGrouperTest(unittest.TestCase):
+    def test_n_grams_case_unchanged(self):
+        """Should return all ngrams in a string with case"""
+        test_series = pd.Series(pd.Series(['aa']))
+        # Explicit do not ignore case
+        sg = StringGrouper(test_series, ignore_case=False)
+        expected_result = ['McD', 'cDo', 'Don', 'ona', 'nal', 'ald', 'lds']
+        self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
+
+    def test_n_grams_ignore_case_to_lower(self):
+        """Should return all case insensitive ngrams in a string"""
+        test_series = pd.Series(pd.Series(['aa']))
+        # Explicit ignore case
+        sg = StringGrouper(test_series, ignore_case=True)
+        expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
+        self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
+
+    def test_n_grams_ignore_case_to_lower_with_defaults(self):
+        """Should return all case insensitive ngrams in a string"""
+        test_series = pd.Series(pd.Series(['aa']))
+        # Implicit default case (i.e. default behaviour)
+        sg = StringGrouper(test_series)
+        expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
+        self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
+
+    def test_build_matrix(self):
+        """Should create a csr matrix only master"""
+        test_series = pd.Series(['foo', 'bar', 'baz'])
+        sg = StringGrouper(test_series)
+        master, dupe = sg._get_tf_idf_matrices()
+        c = csr_matrix([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.]])
+        np.testing.assert_array_equal(c.toarray(), master.toarray())
+        np.testing.assert_array_equal(c.toarray(), dupe.toarray())
+
+    def test_build_matrix_master_and_duplicates(self):
+        """Should create a csr matrix for master and duplicates"""
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        master, dupe = sg._get_tf_idf_matrices()
+        master_expected = csr_matrix([[0., 0., 0., 1.],
+                                     [1., 0., 0., 0.],
+                                     [0., 1., 0., 0.]])
+        dupes_expected = csr_matrix([[0., 0., 0., 1.],
+                                     [1., 0., 0., 0.],
+                                     [0., 0., 1., 0.]])
+
+        np.testing.assert_array_equal(master_expected.toarray(), master.toarray())
+        np.testing.assert_array_equal(dupes_expected.toarray(), dupe.toarray())
+
+    def test_build_matches(self):
+        """Should create the cosine similarity matrix of two series"""
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        master, dupe = sg._get_tf_idf_matrices()
+
+        expected_matches = np.array([[1., 0., 0.],
+                                     [0., 1., 0.],
+                                     [0., 0., 0.]])
+        np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe).toarray())
+
+    def test_build_matches_list(self):
+        """Should create the cosine similarity matrix of two series"""
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        sg = sg.fit()
+        master = [0, 1]
+        dupe_side = [0, 1]
+        similarity = [1.0, 1.0]
+        expected_df = pd.DataFrame({'master_side': master, 'dupe_side': dupe_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg._matches_list)
+
+    def test_case_insensitive_build_matches_list(self):
+        """Should create the cosine similarity matrix of two case insensitive series"""
+        test_series_1 = pd.Series(['foo', 'BAR', 'baz'])
+        test_series_2 = pd.Series(['FOO', 'bar', 'bop'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        sg = sg.fit()
+        master = [0, 1]
+        dupe_side = [0, 1]
+        similarity = [1.0, 1.0]
+        expected_df = pd.DataFrame({'master_side': master, 'dupe_side': dupe_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg._matches_list)
+
+    def test_get_matches_two_dataframes(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        sg = StringGrouper(test_series_1, test_series_2).fit()
+        left_side = ['foo', 'bar']
+        right_side = ['foo', 'bar']
+        similarity = [1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_single(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz', 'foo'])
+        sg = StringGrouper(test_series_1)
+        sg = sg.fit()
+        left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_1_series_1_id_series(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz', 'foo'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
+        sg = StringGrouper(test_series_1, master_id=test_series_id_1)
+        sg = sg.fit()
+        left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
+        right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        right_side_id = ['A3', 'A0', 'A1', 'A2', 'A3', 'A0']
+        similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
+                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_2_series_2_id_series(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2'])
+        sg = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2,
+                           master_id=test_series_id_1).fit()
+        left_side = ['foo', 'bar']
+        left_side_id = ['A0', 'A1']
+        right_side = ['foo', 'bar']
+        right_side_id = ['B0', 'B1']
+        similarity = [1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
+                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_raises_exception_if_unexpected_options_given(self):
+        # When the input id data does not correspond with its string data:
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1'])
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates=test_series_2, duplicates_id=test_series_id_2,
+                              master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates=test_series_2, master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates_id=test_series_id_2, master_id=test_series_id_1)
+
+        # When the input data is ok but the option combinations are invalid:
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2'])
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, master_id=test_series_id_1, duplicates_id=test_series_id_2)
+
+    def test_get_groups_single_df(self):
+        """Should return a pd.series object with the same length as the original df. The series object will contain
+        a list of the grouped strings"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        pd.testing.assert_series_equal(expected_result, result)
+
+    def test_get_groups_two_df(self):
+        """Should return a pd.series object with the length of the dupes. The series will contain the master string
+        that matches the dupe with the highest similarity"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        pd.testing.assert_series_equal(expected_result, result)
+
+    def test_get_groups_two_df_same_similarity(self):
+        """Should return a pd.series object with the length of the dupes. If there are two dupes with the same
+        similarity, the first one is chosen"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        pd.testing.assert_series_equal(expected_result, result)
+
+    def test_get_groups_two_df_no_match(self):
+        """Should return a pd.series object with the length of the dupes. If no match is found in dupes,
+        the original will be returned"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        sg = sg.fit()
+        result = sg.get_groups()
+        expected_result = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooo'])
+        pd.testing.assert_series_equal(expected_result, result)
+
+    def test_get_groups_raises_exception(self):
+        """Should raise an exception if called before the StringGrouper is fit"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1, test_series_2)
+        with self.assertRaises(StringGrouperNotFitException):
+            _ = sg.get_groups()
+
+    def test_clean_groups(self):
+        """Should clean up groups where the group id index is not in the group"""
+        orig_id = [0, 1, 2, 3]
+        group_id = [0, 0, 1, 2]
+        similarities = [1, 1, 1, 1]
+        grouped_id_tuples = pd.DataFrame({'original_id': orig_id,
+                                          'group_id': group_id,
+                                          'min_similarity': similarities})
+        expected_group_id = pd.Series([0, 0, 0, 0]).rename('group_id')
+        result = StringGrouper._clean_groups(grouped_id_tuples).group_id
+        pd.testing.assert_series_equal(expected_group_id, result)
+
+    def test_add_match_raises_exception_if_string_not_present(self):
+        test_series_1 = pd.Series(['foooo', 'no match', 'baz', 'foooo'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1).fit()
+        sg2 = StringGrouper(test_series_1, test_series_2).fit()
+        with self.assertRaises(ValueError):
+            sg.add_match('doesnt exist', 'baz')
+        with self.assertRaises(ValueError):
+            sg.add_match('baz', 'doesnt exist')
+        with self.assertRaises(ValueError):
+            sg2.add_match('doesnt exist', 'baz')
+        with self.assertRaises(ValueError):
+            sg2.add_match('baz', 'doesnt exist')
+
+    def test_add_match_single_occurence(self):
+        """Should add the match if there are no exact duplicates"""
+        test_series_1 = pd.Series(['foooo', 'no match', 'baz', 'foooo'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1).fit()
+        sg.add_match('no match', 'baz')
+        matches = sg.get_matches()
+        matches = matches[(matches.left_side == 'no match') & (matches.right_side == 'baz')]
+        self.assertEqual(1, matches.shape[0])
+        sg2 = StringGrouper(test_series_1, test_series_2).fit()
+        sg2.add_match('no match', 'bar')
+        matches = sg2.get_matches()
+        matches = matches[(matches.left_side == 'no match') & (matches.right_side == 'bar')]
+        self.assertEqual(1, matches.shape[0])
+
+    def test_add_match_single_group_matches_symmetric(self):
+        """New matches that are added to a SG with only a master series should be symmetric"""
+        test_series_1 = pd.Series(['foooo', 'no match', 'baz', 'foooo'])
+        sg = StringGrouper(test_series_1).fit()
+        sg.add_match('no match', 'baz')
+        matches = sg.get_matches()
+        matches_1 = matches[(matches.left_side == 'no match') & (matches.right_side == 'baz')]
+        self.assertEqual(1, matches_1.shape[0])
+        matches_2 = matches[(matches.left_side == 'baz') & (matches.right_side == 'no match')]
+        self.assertEqual(1, matches_2.shape[0])
+
+    def test_add_match_multiple_occurences(self):
+        """Should add multiple matches if there are exact duplicates"""
+        test_series_1 = pd.Series(['foooo', 'no match', 'baz', 'foooo'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1, test_series_2).fit()
+        sg.add_match('foooo', 'baz')
+        matches = sg.get_matches()
+        matches = matches[(matches.left_side == 'foooo') & (matches.right_side == 'baz')]
+        self.assertEqual(2, matches.shape[0])
+
+    def test_remove_match(self):
+        """Should remove a match"""
+        test_series_1 = pd.Series(['foooo', 'no match', 'baz', 'foooob'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        sg = StringGrouper(test_series_1).fit()
+        sg.remove_match('foooo', 'foooob')
+        matches = sg.get_matches()
+        matches_1 = matches[(matches.left_side == 'foooo') & (matches.right_side == 'foooob')]
+        # In the case of only a master series, the matches are recursive, so both variants are to be removed
+        matches_2 = matches[(matches.left_side == 'foooob') & (matches.right_side == 'foooo')]
+        self.assertEqual(0, matches_1.shape[0])
+        self.assertEqual(0, matches_2.shape[0])
+
+        sg2 = StringGrouper(test_series_1, test_series_2).fit()
+        sg2.remove_match('foooo', 'foooob')
+        matches = sg2.get_matches()
+        matches = matches[(matches.left_side == 'foooo') & (matches.right_side == 'foooob')]
+        self.assertEqual(0, matches.shape[0])
+
+    def test_string_grouper_type_error(self):
+        """StringGrouper should raise an typeerror master or duplicates are not a series of strings"""
+        with self.assertRaises(TypeError):
+            _ = StringGrouper('foo', 'bar')
+        with self.assertRaises(TypeError):
+            _ = StringGrouper(pd.Series(['foo', 'bar']), pd.Series(['foo', 1]))
+        with self.assertRaises(TypeError):
+            _ = StringGrouper(pd.Series(['foo', np.nan]), pd.Series(['foo', 'j']))
+
+    def test_prior_matches_added(self):
+        """When a new match is added, any pre-existing matches should also be updated"""
+        sample = [
+            'microsoftoffice 365 home',
+            'microsoftoffice 365 pers',
+            'microsoft office'
+            ]
+
+        df = pd.DataFrame(sample, columns=['name'])
+
+        sg = StringGrouper(df['name'])
+        sg = sg.fit()
+
+        sg = sg.add_match('microsoft office', 'microsoftoffice 365 home')
+        sg = sg.add_match('microsoftoffice 365 pers', 'microsoft office')
+        df['deduped'] = sg.get_groups()
+        # All strings should now match to the same "master" string
+        self.assertEqual(1, len(df.deduped.unique()))
+
+
+if __name__ == '__main__':
+    unittest.main()
