@@ -37,7 +37,7 @@ class StringGrouperTest(unittest.TestCase):
     def test_n_grams_case_unchanged(self):
         """Should return all ngrams in a string with case"""
         test_series = pd.Series(pd.Series(['aa']))
-        ## Explicit do not ignore case
+        # Explicit do not ignore case
         sg = StringGrouper(test_series, ignore_case=False)
         expected_result = ['McD', 'cDo', 'Don', 'ona', 'nal', 'ald', 'lds']
         self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
@@ -45,7 +45,7 @@ class StringGrouperTest(unittest.TestCase):
     def test_n_grams_ignore_case_to_lower(self):
         """Should return all case insensitive ngrams in a string"""
         test_series = pd.Series(pd.Series(['aa'])) 
-        ## Explicit ignore case
+        # Explicit ignore case
         sg = StringGrouper(test_series, ignore_case=True)
         expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
         self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
@@ -53,7 +53,7 @@ class StringGrouperTest(unittest.TestCase):
     def test_n_grams_ignore_case_to_lower_with_defaults(self):
         """Should return all case insensitive ngrams in a string"""
         test_series = pd.Series(pd.Series(['aa'])) 
-        ## Implicit default case (i.e. default behaviour)
+        # Implicit default case (i.e. default behaviour)
         sg = StringGrouper(test_series)
         expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
         self.assertListEqual(expected_result, sg.n_grams('McDonalds'))
@@ -63,9 +63,9 @@ class StringGrouperTest(unittest.TestCase):
         test_series = pd.Series(['foo', 'bar', 'baz'])
         sg = StringGrouper(test_series)
         master, dupe = sg._get_tf_idf_matrices()
-        c = csr_matrix([[0., 0., 1.]
-                        , [1., 0., 0.]
-                        , [0., 1., 0.]])
+        c = csr_matrix([[0., 0., 1.],
+                        [1., 0., 0.],
+                        [0., 1., 0.]])
         np.testing.assert_array_equal(c.toarray(), master.toarray())
         np.testing.assert_array_equal(c.toarray(), dupe.toarray())
 
@@ -92,9 +92,9 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, test_series_2)
         master, dupe = sg._get_tf_idf_matrices()
 
-        expected_matches = np.array([[1., 0., 0.]
-                                     , [0., 1., 0.]
-                                     , [0., 0., 0.]])
+        expected_matches = np.array([[1., 0., 0.],
+                                     [0., 1., 0.],
+                                     [0., 0., 0.]])
         np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe).toarray())
 
     def test_build_matches_list(self):
@@ -140,6 +140,70 @@ class StringGrouperTest(unittest.TestCase):
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_1_series_1_id_series(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz', 'foo'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
+        sg = StringGrouper(test_series_1, master_id=test_series_id_1)
+        sg = sg.fit()
+        left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
+        right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        right_side_id = ['A3', 'A0', 'A1', 'A2', 'A3', 'A0']
+        similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
+                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_2_series_2_id_series(self):
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2'])
+        sg = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2,
+                           master_id=test_series_id_1).fit()
+        left_side = ['foo', 'bar']
+        left_side_id = ['A0', 'A1']
+        right_side = ['foo', 'bar']
+        right_side_id = ['B0', 'B1']
+        similarity = [1.0, 1.0]
+        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
+                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
+
+    def test_get_matches_raises_exception_if_unexpected_options_given(self):
+        # When the input id data does not correspond with its string data:
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1'])
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates=test_series_2, duplicates_id=test_series_id_2,
+                              master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates=test_series_2, master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates_id=test_series_id_2, master_id=test_series_id_1)
+
+        # When the input data is ok but the option combinations are invalid:
+        test_series_1 = pd.Series(['foo', 'bar', 'baz'])
+        test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
+        test_series_2 = pd.Series(['foo', 'bar', 'bop'])
+        test_series_id_2 = pd.Series(['B0', 'B1', 'B2'])
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, duplicates_id=test_series_id_2)
+        with self.assertRaises(Exception):
+            _ = StringGrouper(test_series_1, master_id=test_series_id_1, duplicates_id=test_series_id_2)
 
     def test_get_groups_single_df(self):
         """Should return a pd.series object with the same length as the original df. The series object will contain
