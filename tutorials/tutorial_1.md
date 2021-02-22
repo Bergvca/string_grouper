@@ -2,9 +2,9 @@
 
 ## Introduction
 
-A common requirement in data clean up is the scenario where a data set (database, pandas DataFrame) has multiple database records for the same entity and duplicates need to be found. This example will not cover the task of merging or removing duplicate records — what it will do is use String Grouper to find duplicate records using the match_strings function and the optional IDs functionality.
+A common requirement in data clean-up is the scenario where a dataset (database, pandas DataFrame) has multiple database records for the same entity and duplicates need to be found. This example will not cover the task of merging or removing duplicate records — what it will do is use String Grouper to find duplicate records using the match_strings function and the optional IDs functionality.
 
-For the example we will use [this](accounts.csv) simple data set. The number of rows is not important, the name column has a number of typical cases of types of variations in spelling.
+For the example we will use [this](accounts.csv) simple dataset. The number of rows is not important, the 'name' column has a number of typical cases of types of variations in spelling.
 
 ```
 id,name
@@ -37,7 +37,7 @@ from string_grouper import match_strings
 
 ### Import Data
 
-***Tip:*** Assuming the data set will come from an external database, for optimum performance only do an export of the ID column, and the text column that matching will be done on, and convert the text data column (**not the ID column**) to lower case.
+***Tip:*** Assuming the dataset will come from an external database, for optimum performance only do an export of the ID column, and the text column that matching will be done on, and convert the text data column (**not the ID column**) to lower case.
 
 #### Import the sample data.
 
@@ -88,7 +88,7 @@ accounts
 
 Next, use the `match_strings` function and pass the 'name' column as the argument to the `master` parameter, and the 'id' column as the argument to the `master_id` parameter.
 
-**N.B.** In production with a real data set, depending on its size, the following command can/may take a number of minutes — ***no update/progress indicator is shown***. This obviously also depends on the performance of the computer used. Memory and hard disk performance are a factor as well as the CPU. String Grouper uses pandas which, in turn, uses NumPy, so matching is not done by computationally intensive looping, but by [array mathematics](https://realpython.com/numpy-array-programming/) — but it still may take some time to process large data sets.
+**N.B.** In production with a real dataset, depending on its size, the following command can/may take a number of minutes — ***no update/progress indicator is shown***. This obviously also depends on the performance of the computer used. Memory and hard disk performance are a factor, as well as the CPU. String Grouper uses pandas which, in turn, uses NumPy, so matching is not done by computationally intensive looping, but by [array mathematics](https://realpython.com/numpy-array-programming/) — but it still may take some time to process large datasets.
 
 ```python
 matches = match_strings(accounts['name'], master_id = accounts['id'])
@@ -171,31 +171,31 @@ This will return a pandas DataFrame as below. The values (company) we will focus
 </div>
 
 
-In a pattern matching process each value in a row of the column being matched is checked against *every other value* in the column. 
+In a pattern-matching process, each value in a row of the column being matched is checked against *every other value* in the column. 
 
-Processing this using typical Python looping code would mean, in the case of a 100,000 row data set, that the total iterations would be 100,000^2 = 10 Billion. Processing that number of iterations might require replacing the CPU of the computer after each investigation! Well maybe not... but you *would* have time for a few cups of coffee. String Grouper works in a totally different way.
+Processing this using typical Python looping code would mean, in the case of a 100,000 row dataset, that the total iterations would be 100,000<sup>2</sup> = 10 Billion. Processing that number of iterations might require replacing the CPU of the computer after each investigation! Well maybe not ... but you *would* have time for a few cups of coffee. String Grouper works in a totally different way.
 
-In the resultant pandas DataFrame above we see the IDs (AA098762D, BB099931J) having each a group of two values — once where a close match is found, and once where it's own record (value) is found. The third ID, CC082744L, is only returned once, even though it is pretty clear that it would be a variation of our fictitious company 'Hyper Startup Inc.'
+In the resultant DataFrame above, we see the IDs (AA098762D, BB099931J) having each a group of two values — once where a close match is found, and once where its own record (value) is found. The third ID, CC082744L, is only returned once, even though it is pretty clear that it would be a variation of our fictitious company 'Hyper Startup Inc.'
 
 
 ### Using the 'Minimum Similarity' keyword argument
 
-String Grouper has a number of configuration options (see the **kwargs** in README.md), the option of interest in the above case is `min_similarity`. 
+String Grouper has a number of configuration options (see the **kwargs** in README.md). The option of interest in the above case is `min_similarity`. 
 
-The default minimum similarity is `0.8`, it can be seen that more matches may be found by reducing the minimum similarity from 0.8 to, for example, 0.7.
+The default minimum similarity is 0.8. It can be seen that more matches may be found by reducing the minimum similarity from 0.8 to, for example, 0.7.
 
 ```python
 matches = match_strings(accounts['name'], master_id = accounts['id'], min_similarity = 0.7)
 ```
 
-***Tip:*** If the data set being matched is large and you wish to experiment with the minimum similarity option, it may be helpful to import only a limited data set during testing, and increase to the full data set when ready. The number of rows imported can be specified thus:
+***Tip:*** If the dataset being matched is large, and you wish to experiment with the minimum similarity option, it may be helpful to import only a limited dataset during testing, and increase to the full dataset when ready. The number of rows imported can be specified in this way:
 
 ```python
 # We only look at the first 50k as an example
 accounts = pd.read_csv('/path/to/folder/huge_file.csv')[0:50000]
 ```
 
-Back to our example, changing the option to `min_similarity = 0.7` returns this:
+Back to our example ... changing the option to `min_similarity = 0.7` returns this:
 
 <div>
 <table border="1" class="dataframe">
@@ -310,11 +310,11 @@ Back to our example, changing the option to `min_similarity = 0.7` returns this:
 </table>
 </div>
 
-Now we see the IDs — AA098762D, BB099931J, CC082744L — have further matches, each name value has two other matching rows (IDs). However we see that setting the minimum similarity to 0.7 has still not matched 'hyper hyper inc.' (ID HH072982K) even though a person would judge that the name is a match. The minimum similarity setting can be adjusted up and down until it is considered that most duplicates are being matched. If so we can progress.
+Now we see the IDs — AA098762D, BB099931J, CC082744L — have further matches.  Each 'name' value has two other matching rows (IDs). However, we see that setting minimum similarity to 0.7 has still not matched 'hyper hyper inc.' (ID HH072982K) even though a person would judge that the 'name' is a match. The minimum similarity setting can be adjusted up and down until it is considered that most duplicates are being matched. If so, we can progress.
 
 ### Removing identical rows
 
-Once we are happy with the level of matching, we can remove the rows where the IDs are the same. Having the original (database) IDs for the rows means that we can precisely remove identical rows — that is we are not removing matches based on similar values, but on the exact (database) IDs.
+Once we are happy with the level of matching, we can remove the rows where the IDs are the same. Having the original (database) IDs for the rows means that we can precisely remove identical rows — that is, we are not removing matches based on similar values, but on the exact (database) IDs:
 
 ```python
 dupes = matches[matches.left_side_id != matches.right_side_id]
@@ -415,7 +415,7 @@ company_dupes = pd.DataFrame(dupes.left_side_id.unique()).squeeze().rename('comp
 company_dupes
 ```
 
-With the following result.
+This gives the following result:
 
 ```
 0    AA012345X
@@ -431,7 +431,7 @@ With the following result.
 Name: company_id, dtype: object
 ```
 
-How this is processed, as with any database clean up, is out of the scope of this tutorial. A first step however could be:
+How this is processed, as with any database clean-up, is out of the scope of this tutorial. A first step however could be:
 
 1. Import the list of database IDs into the relevant database as a temporary table
 1. Do an inner-join with the original table the data was exported from and sort ascending by the 'name' column
