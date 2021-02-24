@@ -1,59 +1,92 @@
 
+
 # String Grouper
 
-*string_grouper* is a library that makes finding groups of similar strings within a single, or multiple, lists of strings easy — and fast. *string_grouper* uses **tf-idf** to calculate [**cosine similarities**](https://towardsdatascience.com/understanding-cosine-similarity-and-its-application-fd42f585296a) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
+**<samp>string_grouper</samp>** is a library that makes finding groups of similar strings within a single, or multiple, lists of strings easy — and fast. **<samp>string_grouper</samp>** uses **tf-idf** to calculate [**cosine similarities**](https://towardsdatascience.com/understanding-cosine-similarity-and-its-application-fd42f585296a) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
 
-The library contains 3 high level functions that can be used directly, and 1 class that allows for a more iterative approach. The three functions are:
+## Usage
 
-* <code>**match_strings(master**: pd.Series, **duplicates**: Optional[pd.Series] = None, **master_id**: Optional[pd.Series] = None, **duplicates_id**: Optional[pd.Series] = None, ****kwargs)** -> pd.DataFrame</code>: 
-  
-    Returns all highly similar strings. If only `master` is given, it will return highly similar strings within `master`.
-    This can be seen as a self-join. If both `master` and `duplicates` are given, it will return highly similar strings
-    between `master` and `duplicates`. This can be seen as an inner-join.
+```python
+import pandas as pd
+from string_grouper import match_strings, match_most_similar, group_similar_strings, StringGrouper
+```
 
-    The function also supports optionally supplying IDs for the rows of the text values being matched. If an argument is given to the `master_id` parameter the value from its column (`master_id`) in the same row as the value in the `master` column will be returned. If both `master_id` and `duplicates_id` are given, the respective values from their columns in the same row of the relevant `master` and `duplicates` values will be returned.
+As shown above, the library may be used together with <samp>pandas</samp>, and contains three high level functions (<samp>match_strings</samp>, <samp>match_most_similar</samp> and <samp>group_similar_strings</samp>) that can be used directly, and one class (<samp>StringGrouper</samp>) that allows for a more iterative approach. 
+
+The permitted calling patterns of the three functions, and their return types, are:
+
+| Function        | Arguments | <samp>pandas</samp> Return Type |
+| -------------: |:-------------|:-----:|
+| <samp>match_strings</samp>| <samp>(master, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>match_strings</samp>| <samp>(master, duplicates, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>match_strings</samp>| <samp>(master, master_id=id_series, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>match_strings</samp>| <samp>(master, duplicates, master_id, duplicates_id, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>match_most_similar</samp>| <samp>(master, duplicates, **kwargs)</samp>| <samp>Series</samp> |
+| <samp>match_most_similar</samp>| <samp>(master, duplicates, master_id, duplicates_id, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>group_similar_strings</samp>| <samp>(strings_to_group, **kwargs)</samp>| <samp>Series</samp> |
+| <samp>group_similar_strings</samp>| <samp>(strings_to_group, strings_to_group_id, **kwargs)</samp>| <samp>DataFrame</samp> |
+
+
+#### Glossary:
+
+|Parameter | Description |
+|:--- | :--- |
+|**<samp>master</samp>** | A <samp>pandas.Series</samp> of strings to be matched with themselves (or with those in <samp>duplicates</samp>). |
+|**<samp>duplicates</samp>** | A <samp>pandas.Series</samp> of strings to be matched with those of <samp>master</samp>. |
+|**<samp>master_id</samp>** (or <samp>id_series</samp>) | A <samp>pandas.Series</samp> of IDs corresponding to the strings in <samp>master</samp>. |
+|**<samp>duplicates_id</samp>** | A <samp>pandas.Series</samp> of IDs corresponding to the strings in <samp>duplicates</samp>. |
+|**<samp>strings_to_group</samp>** | A <samp>pandas.Series</samp> of strings to be grouped. |
+|**<samp>strings_to_group_id</samp>** | A <samp>pandas.Series</samp> of IDs corresponding to the strings in <samp>strings_to_group</samp>. |
+|**<samp>**kwargs</samp>** | Keyword arguments (see [below](#kwargs)).|
+
+* #### `match_strings` 
+   Returns all pairs of highly similar strings in a <samp>pandas.DataFrame</samp>.  The column names of the output  <samp>pandas.DataFrame</samp> are 'left_side', 'right_side' and 'similarity'. 
+   
+   If only parameter <samp>master</samp> is given, it will return pairs of highly similar strings within <samp>master</samp>.    This can be seen as a self-join (both 'left_side' and 'right_side' column values come from <samp>master</samp>). If both parameters <samp>master</samp> and <samp>duplicates</samp> are given, it will return pairs of highly similar strings between <samp>master</samp> and <samp>duplicates</samp>. This can be seen as an inner-join ('left_side' and 'right_side' column values come from <samp>master</samp> and <samp>duplicates</samp> respectively).     
+   
+   The function also supports optionally inputting IDs (<samp>master_id</samp> and <samp>duplicates_id</samp>) corresponding to the string values being matched. In which case, the output includes two additional columns whose names are 'left_side_id' and 'right_side_id' containing the IDs corresponding to the string values in 'left_side' and 'right_side' respectively.  
    
    
-* <code>**match_most_similar(master**: pd.Series, **duplicates**: pd.Series, ****kwargs)** -> pd.Series</code>:
-  
-    Returns a series of strings of the same length as the parameter`duplicates` where for each string in duplicates the most similar
-    string in `master` is returned. If there are no similar strings in `master` for a given string in duplicates
+* #### `match_most_similar` 
+   Returns a nameless <samp>pandas.Series</samp> of strings of the same length as the parameter <samp>duplicates</samp>, where for each string in <samp>duplicates</samp> the most similar string in <samp>master</samp> is returned. If there are no similar strings in <samp>master</samp> for a given string in <samp>duplicates</samp>
     (there is no potential match where the cosine similarity is above the threshold (default: 0.8)) 
-    the original string in `duplicates` is returned.
+    the original string in <samp>duplicates</samp> is returned.
   
-   For example, if the input series `[foooo, bar, baz]` is passed as the argument to `master`, and `[foooob, bar, new]` as the argument to `duplicates`, the function will return:
-    `[foooo, bar, new]`
+   For example, if the input series <samp>\[foooo, bar, baz\]</samp> is passed as the argument to <samp>master</samp>, and <samp>\[foooob, bar, new\]</samp> as the argument to <samp>duplicates</samp>, the function will return:
+    <samp>[foooo, bar, new]</samp>.
     
+    If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>pandas.DataFrame</samp> with two unnamed columns is returned.  The second column is the same as the <samp>pandas.Series</samp> of strings described above, and the first column contains the corresponding IDs. 
     
-* <code>**group_similar_strings(strings_to_group**: pandas.Series, ****kwargs)** -> pandas.Series</code>: 
-
-  Takes a single series of strings and groups these together by picking a single string in each group of similar strings, and return this as output. 
+* #### `group_similar_strings` 
+  Takes a single <samp>pandas.Series</samp> (<samp>strings_to_group</samp>) of strings and groups them by assigning to each string one single string chosen as the group representative for each group of similar strings found.   The output is a nameless <samp>pandas.Series</samp> of group-representative strings of the same length as the input <samp>pandas.Series</samp>.
    
-   For example, the input series: `[foooo, foooob, bar]` will return `[foooo, foooo, bar]`. Here `foooo` and `foooob` are grouped together into group `foooo` because they are found to be similar. (Another example can be found [here](#dedup).)
+   For example, the input series: <samp>[foooo, foooob, bar]</samp> will return <samp>[foooo, foooo, bar]</samp>. Here <samp>foooo</samp> and <samp>foooob</samp> are grouped together into group <samp>foooo</samp> because they are found to be similar. (Another example can be found [here](#dedup).)
    
-All functions are built using a class **StringGrouper**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the `StringGrouper` class directly.
+   If <samp>strings_to_group_id</samp> is also given, then the IDs corresponding to the output <samp>pandas.Series</samp> above is also returned.  The combined output is a <samp>pandas.DataFrame</samp> with two columns.
    
-### kwargs
+All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
+   
+* #### <a name="kwargs"></a>`kwargs`
 
-All keyword arguments not mentioned in the function definition are used to update the default settings. The following optional arguments can be used:
+   All keyword arguments not mentioned in the function definitions above are used to update the default settings. The following optional arguments can be used:
 
-* ***ngram_size***: The amount of characters in each n-gram. Optional. Default is `3`
-* ***regex***: The regex string used to clean-up the input string. Optional. Default is `[,-./]|\s`
-* ***max_n_matches***: The maximum number of matches allowed per string. Default is `20`.
-* ***min_similarity***: The minimum cosine similarity for two strings to be considered a match.
+   * **<samp>ngram_size</samp>**: The amount of characters in each n-gram. Optional. Default is <samp>3</samp>
+   * **<samp>regex</samp>**: The regex string used to clean-up the input string. Optional. Default is `[,-./]|\s`
+   * **<samp>max_n_matches</samp>**: The maximum number of matches allowed per string. Default is <samp>20</samp>.
+   * **<samp>min_similarity</samp>**: The minimum cosine similarity for two strings to be considered a match.
     Defaults to `0.8`
-* ***number_of_processes***: The number of processes used by the cosine similarity calculation. Defaults to
+   * **<samp>number_of_processes</samp>**: The number of processes used by the cosine similarity calculation. Defaults to
     `number of cores on a machine - 1.`
 
 ## Installing
 
-pip install string-grouper
+##### `pip install string-grouper`
 
 ## Examples
 
-In this section we will cover a few use cases for which string_grouper may be used. We will use the same dataset of company names as used in: [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
+In this section we will cover a few use cases for which string_grouper may be used. We will use the same data set of company names as used in: [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
 
-### Find all matches within a single dataset
+### Find all matches within a single data set
 
 
 ```python
@@ -65,7 +98,7 @@ from string_grouper import match_strings, match_most_similar, group_similar_stri
 
 ```python
 company_names = '/media/chris/data/dev/name_matching/data/sec_edgar_company_info.csv'
-# We only look at the first 50k as an example
+# We only look at the first 50k as an example:
 companies = pd.read_csv(company_names)[0:50000]
 # Create all matches:
 matches = match_strings(companies['Company Name'])
@@ -120,12 +153,12 @@ matches[matches.left_side != matches.right_side].head()
 </div>
 
 
-### Find all matches in between two datasets. 
-The `match_strings` function finds similar items between two datasets as well. This can be seen as an inner join between two datasets:
+### Find all matches in between two data sets. 
+The <samp>match_strings</samp> function finds similar items between two data sets as well. This can be seen as an inner join between two data sets:
 
 
 ```python
-# Create a small set of artificial company names
+# Create a small set of artificial company names:
 duplicates = pd.Series(['S MEDIA GROUP', '012 SMILE.COMMUNICATIONS', 'foo bar', 'B4UTRADE COM CORP'])
 # Create all matches:
 matches = match_strings(companies['Company Name'], duplicates)
@@ -179,20 +212,20 @@ matches
 </div>
 
 
-Out of the 4 company names in `duplicates`, 3 companies are found in the original company dataset. One company is found 3 times.
+Out of the four company names in <samp>duplicates</samp>, three companies are found in the original company data set. One company is found 3 times.
 
 ### Finding duplicates from a (database extract to) pandas DataFrame where IDs for rows are supplied.
 
-A very common scenario is the case where duplicate records for an entity have been entered into a database. That is, there are two or more records where a name field has slightly different spelling. For example, "A.B. Corporation" and "AB Corporation". Using the optional 'ID' parameter in the `match_strings` function duplicates can be found easily. A [tutorial](tutorials/tutorial_1.md) that steps though the process with an example dataset is available.
+A very common scenario is the case where duplicate records for an entity have been entered into a database. That is, there are two or more records where a name field has slightly different spelling. For example, "A.B. Corporation" and "AB Corporation". Using the optional 'ID' parameter in the <samp>match_strings</samp> function duplicates can be found easily. A [tutorial](tutorials/tutorial_1.md) that steps though the process with an example data set is available.
 
 
-### For a second dataset, find only the most similar match
+### For a second data set, find only the most similar match
 
 In the example above, it's possible that multiple matches are found for a single string. Sometimes we just want a string to match with a single most similar string. If there are no similar strings found, the original string should be returned:
 
 
 ```python
-# Create a small set of artificial company names
+# Create a small set of artificial company names:
 new_companies = pd.Series(['S MEDIA GROUP', '012 SMILE.COMMUNICATIONS', 'foo bar', 'B4UTRADE COM CORP'])
 # Create all matches:
 matches = match_most_similar(companies['Company Name'], new_companies)
@@ -237,15 +270,14 @@ pd.DataFrame({'new_companies': new_companies, 'duplicates': matches})
 
 
 
-### <a name="dedup"></a>Deduplicate a single dataset and show items with most duplicates
+### <a name="dedup"></a>Deduplicate a single data set and show items with most duplicates
 
-The `group_similar_strings` function groups strings that are similar using a single linkage clustering algorithm. That is, if item A and item B are similar; and item B and item C are similar; but the similarity between A and C is below the threshold; then all three items are grouped together. 
-
+The <samp>group_similar_strings</samp> function groups strings that are similar using a single linkage clustering algorithm. That is, if item A and item B are similar; and item B and item C are similar; but the similarity between A and C is below the threshold; then all three items are grouped together. 
 
 ```python
-# Add the grouped strings
+# Add the grouped strings:
 companies['deduplicated_name'] = group_similar_strings(companies['Company Name'])
-# Show items with most duplicates
+# Show items with most duplicates:
 companies.groupby('deduplicated_name').count().sort_values('Line Number', ascending=False).head(10)['Line Number']
 
 ```
@@ -267,17 +299,61 @@ companies.groupby('deduplicated_name').count().sort_values('Line Number', ascend
     Name: Line Number, dtype: int64
 
 
+The <samp>group_similar_strings</samp> function also works with IDs: imagine a <samp>pandas.DataFrame</samp> (<samp>customers_df</samp>) with the following content:
+```python
+# Create a small set of artificial customer names:
+customers_df = pd.DataFrame(
+   [
+      ('BB016741P', 'Mega Enterprises Corporation'),
+      ('CC082744L', 'Hyper Startup Incorporated'),
+      ('AA098762D', 'Hyper Startup Inc.'),
+      ('BB099931J', 'Hyper-Startup Inc.')
+      ('HH072982K', 'Hyper Hyper Inc.')
+   ],
+   columns=('Customer ID', 'Customer Name')
+)
+# Display the data:
+customers_df
+```
+
+|	|Customer ID  | Customer Name|
+|---|---|---|
+|0  |BB016741P  |Mega Enterprises Corporation|
+|1	|CC082744L	|Hyper Startup Incorporated|
+|2	|AA098762D	|Hyper Startup Inc.|
+|3	|BB099931J	|Hyper-Startup Inc.|
+|4	|HH072982K	|Hyper Hyper Inc.|
+
+The output of <samp>group_similar_strings</samp> can be directly used as a mapping table:
+```python
+# Group customers with similar names:
+customers_df[["group-id", "name_deduped"]]  = \
+    group_similar_strings(customers_df["Customer Name"], customers_df["Customer ID"])
+# Display the mapping table:
+customers_df
+```
+
+Customer ID | Customer Name | group-id | name_deduped 
+-- | -- | -- | --
+BB016741P | Mega Enterprises Corporation | BB016741P | Mega Enterprises Corporation 
+CC082744L | Hyper Startup Incorporated | CC082744L | Hyper Startup Incorporated 
+AA098762D | Hyper Startup Inc. | CC082744L | Hyper Startup Incorporated 
+BB099931J | Hyper-Startup Inc. | CC082744L | Hyper Startup Incorporated 
+HH072982K | Hyper Hyper Inc. | CC082744L | Hyper Startup Incorporated 
+
+Note that here <samp>customers_df</samp> initially had only two columns "Customer ID" and "Customer Name" (before the <samp>group_similar_strings</samp> function call); and it acquired two more columns "group-id" and "name_deduped" after the call.
+
 
 ## The StringGrouper class
 
-The three functions mentioned above all create a `StringGrouper` object behind the scenes and call different functions on it. The `StringGrouper` class keeps track of all tuples of similar strings and creates the groups out of these. Since matches are often not perfect, a common workflow is to:
+The three functions mentioned above all create a <samp>StringGrouper</samp> object behind the scenes and call different functions on it. The <samp>StringGrouper</samp> class keeps track of all tuples of similar strings and creates the groups out of these. Since matches are often not perfect, a common workflow is to:
 
 1. Create matches
 2. Manually inspect the results
 3. Add and remove matches where necessary
 4. Create groups of similar strings
 
-The `StringGrouper` class allows for this without having to re-calculate the cosine similarity matrix. See below for an example. 
+The <samp>StringGrouper</samp> class allows for this without having to re-calculate the cosine similarity matrix. See below for an example. 
 
 
 ```python
