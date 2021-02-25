@@ -3,6 +3,7 @@
 [![pypi](https://badgen.net/pypi/v/string-grouper)](https://pypi.org/project/string-grouper)
 [![license](https://badgen.net/pypi/license/string_grouper)](https://github.com/Bergvca/string_grouper)
 [![lastcommit](https://badgen.net/github/last-commit/Bergvca/string_grouper)](https://github.com/Bergvca/string_grouper)
+[![codecov](https://codecov.io/gh/Bergvca/string_grouper/branch/master/graph/badge.svg?token=AGK441CQDT)](https://codecov.io/gh/Bergvca/string_grouper)
 <!-- [![github](https://shields.io/github/v/release/Bergvca/string_grouper)](https://github.com/Bergvca/string_grouper) -->
 
 **<samp>string_grouper</samp>** is a library that makes finding groups of similar strings within a single, or multiple, lists of strings easy — and fast. **<samp>string_grouper</samp>** uses **tf-idf** to calculate [**cosine similarities**](https://towardsdatascience.com/understanding-cosine-similarity-and-its-application-fd42f585296a) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
