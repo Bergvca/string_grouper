@@ -221,7 +221,7 @@ matches
 </div>
 
 
-Out of the four company names in <samp>duplicates</samp>, three companies are found in the original company data set. One company is found 3 times.
+Out of the four company names in <samp>duplicates</samp>, three companies are found in the original company data set. One company is found three times.
 
 ### Finding duplicates from a (database extract to) DataFrame where IDs for rows are supplied.
 
