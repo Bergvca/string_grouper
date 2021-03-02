@@ -9,6 +9,89 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     match_most_similar, group_similar_strings, match_strings
 
 
+class SimpleExample(object):
+    def __init__(self):
+        self.customers_df = pd.DataFrame(
+           [
+              ('BB016741P', 'Mega Enterprises Corporation', 'Address0', 'Tel0', 'Description0', 0.2),
+              ('CC082744L', 'Hyper Startup Incorporated', '', 'Tel1', '', 0.5),
+              ('AA098762D', 'Hyper Startup Inc.', 'Address2', 'Tel2', 'Description2', 0.3),
+              ('BB099931J', 'Hyper-Startup Inc.', 'Address3', 'Tel3', 'Description3', 0.1),
+              ('HH072982K', 'Hyper Hyper Inc.', 'Address4', '', 'Description4', 0.9),
+              ('EE059082Q', 'Mega Enterprises Corp.', 'Address5', 'Tel5', 'Description5', 1.0)
+           ],
+           columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight')
+        )
+        n = len(self.customers_df)
+        now = pd.Timestamp.now()
+        self.customers_df['timestamp'] = pd.Series(
+            pd.date_range(start=now - pd.Timedelta(n - 1, unit='d'), end=now, periods=n)
+            ).iloc[::-1].reset_index(drop=True)
+        # group_similar_strings(
+        #    customers_df['Customer Name'],
+        #    timestamps=customers_df['timestamp'],
+        #    group_rep='oldest',
+        #    min_similarity=0.6
+        # )
+        self.expected_result_T = pd.Series(
+            [
+                 'Mega Enterprises Corp.',
+                 'Hyper-Startup Inc.',
+                 'Hyper-Startup Inc.',
+                 'Hyper-Startup Inc.',
+                 'Hyper Hyper Inc.',
+                 'Mega Enterprises Corp.'
+            ]
+        )
+        # group_similar_strings(
+        #    customers_df['Customer Name'],
+        #    weights=customers_df['weight'],
+        #    group_rep='weight-based',
+        #    min_similarity=0.6
+        # )
+        self.expected_result_W = pd.Series(
+            [
+                 'Mega Enterprises Corp.',
+                 'Hyper Startup Incorporated',
+                 'Hyper Startup Incorporated',
+                 'Hyper Startup Incorporated',
+                 'Hyper Hyper Inc.',
+                 'Mega Enterprises Corp.'
+            ]
+        )
+        # group_similar_strings(
+        #    customers_df['Customer Name'],
+        #    other_fields=customers_df['weight'],
+        #    group_rep='cleanest',
+        #    min_similarity=0.6
+        # )
+        self.expected_result_C = pd.Series(
+            [
+                 'Mega Enterprises Corporation',
+                 'Hyper Startup Inc.',
+                 'Hyper Startup Inc.',
+                 'Hyper Startup Inc.',
+                 'Hyper Hyper Inc.',
+                 'Mega Enterprises Corporation'
+            ]
+        )
+        # group_similar_strings(
+        #    customers_df['Customer Name'],
+        #    group_rep='centroid',
+        #    min_similarity=0.6
+        # )
+        self.expected_result_S = pd.Series(
+            [
+                 'Mega Enterprises Corp.',
+                 'Hyper Startup Inc.',
+                 'Hyper Startup Inc.',
+                 'Hyper Startup Inc.',
+                 'Hyper Hyper Inc.',
+                 'Mega Enterprises Corp.'
+            ]
+        )
+
+
 class StringGrouperConfigTest(unittest.TestCase):
     def test_config_defaults(self):
         """Empty initialisation should set default values"""
@@ -45,7 +128,7 @@ class StringGrouperTest(unittest.TestCase):
 
     def test_n_grams_ignore_case_to_lower(self):
         """Should return all case insensitive ngrams in a string"""
-        test_series = pd.Series(pd.Series(['aa'])) 
+        test_series = pd.Series(pd.Series(['aa']))
         # Explicit ignore case
         sg = StringGrouper(test_series, ignore_case=True)
         expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
@@ -53,7 +136,7 @@ class StringGrouperTest(unittest.TestCase):
 
     def test_n_grams_ignore_case_to_lower_with_defaults(self):
         """Should return all case insensitive ngrams in a string"""
-        test_series = pd.Series(pd.Series(['aa'])) 
+        test_series = pd.Series(pd.Series(['aa']))
         # Implicit default case (i.e. default behaviour)
         sg = StringGrouper(test_series)
         expected_result = ['mcd', 'cdo', 'don', 'ona', 'nal', 'ald', 'lds']
@@ -175,7 +258,7 @@ class StringGrouperTest(unittest.TestCase):
                                     'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
         # pd.testing.assert_frame_equal(expected_df, sg.get_matches())
         pd.testing.assert_frame_equal(
-            expected_df, 
+            expected_df,
             match_strings(test_series_1, test_series_2, duplicates_id=test_series_id_2, master_id=test_series_id_1)
             )
 
@@ -202,6 +285,111 @@ class StringGrouperTest(unittest.TestCase):
             _ = StringGrouper(test_series_1, duplicates_id=good_test_series_id_2)
         with self.assertRaises(Exception):
             _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, duplicates_id=good_test_series_id_2)
+
+    def test_get_groups_single_df_group_rep(self):
+        """Should return a pd.series object with the same length as the original df. The series object will contain
+        a list of the grouped strings"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                customers_df['Customer Name'],
+                timestamps=customers_df['timestamp'],
+                group_rep='nonsense',
+                min_similarity=0.6
+                )
+        pd.testing.assert_series_equal(
+            simple_example.expected_result_T,
+            group_similar_strings(
+                customers_df['Customer Name'],
+                timestamps=customers_df['timestamp'],
+                group_rep='oldest',
+                min_similarity=0.6
+            )
+        )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'].iloc[:-2],
+                    timestamps=customers_df['timestamp'],
+                    group_rep='oldest',
+                    min_similarity=0.6
+                )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'],
+                    group_rep='oldest',
+                    min_similarity=0.6
+                )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'],
+                    timestamps=customers_df['timestamp'],
+                    min_similarity=0.6
+                )
+        pd.testing.assert_series_equal(
+            simple_example.expected_result_S,
+            group_similar_strings(
+                customers_df['Customer Name'],
+                group_rep='centroid',
+                min_similarity=0.6
+            )
+        )
+        pd.testing.assert_series_equal(
+            simple_example.expected_result_W,
+            group_similar_strings(
+                customers_df['Customer Name'],
+                weights=customers_df['weight'],
+                group_rep='weight-based',
+                min_similarity=0.6
+            )
+        )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'].iloc[:-2],
+                    weights=customers_df['weight'],
+                    group_rep='weight-based',
+                    min_similarity=0.6
+                )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'],
+                    group_rep='weight-based',
+                    min_similarity=0.6
+                )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'],
+                    weights=customers_df['weight'],
+                    min_similarity=0.6
+                )
+        pd.testing.assert_series_equal(
+            simple_example.expected_result_C,
+            group_similar_strings(
+                customers_df['Customer Name'],
+                other_fields=customers_df,
+                group_rep='cleanest',
+                min_similarity=0.6
+            )
+        )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'].iloc[:-2],
+                    other_fields=customers_df,
+                    group_rep='cleanest',
+                    min_similarity=0.6
+                )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'],
+                    group_rep='cleanest',
+                    min_similarity=0.6
+                )
+        with self.assertRaises(Exception):
+            _ = group_similar_strings(
+                    customers_df['Customer Name'],
+                    other_fields=customers_df,
+                    min_similarity=0.6
+                )
 
     def test_get_groups_single_df(self):
         """Should return a pd.series object with the same length as the original df. The series object will contain
@@ -251,7 +439,7 @@ class StringGrouperTest(unittest.TestCase):
         expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])))
         # pd.testing.assert_frame_equal(expected_result, result)
         pd.testing.assert_frame_equal(
-            expected_result, 
+            expected_result,
             match_most_similar(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
             )
 
@@ -300,7 +488,9 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
         sg = sg.fit()
         result = sg.get_groups()
-        expected_result = pd.DataFrame(list(zip(['A0', 'B1', 'A1', 'A2', 'A0'], ['foooo', 'dooz', 'bar', 'baz', 'foooo'])))
+        expected_result = pd.DataFrame(list(zip(
+                ['A0', 'B1', 'A1', 'A2', 'A0'], ['foooo', 'dooz', 'bar', 'baz', 'foooo']
+            )))
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_raises_exception(self):
