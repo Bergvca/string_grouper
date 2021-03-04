@@ -8,6 +8,9 @@ from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
+from dateutil.parser import parse
+from numbers import Number
+from datetime import datetime
 
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_REGEX: str = r'[,-./]|\s'
@@ -215,6 +218,8 @@ class StringGrouper(object):
         self._weights: pd.Series = weights.reset_index(drop=True) if weights is not None else None
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         self._validate_group_rep_specs()
+        if self._config.group_rep == GROUP_REP_OLDEST:
+            self._parse_timestamps()
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
@@ -450,7 +455,7 @@ class StringGrouper(object):
         if self._master_id is None:
             return output
         else:
-            output_id = self._master_id[group_of_master_id.group_rep].reset_index(drop=True)
+            output_id = self._master_id[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
             return pd.concat([output_id, output], axis=1)
 
     def _compute_weights(self, graph: csr_matrix):
@@ -505,6 +510,38 @@ class StringGrouper(object):
         if self._config.group_rep != GROUP_REP_CLEANEST and self._other_fields is not None:
             raise Exception(f"Option group_rep='{self._config.group_rep}' cannot use other_fields argument")
 
+    def _parse_timestamps(self):
+        error_msg = f"timestamps must be a Series of date-like or datetime-like strings"
+        error_msg += f" or datetime datatype or pandas Timestamp datatype or numbers"
+        if self._is_series_of_strings(self._timestamps):
+            # if any of the strings is not datetime-like raise an exception
+            if self._timestamps.to_frame().applymap(StringGrouper._is_not_date).squeeze().any():
+                raise Exception(error_msg)
+            else:
+                # convert strings to numpy datetime64
+                self._timestamps = self._timestamps.copy().transform(lambda x: np.datetime64(parse(x, fuzzy=True)))
+        elif self._is_series_of_Timestamps(self._timestamps):
+            # convert pandas Timestamps to numpy datetime64
+            self._timestamps = self._timestamps.copy().transform(lambda x: x.to_numpy())
+        elif self._is_series_of_datetimes(self._timestamps):
+            # convert python datetimes to numpy datetime64
+            self._timestamps = self._timestamps.copy().transform(lambda x: np.datetime64(x))
+        elif not self._is_series_of_numbers(self._timestamps):
+            raise Exception(error_msg)
+
+    @staticmethod
+    def _is_not_date(string, fuzzy=True):
+        """
+        Return whether the string can be interpreted as a date.
+        :param string: str, string to check for date
+        :param fuzzy: bool, ignore unknown tokens in string if True
+        """
+        try:
+            parse(string, fuzzy=fuzzy)
+            return False
+        except ValueError:
+            return True
+
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
         columns_switched = pd.DataFrame({'master_side': new_matches.dupe_side,
@@ -530,7 +567,33 @@ class StringGrouper(object):
     def _is_series_of_strings(series_to_test: pd.Series) -> bool:
         if not isinstance(series_to_test, pd.Series):
             return False
-        elif series_to_test.str.len().isna().any():
+        elif series_to_test.to_frame().applymap(
+                    lambda x: not isinstance(x, str)
+                ).squeeze().any():
+            return False
+        return True
+
+    @staticmethod
+    def _is_series_of_Timestamps(series_to_test: pd.Series) -> bool:
+        if series_to_test.to_frame().applymap(
+                    lambda x: not isinstance(x, type(pd.Timestamp('1-1-2000')))
+                ).squeeze().any():
+            return False
+        return True
+
+    @staticmethod
+    def _is_series_of_datetimes(series_to_test: pd.Series) -> bool:
+        if series_to_test.to_frame().applymap(
+                    lambda x: not isinstance(x, datetime)
+                ).squeeze().any():
+            return False
+        return True
+
+    @staticmethod
+    def _is_series_of_numbers(series_to_test: pd.Series) -> bool:
+        if series_to_test.to_frame().applymap(
+                    lambda x: not isinstance(x, Number)
+                ).squeeze().any():
             return False
         return True
 
