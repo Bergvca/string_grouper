@@ -2,7 +2,6 @@ import unittest
 import pandas as pd
 import numpy as np
 from scipy.sparse.csr import csr_matrix
-from dateutil.parser import parse
 from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_MAX_N_MATCHES, DEFAULT_REGEX, \
     DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
@@ -23,59 +22,6 @@ class SimpleExample(object):
            ],
            columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight')
         )
-        n = len(self.customers_df)
-        now = pd.Timestamp.now()
-        self.customers_df['timestamp'] = pd.Series(
-            pd.date_range(start=now - pd.Timedelta(n - 1, unit='d'), end=now, periods=n)
-            ).iloc[::-1].reset_index(drop=True)
-        # group_similar_strings(
-        #    customers_df['Customer Name'],
-        #    timestamps=customers_df['timestamp'],
-        #    group_rep='oldest',
-        #    min_similarity=0.6
-        # )
-        self.expected_result_T = pd.Series(
-            [
-                 'Mega Enterprises Corp.',
-                 'Hyper-Startup Inc.',
-                 'Hyper-Startup Inc.',
-                 'Hyper-Startup Inc.',
-                 'Hyper Hyper Inc.',
-                 'Mega Enterprises Corp.'
-            ]
-        )
-        # group_similar_strings(
-        #    customers_df['Customer Name'],
-        #    weights=customers_df['weight'],
-        #    group_rep='weight-based',
-        #    min_similarity=0.6
-        # )
-        self.expected_result_W = pd.Series(
-            [
-                 'Mega Enterprises Corp.',
-                 'Hyper Startup Incorporated',
-                 'Hyper Startup Incorporated',
-                 'Hyper Startup Incorporated',
-                 'Hyper Hyper Inc.',
-                 'Mega Enterprises Corp.'
-            ]
-        )
-        # group_similar_strings(
-        #    customers_df['Customer Name'],
-        #    other_fields=customers_df,
-        #    group_rep='cleanest',
-        #    min_similarity=0.6
-        # )
-        self.expected_result_C = pd.Series(
-            [
-                 'Mega Enterprises Corporation',
-                 'Hyper Startup Inc.',
-                 'Hyper Startup Inc.',
-                 'Hyper Startup Inc.',
-                 'Hyper Hyper Inc.',
-                 'Mega Enterprises Corporation'
-            ]
-        )
         # group_similar_strings(
         #    customers_df['Customer Name'],
         #    group_rep='centroid',
@@ -89,53 +35,6 @@ class SimpleExample(object):
                  'Hyper Startup Inc.',
                  'Hyper Hyper Inc.',
                  'Mega Enterprises Corp.'
-            ]
-        )
-        self.customers_df2 = pd.DataFrame(
-            [
-                ('BB016741P', 'Mega Enterprises Corporation', 'Address0', 'Tel0', 'Description0', 0.2,
-                    '2014-12-30 10:55:00-02:00'),
-                ('CC082744L', 'Hyper Startup Incorporated', '', 'Tel1', '', 0.5, '2017-01-01 20:23:15-05:00'),
-                ('AA098762D', 'Hyper Startup Inc.', 'Address2', 'Tel2', 'Description2', 0.3,
-                    '2020-10-20 15:29:30+02:00'),
-                ('BB099931J', 'Hyper-Startup Inc.', 'Address3', 'Tel3', 'Description3', 0.1,
-                    '2013-07-01 03:34:45-05:00'),
-                ('HH072982K', 'Hyper Hyper Inc.', 'Address4', '', 'Description4', 0.9, '2005-09-11 11:56:00-07:00'),
-                ('EE059082Q', 'Mega Enterprises Corp.', 'Address5', 'Tel5', 'Description5', 1.0,
-                    '1998-04-14 09:21:11+00:00')
-            ],
-            columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight', 'timestamp')
-        )
-        # group_similar_strings(
-        #    customers_df2['Customer Name'],
-        #    timestamps=customers_df2['timestamp'],
-        #    group_rep='oldest',
-        #    min_similarity=0.6
-        # )
-        self.expected_result_T2 = pd.Series(
-            [
-                'Mega Enterprises Corp.',
-                'Hyper-Startup Inc.',
-                'Hyper-Startup Inc.',
-                'Hyper-Startup Inc.',
-                'Hyper Hyper Inc.',
-                'Mega Enterprises Corp.'
-            ]
-        )
-        # group_similar_strings(
-        #    customers_df2['Customer Name'],
-        #    timestamps=customers_df2['weight'],
-        #    group_rep='oldest',
-        #    min_similarity=0.6
-        # )
-        self.expected_result_T3 = pd.Series(
-            [
-                'Mega Enterprises Corporation',
-                'Hyper-Startup Inc.',
-                'Hyper-Startup Inc.',
-                'Hyper-Startup Inc.',
-                'Hyper Hyper Inc.',
-                'Mega Enterprises Corporation'
             ]
         )
 
@@ -339,96 +238,6 @@ class StringGrouperTest(unittest.TestCase):
         a list of the grouped strings"""
         simple_example = SimpleExample()
         customers_df = simple_example.customers_df
-        customers_df2 = simple_example.customers_df2
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                customers_df['Customer Name'],
-                timestamps=customers_df['timestamp'],
-                group_rep='nonsense',
-                min_similarity=0.6
-                )
-        pd.testing.assert_series_equal(
-            simple_example.expected_result_T,
-            group_similar_strings(
-                customers_df['Customer Name'],
-                timestamps=customers_df['timestamp'],
-                group_rep='oldest',
-                min_similarity=0.6
-            )
-        )
-        pd.testing.assert_series_equal(
-            simple_example.expected_result_T2,
-            group_similar_strings(
-                customers_df2['Customer Name'],
-                timestamps=customers_df2['timestamp'],
-                group_rep='oldest',
-                min_similarity=0.6
-            )
-        )
-        customers_df3 = customers_df2.copy()
-        customers_df3['timestamp'] = customers_df3['timestamp'].transform(lambda x: pd.Timestamp(x))
-        pd.testing.assert_series_equal(
-            simple_example.expected_result_T2,
-            group_similar_strings(
-                customers_df3['Customer Name'],
-                timestamps=customers_df3['timestamp'],
-                group_rep='oldest',
-                min_similarity=0.6
-            )
-        )
-        customers_df3['timestamp'] = customers_df2['timestamp'].transform(lambda x: parse(x, fuzzy=True))
-        pd.testing.assert_series_equal(
-            simple_example.expected_result_T2,
-            group_similar_strings(
-                customers_df3['Customer Name'],
-                timestamps=customers_df3['timestamp'],
-                group_rep='oldest',
-                min_similarity=0.6
-            )
-        )
-        pd.testing.assert_series_equal(
-            simple_example.expected_result_T3,
-            group_similar_strings(
-                customers_df3['Customer Name'],
-                timestamps=customers_df3['weight'],
-                group_rep='oldest',
-                min_similarity=0.6
-            )
-        )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df2['Customer Name'],
-                    timestamps=customers_df2['Customer ID'],
-                    group_rep='oldest',
-                    min_similarity=0.6
-                )
-        customers_df3.at[0, 'timestamp'] = 0
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df3['Customer Name'],
-                    timestamps=customers_df3['timestamp'],
-                    group_rep='oldest',
-                    min_similarity=0.6
-                )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'].iloc[:-2],
-                    timestamps=customers_df['timestamp'],
-                    group_rep='oldest',
-                    min_similarity=0.6
-                )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'],
-                    group_rep='oldest',
-                    min_similarity=0.6
-                )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'],
-                    timestamps=customers_df['timestamp'],
-                    min_similarity=0.6
-                )
         pd.testing.assert_series_equal(
             simple_example.expected_result_S,
             group_similar_strings(
@@ -437,60 +246,10 @@ class StringGrouperTest(unittest.TestCase):
                 min_similarity=0.6
             )
         )
-        pd.testing.assert_series_equal(
-            simple_example.expected_result_W,
-            group_similar_strings(
-                customers_df['Customer Name'],
-                weights=customers_df['weight'],
-                group_rep='weight-based',
-                min_similarity=0.6
-            )
-        )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'].iloc[:-2],
-                    weights=customers_df['weight'],
-                    group_rep='weight-based',
-                    min_similarity=0.6
-                )
         with self.assertRaises(Exception):
             _ = group_similar_strings(
                     customers_df['Customer Name'],
-                    group_rep='weight-based',
-                    min_similarity=0.6
-                )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'],
-                    weights=customers_df['weight'],
-                    min_similarity=0.6
-                )
-        pd.testing.assert_series_equal(
-            simple_example.expected_result_C,
-            group_similar_strings(
-                customers_df['Customer Name'],
-                other_fields=customers_df,
-                group_rep='cleanest',
-                min_similarity=0.6
-            )
-        )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'].iloc[:-2],
-                    other_fields=customers_df,
-                    group_rep='cleanest',
-                    min_similarity=0.6
-                )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'],
-                    group_rep='cleanest',
-                    min_similarity=0.6
-                )
-        with self.assertRaises(Exception):
-            _ = group_similar_strings(
-                    customers_df['Customer Name'],
-                    other_fields=customers_df,
+                    group_rep='nonsense',
                     min_similarity=0.6
                 )
 
@@ -501,7 +260,7 @@ class StringGrouperTest(unittest.TestCase):
         # sg = StringGrouper(test_series_1)
         # sg = sg.fit()
         # result = sg.get_groups()
-        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
+        expected_result = pd.Series(['foooob', 'bar', 'baz', 'foooob'])
         # pd.testing.assert_series_equal(expected_result, result)
         pd.testing.assert_series_equal(expected_result, group_similar_strings(test_series_1))
 
@@ -513,7 +272,7 @@ class StringGrouperTest(unittest.TestCase):
         # sg = StringGrouper(test_series_1, master_id=test_series_id_1)
         # sg = sg.fit()
         # result = sg.get_groups()
-        expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])))
+        expected_result = pd.DataFrame(list(zip(['A3', 'A1', 'A2', 'A3'], ['foooob', 'bar', 'baz', 'foooob'])))
         # pd.testing.assert_frame_equal(expected_result, result)
         pd.testing.assert_frame_equal(expected_result, group_similar_strings(test_series_1, test_series_id_1))
 

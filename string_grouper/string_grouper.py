@@ -8,9 +8,6 @@ from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
-from dateutil.parser import parse
-from numbers import Number
-from datetime import datetime
 
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_REGEX: str = r'[,-./]|\s'
@@ -18,26 +15,19 @@ DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
-DEFAULT_GROUP_REP: str = 'first'  # selects the first string in each group as group-representative
-GROUP_REP_FIRST: str = DEFAULT_GROUP_REP  # selects the first string in each group as group-representative
-# To select the oldest string in each group as group-representative use:
-GROUP_REP_OLDEST: str = 'oldest'
-# To select the string in the group with the most filled-in record as group-representative use:
-GROUP_REP_CLEANEST: str = 'cleanest'
-# To select the string in the group with the largest weight as group-representative use:
-GROUP_REP_HEAVIEST: str = 'weight-based'
-# To select the string in the group with the largest similarity aggregate as group-representative use:
-GROUP_REP_CENTROID: str = 'centroid'
 
+# Option value to select the string in each group with
+# the largest similarity aggregate as group-representative:
+GROUP_REP_CENTROID: str = 'centroid'
+# Option value to select the first string in each group as group-representative:
+GROUP_REP_FIRST: str = 'first'
+DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID  # chooses group centroid as group-representative by default
 
 # High level functions
 
 
 def group_similar_strings(strings_to_group: pd.Series,
                           string_ids: Optional[pd.Series] = None,
-                          timestamps: Optional[pd.Series] = None,
-                          other_fields: Optional[pd.DataFrame] = None,
-                          weights: Optional[pd.Series] = None,
                           **kwargs) -> Union[pd.DataFrame, pd.Series]:
     """
     If 'string_ids' is not given, finds all similar strings in 'strings_to_group' and returns a Series of
@@ -51,21 +41,10 @@ def group_similar_strings(strings_to_group: pd.Series,
 
     :param strings_to_group: pandas.Series. The input Series of strings to be grouped
     :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped
-    :param timestamps: pandas.Series. The input Series of the timestamps of the strings to be grouped.
-    Used to select for the group representative when keyword argument group_rep='oldest'
-    :param other_fields: pandas.DataFrame. The input DataFrame of ancillary fields of the strings to be grouped
-    Used to select for the group representative when keyword argument group_rep='cleanest'
-    :param weights: pandas.Series. The input Series of user-defined weights of the strings to be grouped
-    Used to select for the group representative when keyword argument group_rep='weight-based'
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig
     :return: pandas.Series or pandas.DataFrame
     """
-    string_grouper = StringGrouper(strings_to_group,
-                                   master_id=string_ids,
-                                   timestamps=timestamps,
-                                   other_fields=other_fields,
-                                   weights=weights,
-                                   **kwargs).fit()
+    string_grouper = StringGrouper(strings_to_group, master_id=string_ids, **kwargs).fit()
     return string_grouper.get_groups()
 
 
@@ -177,9 +156,6 @@ class StringGrouper(object):
                  duplicates: Optional[pd.Series] = None,
                  master_id: Optional[pd.Series] = None,
                  duplicates_id: Optional[pd.Series] = None,
-                 timestamps: Optional[pd.Series] = None,
-                 other_fields: Optional[pd.DataFrame] = None,
-                 weights: Optional[pd.Series] = None,
                  **kwargs):
         """
         StringGrouper is a class that holds the matrix with cosine similarities between the master and duplicates
@@ -191,12 +167,6 @@ class StringGrouper(object):
         :param duplicates: pandas.Series. If set, for each string in duplicates a similar string is searched in Master.
         :param master_id: pandas.Series. If set, contains ID values for each row in master Series.
         :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates Series.
-        :param timestamps: pandas.Series. The input Series of the timestamps of the strings to be grouped.
-        Used to select for the group representative when keyword argument group_rep='oldest'
-        :param other_fields: pandas.DataFrame. The input DataFrame of ancillary fields of the strings to be grouped
-        Used to select for the group representative when keyword argument group_rep='cleanest'
-        :param weights: pandas.Series. The input Series of user-defined weights of the strings to be grouped
-        Used to select for the group representative when keyword argument group_rep='weight-based'
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
         # Validate match strings input
@@ -207,19 +177,13 @@ class StringGrouper(object):
         if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
             raise Exception('List of data Series options is invalid')
         StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
-        StringGrouper._validate_group_rep_data(master, timestamps, other_fields, weights)
 
         self._master: pd.Series = master.reset_index(drop=True)
         self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
         self._master_id: pd.Series = master_id.reset_index(drop=True) if master_id is not None else None
         self._duplicates_id: pd.Series = duplicates_id.reset_index(drop=True) if duplicates_id is not None else None
-        self._timestamps: pd.Series = timestamps.reset_index(drop=True) if timestamps is not None else None
-        self._other_fields: pd.DataFrame = other_fields.reset_index(drop=True) if other_fields is not None else None
-        self._weights: pd.Series = weights.reset_index(drop=True) if weights is not None else None
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         self._validate_group_rep_specs()
-        if self._config.group_rep == GROUP_REP_OLDEST:
-            self._parse_timestamps()
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
@@ -446,33 +410,19 @@ class StringGrouper(object):
         group_of_master_id = pd.Series(connected_components(csgraph=graph, directed=False)[1], name='raw_group_id')\
             .reset_index()\
             .rename(columns={'index': 'weight'})
-        how = 'idxmin'
-        if self._config.group_rep != GROUP_REP_FIRST:
-            how, group_of_master_id['weight'] = self._compute_weights(graph)
+        method = 'idxmin'
+        if self._config.group_rep == GROUP_REP_CENTROID:
+            graph.data = self._matches_list['similarity'].to_numpy()
+            method = 'idxmax'
+            group_of_master_id['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())
         group_of_master_id['group_rep'] = \
-            group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(how)
+            group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(method)
         output = self._master[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
         if self._master_id is None:
             return output
         else:
             output_id = self._master_id[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
             return pd.concat([output_id, output], axis=1)
-
-    def _compute_weights(self, graph: csr_matrix):
-        if self._config.group_rep == GROUP_REP_OLDEST:
-            return ('idxmin', self._timestamps)
-        if self._config.group_rep == GROUP_REP_HEAVIEST:
-            return ('idxmax', self._weights)
-        elif self._config.group_rep == GROUP_REP_CLEANEST:
-            def is_notnull_and_not_empty(x):
-                if x == '' or pd.isnull(x):
-                    return 0
-                else:
-                    return 1
-            return ('idxmax', self._other_fields.applymap(is_notnull_and_not_empty).sum(axis=1))
-        elif self._config.group_rep == GROUP_REP_CENTROID:
-            graph.data = self._matches_list['similarity'].to_numpy()
-            return ('idxmax', pd.Series(np.asarray(graph.sum(axis=1)).squeeze()))
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
@@ -485,62 +435,11 @@ class StringGrouper(object):
         return master_indices, dupe_indices
 
     def _validate_group_rep_specs(self):
-        group_rep_options = \
-            (GROUP_REP_FIRST, GROUP_REP_CENTROID, GROUP_REP_OLDEST, GROUP_REP_CLEANEST, GROUP_REP_HEAVIEST)
+        group_rep_options = (GROUP_REP_FIRST, GROUP_REP_CENTROID)
         if self._config.group_rep not in group_rep_options:
             raise Exception(
                 f"Invalid option value for group_rep. The only permitted values are\n {group_rep_options}"
                 )
-        if self._config.group_rep == GROUP_REP_OLDEST and self._timestamps is None:
-            raise Exception(
-                f"A Series parameter (timestamps) is required when option group_rep='{GROUP_REP_OLDEST}'"
-                )
-        if self._config.group_rep == GROUP_REP_CLEANEST and self._other_fields is None:
-            raise Exception(
-                f"A DataFrame parameter (other_fields) is required when option group_rep='{GROUP_REP_CLEANEST}'"
-                )
-        if self._config.group_rep == GROUP_REP_HEAVIEST and self._weights is None:
-            raise Exception(
-                f"The Series parameter (weights) is required when option group_rep='{GROUP_REP_HEAVIEST}'"
-                )
-        if self._config.group_rep != GROUP_REP_OLDEST and self._timestamps is not None:
-            raise Exception(f"Option group_rep='{self._config.group_rep}' cannot use timestamps argument")
-        if self._config.group_rep != GROUP_REP_HEAVIEST and self._weights is not None:
-            raise Exception(f"Option group_rep='{self._config.group_rep}' cannot use weights argument")
-        if self._config.group_rep != GROUP_REP_CLEANEST and self._other_fields is not None:
-            raise Exception(f"Option group_rep='{self._config.group_rep}' cannot use other_fields argument")
-
-    def _parse_timestamps(self):
-        error_msg = f"timestamps must be a Series of date-like or datetime-like strings"
-        error_msg += f" or datetime datatype or pandas Timestamp datatype or numbers"
-        if self._is_series_of_strings(self._timestamps):
-            # if any of the strings is not datetime-like raise an exception
-            if self._timestamps.to_frame().applymap(StringGrouper._is_not_date).squeeze().any():
-                raise Exception(error_msg)
-            else:
-                # convert strings to numpy datetime64
-                self._timestamps = self._timestamps.copy().transform(lambda x: np.datetime64(parse(x, fuzzy=True)))
-        elif self._is_series_of_Timestamps(self._timestamps):
-            # convert pandas Timestamps to numpy datetime64
-            self._timestamps = self._timestamps.copy().transform(lambda x: x.to_numpy())
-        elif self._is_series_of_datetimes(self._timestamps):
-            # convert python datetimes to numpy datetime64
-            self._timestamps = self._timestamps.copy().transform(lambda x: np.datetime64(x))
-        elif not self._is_series_of_numbers(self._timestamps):
-            raise Exception(error_msg)
-
-    @staticmethod
-    def _is_not_date(string, fuzzy=True):
-        """
-        Return whether the string can be interpreted as a date.
-        :param string: str, string to check for date
-        :param fuzzy: bool, ignore unknown tokens in string if True
-        """
-        try:
-            parse(string, fuzzy=fuzzy)
-            return False
-        except ValueError:
-            return True
 
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
@@ -574,30 +473,6 @@ class StringGrouper(object):
         return True
 
     @staticmethod
-    def _is_series_of_Timestamps(series_to_test: pd.Series) -> bool:
-        if series_to_test.to_frame().applymap(
-                    lambda x: not isinstance(x, type(pd.Timestamp('1-1-2000')))
-                ).squeeze().any():
-            return False
-        return True
-
-    @staticmethod
-    def _is_series_of_datetimes(series_to_test: pd.Series) -> bool:
-        if series_to_test.to_frame().applymap(
-                    lambda x: not isinstance(x, datetime)
-                ).squeeze().any():
-            return False
-        return True
-
-    @staticmethod
-    def _is_series_of_numbers(series_to_test: pd.Series) -> bool:
-        if series_to_test.to_frame().applymap(
-                    lambda x: not isinstance(x, Number)
-                ).squeeze().any():
-            return False
-        return True
-
-    @staticmethod
     def _is_input_data_combination_valid(duplicates, master_id, duplicates_id) -> bool:
         if duplicates is None and (duplicates_id is not None) \
                 or duplicates is not None and ((master_id is None) ^ (duplicates_id is None)):
@@ -611,12 +486,3 @@ class StringGrouper(object):
             raise Exception('Both master and master_id must be pandas.Series of the same length.')
         if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
             raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
-
-    @staticmethod
-    def _validate_group_rep_data(master, timestamps, other_fields, weights):
-        if timestamps is not None and len(master) != len(timestamps):
-            raise Exception('Both strings to group and timestamps must be pandas.Series of the same length.')
-        if other_fields is not None and len(master) != len(other_fields):
-            raise Exception('Both strings to group and other_fields must be pandas.Series of the same length.')
-        if weights is not None and len(master) != len(weights):
-            raise Exception('Both strings to group and weights must be pandas.Series of the same length.')
