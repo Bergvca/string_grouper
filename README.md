@@ -32,7 +32,7 @@ The permitted calling patterns of the three functions, and their return types, a
 | <samp>match_most_similar</samp>| <samp>(master, duplicates, **kwargs)</samp>| <samp>Series</samp> |
 | <samp>match_most_similar</samp>| <samp>(master, duplicates, master_id, duplicates_id, **kwargs)</samp>| <samp>DataFrame</samp> |
 | <samp>group_similar_strings</samp>| <samp>(strings_to_group, **kwargs)</samp>| <samp>Series</samp> |
-| <samp>group_similar_strings</samp>| <samp>(strings_to_group, strings_to_group_id, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>group_similar_strings</samp>| <samp>(strings_to_group, strings_id, **kwargs)</samp>| <samp>DataFrame</samp> |
 
 In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame</samp>, refer to the familiar <samp>pandas</samp> object types.
 #### Parameters:
@@ -44,7 +44,7 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
 |**<samp>master_id</samp>** (or <samp>id_series</samp>) | A <samp>Series</samp> of IDs corresponding to the strings in <samp>master</samp>. |
 |**<samp>duplicates_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>duplicates</samp>. |
 |**<samp>strings_to_group</samp>** | A <samp>Series</samp> of strings to be grouped. |
-|**<samp>strings_to_group_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>strings_to_group</samp>. |
+|**<samp>strings_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>strings_to_group</samp>. |
 |**<samp>**kwargs</samp>** | Keyword arguments (see [below](#kwargs)).|
 
 #### Functions:
@@ -68,11 +68,11 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
     If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> with two unnamed columns is returned.  The second column is the same as the <samp>Series</samp> of strings described above, and the first column contains the corresponding IDs. 
     
 * #### `group_similar_strings` 
-  Takes a single <samp>Series</samp> (<samp>strings_to_group</samp>) of strings and groups them by assigning to each string one single string chosen as the group representative for each group of similar strings found.   The output is a nameless <samp>Series</samp> of group-representative strings of the same length as the input <samp>Series</samp>.
+  Takes a single <samp>Series</samp> (<samp>strings_to_group</samp>) of strings and groups them by assigning to each string one single string chosen as the group representative for each group of similar strings found.   The output is a nameless <samp>Series</samp> of group-representative strings of the same length as the input <samp>Series</samp>.  See also [string_grouper_utils](tutorials/Demo2_StringGrouperGroupRep.md).
    
    For example, the input series: <samp>[foooo, foooob, bar]</samp> will return <samp>[foooo, foooo, bar]</samp>. Here <samp>foooo</samp> and <samp>foooob</samp> are grouped together into group <samp>foooo</samp> because they are found to be similar. (Another example can be found [here](#dedup).)
    
-   If <samp>strings_to_group_id</samp> is also given, then the IDs corresponding to the output <samp>Series</samp> above is also returned.  The combined output is a <samp>DataFrame</samp> with two columns.
+   If <samp>strings_id</samp> is also given, then the IDs corresponding to the output <samp>Series</samp> above is also returned.  The combined output is a <samp>DataFrame</samp> with two columns.
    
 All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
    
