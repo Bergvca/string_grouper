@@ -118,8 +118,8 @@ class StringGrouperConfig(NamedTuple):
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
     Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
-    :param group_rep: str.  The scheme to select the group-representative.  Default is 'first'.
-    Other choices are 'oldest', 'cleanest', 'weight-based', 'centroid'
+    :param group_rep: str.  The scheme to select the group-representative.  Default is 'centroid'.
+    The other choice is 'first'.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -410,10 +410,10 @@ class StringGrouper(object):
         group_of_master_id = pd.Series(connected_components(csgraph=graph, directed=False)[1], name='raw_group_id')\
             .reset_index()\
             .rename(columns={'index': 'weight'})
-        method = 'idxmin'
+        method = 'first'
         if self._config.group_rep == GROUP_REP_CENTROID:
-            graph.data = self._matches_list['similarity'].to_numpy()
             method = 'idxmax'
+            graph.data = self._matches_list['similarity'].to_numpy()
             group_of_master_id['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())
         group_of_master_id['group_rep'] = \
             group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(method)

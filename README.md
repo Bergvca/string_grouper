@@ -68,7 +68,7 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
     If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> with two unnamed columns is returned.  The second column is the same as the <samp>Series</samp> of strings described above, and the first column contains the corresponding IDs. 
     
 * #### `group_similar_strings` 
-  Takes a single <samp>Series</samp> (<samp>strings_to_group</samp>) of strings and groups them by assigning to each string one single string chosen as the group representative for each group of similar strings found.   The output is a nameless <samp>Series</samp> of group-representative strings of the same length as the input <samp>Series</samp>.  See also [string_grouper_utils](tutorials/Demo2_StringGrouperGroupRep.md).
+  Takes a single <samp>Series</samp> (<samp>strings_to_group</samp>) of strings and groups them by assigning to each string one single string chosen as the group-representative (see [string_grouper_utils](tutorials/group_representatives.md)) for each group of similar strings found.   The output is a nameless <samp>Series</samp> of group-representative strings of the same length as the input <samp>Series</samp>.  
    
    For example, the input series: <samp>[foooo, foooob, bar]</samp> will return <samp>[foooo, foooo, bar]</samp>. Here <samp>foooo</samp> and <samp>foooob</samp> are grouped together into group <samp>foooo</samp> because they are found to be similar. (Another example can be found [here](#dedup).)
    
