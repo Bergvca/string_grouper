@@ -22,12 +22,7 @@ class SimpleExample(object):
            ],
            columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight')
         )
-        # group_similar_strings(
-        #    customers_df['Customer Name'],
-        #    group_rep='centroid',
-        #    min_similarity=0.6
-        # )
-        self.expected_result_S = pd.Series(
+        self.expected_result_centroid = pd.Series(
             [
                  'Mega Enterprises Corp.',
                  'Hyper Startup Inc.',
@@ -35,6 +30,16 @@ class SimpleExample(object):
                  'Hyper Startup Inc.',
                  'Hyper Hyper Inc.',
                  'Mega Enterprises Corp.'
+            ]
+        )
+        self.expected_result_first = pd.Series(
+            [
+                 'Mega Enterprises Corporation',
+                 'Hyper Startup Incorporated',
+                 'Hyper Startup Incorporated',
+                 'Hyper Startup Incorporated',
+                 'Hyper Hyper Inc.',
+                 'Mega Enterprises Corporation'
             ]
         )
 
@@ -155,13 +160,12 @@ class StringGrouperTest(unittest.TestCase):
     def test_get_matches_two_dataframes(self):
         test_series_1 = pd.Series(['foo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
-        # sg = StringGrouper(test_series_1, test_series_2).fit()
+        sg = StringGrouper(test_series_1, test_series_2).fit()
         left_side = ['foo', 'bar']
         right_side = ['foo', 'bar']
         similarity = [1.0, 1.0]
         expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
-        # pd.testing.assert_frame_equal(expected_df, sg.get_matches())
-        pd.testing.assert_frame_equal(expected_df, match_strings(test_series_1, test_series_2))
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_single(self):
         test_series_1 = pd.Series(['foo', 'bar', 'baz', 'foo'])
@@ -239,10 +243,18 @@ class StringGrouperTest(unittest.TestCase):
         simple_example = SimpleExample()
         customers_df = simple_example.customers_df
         pd.testing.assert_series_equal(
-            simple_example.expected_result_S,
+            simple_example.expected_result_centroid,
             group_similar_strings(
                 customers_df['Customer Name'],
                 group_rep='centroid',
+                min_similarity=0.6
+            )
+        )
+        pd.testing.assert_series_equal(
+            simple_example.expected_result_first,
+            group_similar_strings(
+                customers_df['Customer Name'],
+                group_rep='first',
                 min_similarity=0.6
             )
         )
@@ -257,12 +269,11 @@ class StringGrouperTest(unittest.TestCase):
         """Should return a pd.series object with the same length as the original df. The series object will contain
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
-        # sg = StringGrouper(test_series_1)
-        # sg = sg.fit()
-        # result = sg.get_groups()
+        sg = StringGrouper(test_series_1)
+        sg = sg.fit()
+        result = sg.get_groups()
         expected_result = pd.Series(['foooob', 'bar', 'baz', 'foooob'])
-        # pd.testing.assert_series_equal(expected_result, result)
-        pd.testing.assert_series_equal(expected_result, group_similar_strings(test_series_1))
+        pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_1_string_series_1_id_series(self):
         """Should return a pd.series object with the same length as the original df. The series object will contain

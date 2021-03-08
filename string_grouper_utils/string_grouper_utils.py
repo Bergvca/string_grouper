@@ -133,20 +133,20 @@ def get_column(col: Union[str, int, List[Union[str, int]]], data: pd.DataFrame):
 def parse_timestamps(timestamps: pd.Series, **kwargs) -> pd.Series:
     error_msg = f"timestamps must be a Series of date-like or datetime-like strings"
     error_msg += f" or datetime datatype or pandas Timestamp datatype or numbers"
-    if is_series_of_strings(timestamps):
+    if is_series_of_type(str, timestamps):
         # if any of the strings is not datetime-like raise an exception
         if timestamps.to_frame().applymap(is_not_date).squeeze().any():
             raise Exception(error_msg)
         else:
             # convert strings to numpy datetime64
             return timestamps.copy().transform(lambda x: np.datetime64(parse(x, **kwargs)))
-    elif is_series_of_Timestamps(timestamps):
+    elif is_series_of_type(type(pd.Timestamp('15-1-2000')), timestamps):
         # convert pandas Timestamps to numpy datetime64
         return timestamps.copy().transform(lambda x: x.to_numpy())
-    elif is_series_of_datetimes(timestamps):
+    elif is_series_of_type(datetime, timestamps):
         # convert python datetimes to numpy datetime64
         return timestamps.copy().transform(lambda x: np.datetime64(x))
-    elif not is_series_of_numbers(timestamps):
+    elif not is_series_of_type(Number, timestamps):
         raise Exception(error_msg)
     return timestamps
 
@@ -164,33 +164,9 @@ def is_not_date(string, fuzzy=True):
         return True
 
 
-def is_series_of_strings(series_to_test: pd.Series) -> bool:
+def is_series_of_type(what: type, series_to_test: pd.Series) -> bool:
     if series_to_test.to_frame().applymap(
-                lambda x: not isinstance(x, str)
-            ).squeeze().any():
-        return False
-    return True
-
-
-def is_series_of_Timestamps(series_to_test: pd.Series) -> bool:
-    if series_to_test.to_frame().applymap(
-                lambda x: not isinstance(x, type(pd.Timestamp('1-1-2000')))
-            ).squeeze().any():
-        return False
-    return True
-
-
-def is_series_of_datetimes(series_to_test: pd.Series) -> bool:
-    if series_to_test.to_frame().applymap(
-                lambda x: not isinstance(x, datetime)
-            ).squeeze().any():
-        return False
-    return True
-
-
-def is_series_of_numbers(series_to_test: pd.Series) -> bool:
-    if series_to_test.to_frame().applymap(
-                lambda x: not isinstance(x, Number)
+                lambda x: not isinstance(x, what)
             ).squeeze().any():
         return False
     return True

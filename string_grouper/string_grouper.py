@@ -399,6 +399,7 @@ class StringGrouper(object):
             return dupes_max_sim[['master_id', 'master']].rename(columns={'master_id': 0, 'master': 1})
 
     def _deduplicate(self) -> Union[pd.DataFrame, pd.Series]:
+        # rebuild graph adjacency matrix from already found matches:
         n = len(self._master)
         graph = csr_matrix(
             (
@@ -407,20 +408,40 @@ class StringGrouper(object):
             ),
             shape=(n, n)
         )
-        group_of_master_id = pd.Series(connected_components(csgraph=graph, directed=False)[1], name='raw_group_id')\
-            .reset_index()\
-            .rename(columns={'index': 'weight'})
+        # apply scipy.csgraph's clustering algorithm (result is a 1D numpy array of length n):
+        groups = connected_components(csgraph=graph, directed=False)[1]
+        # convert to pandas Series:
+        group_of_master_id = pd.Series(groups, name='raw_group_id')
+
+        # merge groups with string indices to obtain two-column DataFrame:
+        # note: the following line automatically creates a new column named 'index' with the corresponding indices:
+        group_of_master_id = group_of_master_id.reset_index()
+
+        # Determine weights for obtaining group representatives:
+        # 1. option setting group_rep='first':
+        group_of_master_id.rename(columns={'index': 'weight'}, inplace=True)
         method = 'first'
+        # 2. option setting group_rep='centroid':
         if self._config.group_rep == GROUP_REP_CENTROID:
-            method = 'idxmax'
+            # reuse the adjacency matrix built above (change the 1's to corresponding cosine similarities):
             graph.data = self._matches_list['similarity'].to_numpy()
+            # sum along the rows to obtain numpy 1D matrix of similarity aggregates then ...
+            # ... convert to 1D numpy array (using asarray then squeeze) and then to Series:
             group_of_master_id['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())
+            method = 'idxmax'
+
+        # Determine the group representatives AND merge with indices:
+        # pandas groupby transform function enables both in one step:
         group_of_master_id['group_rep'] = \
             group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(method)
+
+        # Prepare the output:
+        # use group rep indices obtained in the last step above to select the corresponding strings:
         output = self._master[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
         if self._master_id is None:
             return output
         else:
+            # use indices obtained in the last step above to select the corresponding string IDs:
             output_id = self._master_id[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
             return pd.concat([output_id, output], axis=1)
 
