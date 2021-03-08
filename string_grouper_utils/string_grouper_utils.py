@@ -5,7 +5,7 @@ from dateutil.parser import parse
 from numbers import Number
 from datetime import datetime
 import re
-from textwrap import indent
+import pydoc
 
 
 def new_group_rep_by_earliest_timestamp(grouped_data: pd.DataFrame,
@@ -13,6 +13,7 @@ def new_group_rep_by_earliest_timestamp(grouped_data: pd.DataFrame,
                                         record_id_col: Union[str, int],
                                         timestamps: Union[pd.Series, str, int],
                                         record_name_col: Optional[Union[str, int]] = None,
+                                        parserinfo=None,
                                         **kwargs) -> Union[pd.DataFrame, pd.Series]:
     """
     Selects the oldest string in each group as group-representative.
@@ -24,17 +25,19 @@ def new_group_rep_by_earliest_timestamp(grouped_data: pd.DataFrame,
     This contains the timestamps of the strings to be grouped.
     :param record_name_col: (Optional) The name or positional index of the column in grouped_data with
     all groups' members' names. (This will appear in the output.)
-    :param **kwargs: These are the same keyword arguments you would pass to dateutil.parser.parse.
-    These help in interpreting the string input which is to be parsed into datetime datatypes, e.g. day first.
+    :param parserinfo: (See below.)
+    :param **kwargs: (See below.)
+    parserinfo and kwargs are the same arguments as those you would pass to dateutil.parser.parse.  They help in
+    interpreting the string inputs which are to be parsed into datetime datatypes.
 
-    FYI, the dateutil.parser.parse keyword arguments documentation follows:
+    FYI, the dateutil.parser.parse documentation for these arguments follows:
     """
     if isinstance(timestamps, pd.Series):
         if len(grouped_data) != len(timestamps):
             raise Exception('Both grouped_data and timestamps must be pandas.Series of the same length.')
     else:
         timestamps = get_column(timestamps, grouped_data)
-    weights = parse_timestamps(timestamps, **kwargs)
+    weights = parse_timestamps(timestamps, parserinfo, **kwargs)
     return group_rep_transform('idxmin', weights, grouped_data, group_col, record_id_col, record_name_col)
 
 
@@ -130,38 +133,39 @@ def get_column(col: Union[str, int, List[Union[str, int]]], data: pd.DataFrame):
         return pd.concat([get_column(m, data) for m in col], axis=1)
 
 
-def parse_timestamps(timestamps: pd.Series, **kwargs) -> pd.Series:
+def parse_timestamps(timestamps: pd.Series, parserinfo=None, **kwargs) -> pd.Series:
     error_msg = f"timestamps must be a Series of date-like or datetime-like strings"
     error_msg += f" or datetime datatype or pandas Timestamp datatype or numbers"
     if is_series_of_type(str, timestamps):
         # if any of the strings is not datetime-like raise an exception
-        if timestamps.to_frame().applymap(is_not_date).squeeze().any():
-            raise Exception(error_msg)
-        else:
+        if timestamps.to_frame().applymap(is_date).squeeze().all():
             # convert strings to numpy datetime64
-            return timestamps.copy().transform(lambda x: np.datetime64(parse(x, **kwargs)))
+            return timestamps.transform(lambda x: np.datetime64(parse(x, parserinfo, **kwargs)))
     elif is_series_of_type(type(pd.Timestamp('15-1-2000')), timestamps):
         # convert pandas Timestamps to numpy datetime64
-        return timestamps.copy().transform(lambda x: x.to_numpy())
+        return timestamps.transform(lambda x: x.to_numpy())
     elif is_series_of_type(datetime, timestamps):
         # convert python datetimes to numpy datetime64
-        return timestamps.copy().transform(lambda x: np.datetime64(x))
-    elif not is_series_of_type(Number, timestamps):
-        raise Exception(error_msg)
-    return timestamps
+        return timestamps.transform(lambda x: np.datetime64(x))
+    elif is_series_of_type(Number, timestamps):
+        return timestamps
+    raise Exception(error_msg)
 
 
-def is_not_date(string, fuzzy=True):
+def is_date(string, parserinfo=None, **kwargs):
     """
     Return whether the string can be interpreted as a date.
     :param string: str, string to check for date
-    :param fuzzy: bool, ignore unknown tokens in string if True
+    :param parserinfo: (See below.)
+    :param **kwargs: (See below.)
+    parserinfo and kwargs are the same arguments as those you would pass to dateutil.parser.parse.  They help in
+    interpreting the string inputs which are to be parsed into datetime datatypes.
     """
     try:
-        parse(string, fuzzy=fuzzy)
-        return False
-    except ValueError:
+        parse(string, parserinfo, **kwargs)
         return True
+    except ValueError:
+        return False
 
 
 def is_series_of_type(what: type, series_to_test: pd.Series) -> bool:
@@ -172,8 +176,13 @@ def is_series_of_type(what: type, series_to_test: pd.Series) -> bool:
     return True
 
 
-# The following lines append the kwargs portion of the docstring of dateutil.parser.parse to
+# The following lines modify and append the kwargs portion of the docstring of dateutil.parser.parse to
 # the docstring of new_group_rep_by_earliest_timestamp:
-parse_docstring_kwargs = re.search('The ``\*\*kwargs``.*?:return:', parse.__doc__, flags=re.DOTALL)
+parse_docstring_kwargs = re.search(':param parserinfo:.*?:return:', pydoc.render_doc(parse), flags=re.DOTALL).group(0)
+parse_docstring_kwargs = re.sub(
+    '``timestr``',
+    'the strings containing the date/time-stamps',
+    parse_docstring_kwargs
+)
 new_group_rep_by_earliest_timestamp.__doc__ = new_group_rep_by_earliest_timestamp.__doc__ + \
-    indent(parse_docstring_kwargs.group(0)[:-9], '    ', lambda line: True)
+    parse_docstring_kwargs[:-9]

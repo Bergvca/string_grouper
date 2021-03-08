@@ -7,6 +7,7 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
     match_most_similar, group_similar_strings, match_strings
+from unittest.mock import patch
 
 
 class SimpleExample(object):
@@ -45,6 +46,7 @@ class SimpleExample(object):
 
 
 class StringGrouperConfigTest(unittest.TestCase):
+
     def test_config_defaults(self):
         """Empty initialisation should set default values"""
         config = StringGrouperConfig()
@@ -70,6 +72,58 @@ class StringGrouperConfigTest(unittest.TestCase):
 
 
 class StringGrouperTest(unittest.TestCase):
+    @patch('string_grouper.string_grouper.StringGrouper')
+    def test_group_similar_strings(self, mock_StringGouper):
+        mock_StringGrouper_instance = mock_StringGouper.return_value
+        mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
+        mock_StringGrouper_instance.get_groups.return_value = 'whatever'
+
+        test_series_1 = None
+        test_series_id_1 = None
+        df = group_similar_strings(
+                test_series_1,
+                string_ids=test_series_id_1
+            )
+
+        mock_StringGrouper_instance.fit.assert_called_once()
+        mock_StringGrouper_instance.get_groups.assert_called_once()
+        assert df == 'whatever'
+
+    @patch('string_grouper.string_grouper.StringGrouper')
+    def test_match_most_similar(self, mock_StringGouper):
+        mock_StringGrouper_instance = mock_StringGouper.return_value
+        mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
+        mock_StringGrouper_instance.get_groups.return_value = 'whatever'
+
+        test_series_1 = None
+        test_series_2 = None
+        test_series_id_1 = None
+        test_series_id_2 = None
+        df = match_most_similar(
+                test_series_1,
+                test_series_2,
+                master_id=test_series_id_1,
+                duplicates_id=test_series_id_2
+            )
+
+        mock_StringGrouper_instance.fit.assert_called_once()
+        mock_StringGrouper_instance.get_groups.assert_called_once()
+        assert df == 'whatever'
+
+    @patch('string_grouper.string_grouper.StringGrouper')
+    def test_match_strings(self, mock_StringGouper):
+        mock_StringGrouper_instance = mock_StringGouper.return_value
+        mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
+        mock_StringGrouper_instance.get_matches.return_value = 'expected_result'
+
+        test_series_1 = None
+        test_series_id_1 = None
+        df = match_strings(test_series_1, master_id=test_series_id_1)
+
+        mock_StringGrouper_instance.fit.assert_called_once()
+        mock_StringGrouper_instance.get_matches.assert_called_once()
+        assert df == 'expected_result'
+
     def test_n_grams_case_unchanged(self):
         """Should return all ngrams in a string with case"""
         test_series = pd.Series(pd.Series(['aa']))
@@ -169,20 +223,19 @@ class StringGrouperTest(unittest.TestCase):
 
     def test_get_matches_single(self):
         test_series_1 = pd.Series(['foo', 'bar', 'baz', 'foo'])
-        # sg = StringGrouper(test_series_1)
-        # sg = sg.fit()
+        sg = StringGrouper(test_series_1)
+        sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
-        # pd.testing.assert_frame_equal(expected_df, sg.get_matches())
-        pd.testing.assert_frame_equal(expected_df, match_strings(test_series_1))
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_1_series_1_id_series(self):
         test_series_1 = pd.Series(['foo', 'bar', 'baz', 'foo'])
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
-        # sg = StringGrouper(test_series_1, master_id=test_series_id_1)
-        # sg = sg.fit()
+        sg = StringGrouper(test_series_1, master_id=test_series_id_1)
+        sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
@@ -190,16 +243,15 @@ class StringGrouperTest(unittest.TestCase):
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
                                     'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
-        # pd.testing.assert_frame_equal(expected_df, sg.get_matches())
-        pd.testing.assert_frame_equal(expected_df, match_strings(test_series_1, master_id=test_series_id_1))
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_2_series_2_id_series(self):
         test_series_1 = pd.Series(['foo', 'bar', 'baz'])
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
         test_series_id_2 = pd.Series(['B0', 'B1', 'B2'])
-        # sg = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2,
-        #                   master_id=test_series_id_1).fit()
+        sg = StringGrouper(test_series_1, test_series_2, duplicates_id=test_series_id_2,
+                           master_id=test_series_id_1).fit()
         left_side = ['foo', 'bar']
         left_side_id = ['A0', 'A1']
         right_side = ['foo', 'bar']
@@ -207,11 +259,7 @@ class StringGrouperTest(unittest.TestCase):
         similarity = [1.0, 1.0]
         expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
                                     'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
-        # pd.testing.assert_frame_equal(expected_df, sg.get_matches())
-        pd.testing.assert_frame_equal(
-            expected_df,
-            match_strings(test_series_1, test_series_2, duplicates_id=test_series_id_2, master_id=test_series_id_1)
-            )
+        pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_raises_exception_if_unexpected_options_given(self):
         # When the input id data does not correspond with its string data:
@@ -280,24 +328,22 @@ class StringGrouperTest(unittest.TestCase):
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
-        # sg = StringGrouper(test_series_1, master_id=test_series_id_1)
-        # sg = sg.fit()
-        # result = sg.get_groups()
+        sg = StringGrouper(test_series_1, master_id=test_series_id_1)
+        sg = sg.fit()
+        result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip(['A3', 'A1', 'A2', 'A3'], ['foooob', 'bar', 'baz', 'foooob'])))
-        # pd.testing.assert_frame_equal(expected_result, result)
-        pd.testing.assert_frame_equal(expected_result, group_similar_strings(test_series_1, test_series_id_1))
+        pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df(self):
         """Should return a pd.series object with the length of the dupes. The series will contain the master string
         that matches the dupe with the highest similarity"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
-        # sg = StringGrouper(test_series_1, test_series_2)
-        # sg = sg.fit()
-        # result = sg.get_groups()
+        sg = StringGrouper(test_series_1, test_series_2)
+        sg = sg.fit()
+        result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
-        # pd.testing.assert_series_equal(expected_result, result)
-        pd.testing.assert_series_equal(expected_result, match_most_similar(test_series_1, test_series_2))
+        pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_2_string_series_2_id_series(self):
         """Should return a pd.series object with the length of the dupes. The series will contain the master string
@@ -306,15 +352,11 @@ class StringGrouperTest(unittest.TestCase):
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2'])
         test_series_id_2 = pd.Series(['B0', 'B1', 'B2', 'B3'])
-        # sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
-        # sg = sg.fit()
-        # result = sg.get_groups()
+        sg = StringGrouper(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
+        sg = sg.fit()
+        result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])))
-        # pd.testing.assert_frame_equal(expected_result, result)
-        pd.testing.assert_frame_equal(
-            expected_result,
-            match_most_similar(test_series_1, test_series_2, master_id=test_series_id_1, duplicates_id=test_series_id_2)
-            )
+        pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df_same_similarity(self):
         """Should return a pd.series object with the length of the dupes. If there are two dupes with the same

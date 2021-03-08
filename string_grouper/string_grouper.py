@@ -409,7 +409,7 @@ class StringGrouper(object):
             shape=(n, n)
         )
         # apply scipy.csgraph's clustering algorithm (result is a 1D numpy array of length n):
-        groups = connected_components(csgraph=graph, directed=False)[1]
+        _, groups = connected_components(csgraph=graph, directed=False)
         # convert to pandas Series:
         group_of_master_id = pd.Series(groups, name='raw_group_id')
 
