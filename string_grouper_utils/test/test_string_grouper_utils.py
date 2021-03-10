@@ -83,9 +83,9 @@ class SimpleExample(object):
 
 
 class StringGrouperUtilTest(unittest.TestCase):
-    def test_group_rep_transforms(self):
-        """Should return a pd.series object with the same length as the original df. The series object will contain
-        a list of the grouped strings"""
+    def test_group_rep_by_timestamp_return_series(self):
+        """Should return a pd.Series object with the same length as the grouped_data. The series object will contain
+        a list of groups whose group-representatives have the earliest timestamp of the group"""
         simple_example = SimpleExample()
         customers_df = simple_example.customers_df
         pd.testing.assert_series_equal(
@@ -97,6 +97,10 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'timestamp'
             )
         )
+
+    def test_group_rep_by_timestamp_return_dataframe(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the earliest timestamp of the group"""
         simple_example = SimpleExample()
         customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
@@ -109,6 +113,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_timestamp_series_input(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the earliest timestamp of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
             simple_example.expected_result_T,
             new_group_rep_by_earliest_timestamp(
@@ -119,6 +129,11 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_timestamp_input_series_length(self):
+        """Should raise an exception when timestamps series length is not the same as the length of grouped_data"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         with self.assertRaises(Exception):
             _ = new_group_rep_by_earliest_timestamp(
                 customers_df,
@@ -127,6 +142,11 @@ class StringGrouperUtilTest(unittest.TestCase):
                 customers_df['timestamp'].iloc[:-2],
                 'Customer Name'
             )
+
+    def test_group_rep_by_timestamp_bad_input_timestamp_strings(self):
+        """Should raise an exception when timestamps series of strings is not datetime-like"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         with self.assertRaises(Exception):
             _ = new_group_rep_by_earliest_timestamp(
                 customers_df,
@@ -135,6 +155,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 customers_df['Customer ID'],
                 'Customer Name'
             )
+
+    def test_group_rep_by_timestamp_pandas_timestamps(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the earliest timestamp of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         customers_df2 = customers_df.copy()
         customers_df2['timestamp'] = customers_df2['timestamp'].transform(lambda t: pd.Timestamp(t))
         pd.testing.assert_frame_equal(
@@ -147,6 +173,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_timestamp_dateutil_timestamps(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the earliest timestamp of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         customers_df2 = customers_df.copy()
         customers_df2['timestamp'] = customers_df2['timestamp'].transform(lambda t: parse(t))
         pd.testing.assert_frame_equal(
@@ -159,6 +191,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_timestamp_bad_nonstring_timestamps(self):
+        """Should raise an exception when not all provided timestamps are datetime-like or number-like"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
+        customers_df2 = customers_df.copy()
         customers_df2.at[0, 'timestamp'] = 1.0
         with self.assertRaises(Exception):
             _ = new_group_rep_by_earliest_timestamp(
@@ -168,6 +206,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 customers_df2['timestamp'],
                 'Customer Name'
             )
+
+    def test_group_rep_by_timestamp_input_numbers(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the earliest timestamp of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
             simple_example.expected_result_TW,
             new_group_rep_by_earliest_timestamp(
@@ -178,6 +222,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_weight(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the highest weight of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
             simple_example.expected_result_W,
             new_group_rep_by_highest_weight(
@@ -188,6 +238,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_weight_input_series(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the highest weight of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
             simple_example.expected_result_W,
             new_group_rep_by_highest_weight(
@@ -198,6 +254,11 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_weight_input_series_length(self):
+        """Should raise an exception when weights series length is not the same as the length of grouped_data"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         with self.assertRaises(Exception):
             _ = new_group_rep_by_highest_weight(
                 customers_df,
@@ -206,6 +267,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 customers_df['weight'].iloc[:-2],
                 'Customer Name'
             )
+
+    def test_group_rep_by_completeness_column_list(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the most filled-in records of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
             simple_example.expected_result_C,
             new_group_rep_by_completeness(
@@ -216,6 +283,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 [1, 2, 3, 4]
             )
         )
+
+    def test_group_rep_by_completeness_no_columns(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the most filled-in records of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
             simple_example.expected_result_C,
             new_group_rep_by_completeness(
@@ -225,6 +298,12 @@ class StringGrouperUtilTest(unittest.TestCase):
                 'Customer Name'
             )
         )
+
+    def test_group_rep_by_completeness_input_dataframe(self):
+        """Should return a pd.DataFrame object with the same length as the grouped_data. The DataFrame object will contain
+        a list of groups whose group-representatives have the most filled-in records of the group"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
             simple_example.expected_result_C,
             new_group_rep_by_completeness(
@@ -235,6 +314,11 @@ class StringGrouperUtilTest(unittest.TestCase):
                 customers_df
             )
         )
+
+    def test_group_rep_by_completeness_input_dataframe_length(self):
+        """Should raise an exception when tested_cols length is not the same as the length of grouped_data"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         with self.assertRaises(Exception):
             _ = new_group_rep_by_completeness(
                 customers_df,

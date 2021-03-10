@@ -285,8 +285,8 @@ class StringGrouperTest(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, duplicates_id=good_test_series_id_2)
 
-    def test_get_groups_single_df_group_rep(self):
-        """Should return a pd.series object with the same length as the original df. The series object will contain
+    def test_get_groups_single_df_group_rep_default(self):
+        """Should return a pd.Series object with the same length as the original df. The series object will contain
         a list of the grouped strings"""
         simple_example = SimpleExample()
         customers_df = simple_example.customers_df
@@ -294,10 +294,15 @@ class StringGrouperTest(unittest.TestCase):
             simple_example.expected_result_centroid,
             group_similar_strings(
                 customers_df['Customer Name'],
-                group_rep='centroid',
                 min_similarity=0.6
             )
         )
+
+    def test_get_groups_single_df_group_rep_centroid(self):
+        """Should return a pd.Series object with the same length as the original df. The series object will contain
+        a list of the grouped strings"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         pd.testing.assert_series_equal(
             simple_example.expected_result_first,
             group_similar_strings(
@@ -306,6 +311,11 @@ class StringGrouperTest(unittest.TestCase):
                 min_similarity=0.6
             )
         )
+
+    def test_get_groups_single_df_group_rep_bad_option_value(self):
+        """Should raise an exception when group_rep value given is neither 'centroid' nor 'first'"""
+        simple_example = SimpleExample()
+        customers_df = simple_example.customers_df
         with self.assertRaises(Exception):
             _ = group_similar_strings(
                     customers_df['Customer Name'],
@@ -314,7 +324,7 @@ class StringGrouperTest(unittest.TestCase):
                 )
 
     def test_get_groups_single_df(self):
-        """Should return a pd.series object with the same length as the original df. The series object will contain
+        """Should return a pd.Series object with the same length as the original df. The series object will contain
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         sg = StringGrouper(test_series_1)
@@ -324,7 +334,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_1_string_series_1_id_series(self):
-        """Should return a pd.series object with the same length as the original df. The series object will contain
+        """Should return a pd.DataFrame object with the same length as the original df. The series object will contain
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
@@ -335,7 +345,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df(self):
-        """Should return a pd.series object with the length of the dupes. The series will contain the master string
+        """Should return a pd.Series object with the length of the dupes. The series will contain the master string
         that matches the dupe with the highest similarity"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
@@ -346,7 +356,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_2_string_series_2_id_series(self):
-        """Should return a pd.series object with the length of the dupes. The series will contain the master string
+        """Should return a pd.DataFrame object with the length of the dupes. The series will contain the master string
         that matches the dupe with the highest similarity"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
@@ -359,7 +369,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df_same_similarity(self):
-        """Should return a pd.series object with the length of the dupes. If there are two dupes with the same
+        """Should return a pd.Series object with the length of the dupes. If there are two dupes with the same
         similarity, the first one is chosen"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
@@ -370,7 +380,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_4_df_same_similarity(self):
-        """Should return a pd.series object with the length of the dupes. If there are two dupes with the same
+        """Should return a pd.DataFrame object with the length of the dupes. If there are two dupes with the same
         similarity, the first one is chosen"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
@@ -383,7 +393,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df_no_match(self):
-        """Should return a pd.series object with the length of the dupes. If no match is found in dupes,
+        """Should return a pd.Series object with the length of the dupes. If no match is found in dupes,
         the original will be returned"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooob'])
@@ -394,7 +404,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_4_df_no_match(self):
-        """Should return a pd.series object with the length of the dupes. If no match is found in dupes,
+        """Should return a pd.DataFrame object with the length of the dupes. If no match is found in dupes,
         the original will be returned"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooob'])
