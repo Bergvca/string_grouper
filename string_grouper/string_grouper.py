@@ -209,6 +209,9 @@ class StringGrouper(object):
         matches = self._build_matches(master_matrix, duplicate_matrix)
         # retrieve all matches
         self._matches_list = self._get_matches_list(matches)
+        if self._duplicates is None:
+            # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
+            self._symmetrize_matches_list()
         self.is_build = True
         return self
 
@@ -343,6 +346,19 @@ class StringGrouper(object):
                                    self._config.min_similarity,
                                    **optional_kwargs)
 
+    def _symmetrize_matches_list(self):
+        self._matches_list.drop_duplicates(keep='first')
+        # symmetrized matches_list = matches_list UNION (matches_list with column-names swapped):
+        self._matches_list = self._matches_list.set_index(['master_side', 'dupe_side'])\
+            .combine_first(
+                self._matches_list.rename(
+                    columns={
+                        'master_side': 'dupe_side',
+                        'dupe_side': 'master_side'
+                    }
+                ).set_index(['master_side', 'dupe_side'])
+            ).reset_index()
+
     @staticmethod
     def _get_matches_list(matches) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
@@ -399,17 +415,19 @@ class StringGrouper(object):
             return dupes_max_sim[['master_id', 'master']].rename(columns={'master_id': 0, 'master': 1})
 
     def _deduplicate(self) -> Union[pd.DataFrame, pd.Series]:
+        # discard self-matches: A matches A
+        pairs = self._matches_list[self._matches_list['master_side'] != self._matches_list['dupe_side']]
         # rebuild graph adjacency matrix from already found matches:
         n = len(self._master)
         graph = csr_matrix(
             (
-                np.full(len(self._matches_list), 1),
-                (self._matches_list.master_side.to_numpy(), self._matches_list.dupe_side.to_numpy())
+                np.full(len(pairs), 1),
+                (pairs.master_side.to_numpy(), pairs.dupe_side.to_numpy())
             ),
             shape=(n, n)
         )
         # apply scipy.csgraph's clustering algorithm (result is a 1D numpy array of length n):
-        _, groups = connected_components(csgraph=graph, directed=False)
+        _, groups = connected_components(csgraph=graph, directed=True)
         # convert to pandas Series:
         group_of_master_id = pd.Series(groups, name='raw_group_id')
 
@@ -424,7 +442,7 @@ class StringGrouper(object):
         # 2. option setting group_rep='centroid':
         if self._config.group_rep == GROUP_REP_CENTROID:
             # reuse the adjacency matrix built above (change the 1's to corresponding cosine similarities):
-            graph.data = self._matches_list['similarity'].to_numpy()
+            graph.data = pairs['similarity'].to_numpy()
             # sum along the rows to obtain numpy 1D matrix of similarity aggregates then ...
             # ... convert to 1D numpy array (using asarray then squeeze) and then to Series:
             group_of_master_id['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())

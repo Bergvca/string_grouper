@@ -25,12 +25,12 @@ class SimpleExample(object):
         )
         self.expected_result_centroid = pd.Series(
             [
-                 'Mega Enterprises Corp.',
-                 'Hyper Startup Inc.',
-                 'Hyper Startup Inc.',
-                 'Hyper Startup Inc.',
-                 'Hyper Hyper Inc.',
-                 'Mega Enterprises Corp.'
+                'Mega Enterprises Corporation',
+                'Hyper Startup Inc.',
+                'Hyper Startup Inc.',
+                'Hyper Startup Inc.',
+                'Hyper Hyper Inc.',
+                'Mega Enterprises Corporation'
             ]
         )
         self.expected_result_first = pd.Series(
@@ -239,7 +239,7 @@ class StringGrouperTest(unittest.TestCase):
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        right_side_id = ['A3', 'A0', 'A1', 'A2', 'A3', 'A0']
+        right_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
                                     'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
@@ -330,7 +330,7 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1)
         sg = sg.fit()
         result = sg.get_groups()
-        expected_result = pd.Series(['foooob', 'bar', 'baz', 'foooob'])
+        expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
         pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_1_string_series_1_id_series(self):
@@ -341,7 +341,7 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, master_id=test_series_id_1)
         sg = sg.fit()
         result = sg.get_groups()
-        expected_result = pd.DataFrame(list(zip(['A3', 'A1', 'A2', 'A3'], ['foooob', 'bar', 'baz', 'foooob'])))
+        expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])))
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df(self):
