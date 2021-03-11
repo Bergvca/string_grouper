@@ -8,6 +8,7 @@ from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
+from PIL.ImageChops import duplicate
 
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_REGEX: str = r'[,-./]|\s'
@@ -178,6 +179,7 @@ class StringGrouper(object):
             raise Exception('List of data Series options is invalid')
         StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
 
+        self._stashed_index = master.index if duplicates is None else duplicates.index
         self._master: pd.Series = master.reset_index(drop=True)
         self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
         self._master_id: pd.Series = master_id.reset_index(drop=True) if master_id is not None else None
@@ -409,9 +411,11 @@ class StringGrouper(object):
         dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
         dupes_max_sim.index.rename(None, inplace=True)
         if self._master_id is None:
-            return dupes_max_sim['master'].rename(None, inplace=True)
+            output = dupes_max_sim['master'].rename(None, inplace=True)
         else:
-            return dupes_max_sim[['master_id', 'master']].rename(columns={'master_id': 0, 'master': 1})
+            output = dupes_max_sim[['master_id', 'master']].rename(columns={'master_id': 0, 'master': 1})
+        output.index = self._stashed_index
+        return output
 
     def _deduplicate(self) -> Union[pd.DataFrame, pd.Series]:
         # discard self-matches: A matches A
@@ -455,12 +459,12 @@ class StringGrouper(object):
         # Prepare the output:
         # use group rep indices obtained in the last step above to select the corresponding strings:
         output = self._master[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
-        if self._master_id is None:
-            return output
-        else:
+        if self._master_id is not None:
             # use indices obtained in the last step above to select the corresponding string IDs:
             output_id = self._master_id[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
-            return pd.concat([output_id, output], axis=1)
+            output = pd.concat([output_id, output], axis=1)
+        output.index = self._stashed_index
+        return output
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
