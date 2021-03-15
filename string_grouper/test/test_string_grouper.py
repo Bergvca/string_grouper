@@ -124,6 +124,32 @@ class StringGrouperTest(unittest.TestCase):
         mock_StringGrouper_instance.get_matches.assert_called_once()
         assert df == 'expected_result'
 
+    @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matches_list')
+    def test_match_list_symmetry_without_symmetrize_function(self, mock_StringGouper_symm):
+        """mocks StringGrouper._symmetrize_matches_list so that test fails whenever matches list is non-symmetric"""
+        mock_StringGouper_symm.return_value = None
+        companies = pd.read_csv('../data/sec__edgar_company_info.csv')[0:50000]
+        sg = StringGrouper(companies['Company Name'], master_id=companies['Line Number']).fit()
+        upper = len(sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']])
+        lower = len(sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']])
+        assert upper == lower
+
+    def test_match_list_symmetry_with_symmetrize_function(self):
+        """tests StringGrouper._symmetrize_matches_list so that test fails whenever matches list is non-symmetric"""
+        companies = pd.read_csv('../data/sec__edgar_company_info.csv')[0:50000]
+        sg = StringGrouper(companies['Company Name'], master_id=companies['Line Number']).fit()
+        upper = len(sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']])
+        lower = len(sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']])
+        assert upper == lower
+
+    def test_match_list_diagonal(self):
+        """test fails whenever _matches_list's number of self-joins is not equal to the number of strings"""
+        companies = pd.read_csv('../data/sec__edgar_company_info.csv')[0:50000]
+        matches = match_strings(companies['Company Name'], master_id=companies['Line Number'])
+        num_self_joins = len(matches[matches['left_index'] == matches['right_index']])
+        num_strings = len(companies['Company Name'])
+        assert num_self_joins == num_strings
+
     def test_n_grams_case_unchanged(self):
         """Should return all ngrams in a string with case"""
         test_series = pd.Series(pd.Series(['aa']))
@@ -216,9 +242,13 @@ class StringGrouperTest(unittest.TestCase):
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
         sg = StringGrouper(test_series_1, test_series_2).fit()
         left_side = ['foo', 'bar']
+        left_index = [0, 1]
         right_side = ['foo', 'bar']
+        right_index = [0, 1]
         similarity = [1.0, 1.0]
-        expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
+        expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
+                                    'similarity': similarity,
+                                    'right_side': right_side, 'right_index': right_index})
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_single(self):
@@ -227,8 +257,12 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        left_index = [0, 0, 1, 2, 3, 3]
+        right_index = [0, 3, 1, 2, 0, 3]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-        expected_df = pd.DataFrame({'left_side': left_side, 'right_side': right_side, 'similarity': similarity})
+        expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
+                                    'similarity': similarity,
+                                    'right_side': right_side, 'right_index': right_index})
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_1_series_1_id_series(self):
@@ -238,11 +272,14 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
+        left_index = [0, 0, 1, 2, 3, 3]
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
+        right_index = [0, 3, 1, 2, 0, 3]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
-                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
+                                    'similarity': similarity,
+                                    'right_id': right_side_id, 'right_side': right_side, 'right_index': right_index})
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_2_series_2_id_series(self):
@@ -254,11 +291,14 @@ class StringGrouperTest(unittest.TestCase):
                            master_id=test_series_id_1).fit()
         left_side = ['foo', 'bar']
         left_side_id = ['A0', 'A1']
+        left_index = [0, 1]
         right_side = ['foo', 'bar']
         right_side_id = ['B0', 'B1']
+        right_index = [0, 1]
         similarity = [1.0, 1.0]
-        expected_df = pd.DataFrame({'left_side_id': left_side_id, 'left_side': left_side,
-                                    'right_side_id': right_side_id, 'right_side': right_side, 'similarity': similarity})
+        expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
+                                    'similarity': similarity,
+                                    'right_id': right_side_id, 'right_side': right_side, 'right_index': right_index})
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_raises_exception_if_unexpected_options_given(self):

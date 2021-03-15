@@ -109,19 +109,22 @@ def group_rep_transform(method: str,
                         group_col,
                         record_id_col,
                         record_name_col) -> Union[pd.Series, pd.DataFrame]:
-    group_of_master_id = get_column(group_col, grouped_data)
+    stashed_index = grouped_data.index
+    group_of_master_id = get_column(group_col, grouped_data).reset_index(drop=True)
     group_of_master_id = group_of_master_id.rename('raw_group_id').reset_index().rename(columns={'index': 'weight'})
-    group_of_master_id['weight'] = weights
+    group_of_master_id['weight'] = weights.reset_index(drop=True)
     group_of_master_id['group_rep'] = \
         group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(method)
     record_id_col = get_column(record_id_col, grouped_data)
     new_rep = record_id_col.iloc[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
     if record_name_col is None:
-        return new_rep
+        output = new_rep
     else:
         record_name_col = get_column(record_name_col, grouped_data)
         new_rep_name = record_name_col.iloc[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
-        return pd.concat([new_rep, new_rep_name], axis=1)
+        output = pd.concat([new_rep, new_rep_name], axis=1)
+    output.index = stashed_index
+    return output
 
 
 def get_column(col: Union[str, int, List[Union[str, int]]], data: pd.DataFrame):
