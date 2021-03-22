@@ -23,6 +23,18 @@ class SimpleExample(object):
            ],
            columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight')
         )
+        self.customers_df2 = pd.DataFrame(
+           [
+              ('BB016741P', 'Mega Enterprises Corporation', 'Address0', 'Tel0', 'Description0', 0.2),
+              ('CC082744L', 'Hyper Startup Incorporated', '', 'Tel1', '', 0.5),
+              ('AA098762D', 'Hyper Startup Inc.', 'Address2', 'Tel2', 'Description2', 0.3),
+              ('BB099931J', 'Hyper-Startup Inc.', 'Address3', 'Tel3', 'Description3', 0.1),
+              ('DD012339M', 'HyperStartup Inc.', 'Address4', 'Tel4', 'Description4', 0.1),
+              ('HH072982K', 'Hyper Hyper Inc.', 'Address5', '', 'Description5', 0.9),
+              ('EE059082Q', 'Mega Enterprises Corp.', 'Address6', 'Tel6', 'Description6', 1.0)
+           ],
+           columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight')
+        )
         self.expected_result_centroid = pd.Series(
             [
                 'Mega Enterprises Corporation',
@@ -74,6 +86,7 @@ class StringGrouperConfigTest(unittest.TestCase):
 class StringGrouperTest(unittest.TestCase):
     @patch('string_grouper.string_grouper.StringGrouper')
     def test_group_similar_strings(self, mock_StringGouper):
+        """mocks StringGrouper to test if the high-level function group_similar_strings utilizes it as expected"""
         mock_StringGrouper_instance = mock_StringGouper.return_value
         mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
         mock_StringGrouper_instance.get_groups.return_value = 'whatever'
@@ -87,10 +100,11 @@ class StringGrouperTest(unittest.TestCase):
 
         mock_StringGrouper_instance.fit.assert_called_once()
         mock_StringGrouper_instance.get_groups.assert_called_once()
-        assert df == 'whatever'
+        self.assertEqual(df, 'whatever')
 
     @patch('string_grouper.string_grouper.StringGrouper')
     def test_match_most_similar(self, mock_StringGouper):
+        """mocks StringGrouper to test if the high-level function match_most_similar utilizes it as expected"""
         mock_StringGrouper_instance = mock_StringGouper.return_value
         mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
         mock_StringGrouper_instance.get_groups.return_value = 'whatever'
@@ -108,13 +122,14 @@ class StringGrouperTest(unittest.TestCase):
 
         mock_StringGrouper_instance.fit.assert_called_once()
         mock_StringGrouper_instance.get_groups.assert_called_once()
-        assert df == 'whatever'
+        self.assertEqual(df, 'whatever')
 
     @patch('string_grouper.string_grouper.StringGrouper')
     def test_match_strings(self, mock_StringGouper):
+        """mocks StringGrouper to test if the high-level function match_strings utilizes it as expected"""
         mock_StringGrouper_instance = mock_StringGouper.return_value
         mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
-        mock_StringGrouper_instance.get_matches.return_value = 'expected_result'
+        mock_StringGrouper_instance.get_matches.return_value = 'whatever'
 
         test_series_1 = None
         test_series_id_1 = None
@@ -122,33 +137,57 @@ class StringGrouperTest(unittest.TestCase):
 
         mock_StringGrouper_instance.fit.assert_called_once()
         mock_StringGrouper_instance.get_matches.assert_called_once()
-        assert df == 'expected_result'
+        self.assertEqual(df, 'whatever')
 
     @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matches_list')
     def test_match_list_symmetry_without_symmetrize_function(self, mock_StringGouper_symm):
-        """mocks StringGrouper._symmetrize_matches_list so that test fails whenever matches list is non-symmetric"""
+        """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is 
+        **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
         mock_StringGouper_symm.return_value = None
-        companies = pd.read_csv('../data/sec__edgar_company_info.csv')[0:50000]
-        sg = StringGrouper(companies['Company Name'], master_id=companies['Line Number']).fit()
-        upper = len(sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']])
-        lower = len(sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']])
-        assert upper == lower
+        simple_example = SimpleExample()
+        df = simple_example.customers_df2['Customer Name']
+        sg = StringGrouper(df, max_n_matches=2).fit()
+        # obtain the upper and lower triangular parts of the matrix of matches:
+        upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
+        lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
+        # switch the column names of lower triangular part to convert it to upper triangular:
+        upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
+        # obtain the intersection between upper and upper_prime:
+        intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
+        # if the intersection is empty then _matches_list is completely non-symmetric (this is acceptable)
+        # if the intersection is not empty then at least some matches are repeated.  
+        # To make sure all (and not just some) matches are repeated, the cardinality (length) of
+        # upper, upper_prime and their intersection should be identical.
+        self.assertTrue(intersection.empty or len(upper) == len(lower) == len(intersection))
 
     def test_match_list_symmetry_with_symmetrize_function(self):
-        """tests StringGrouper._symmetrize_matches_list so that test fails whenever matches list is non-symmetric"""
-        companies = pd.read_csv('../data/sec__edgar_company_info.csv')[0:50000]
-        sg = StringGrouper(companies['Company Name'], master_id=companies['Line Number']).fit()
-        upper = len(sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']])
-        lower = len(sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']])
-        assert upper == lower
+        """This test ensures that _matches_list is symmetric"""
+        simple_example = SimpleExample()
+        df = simple_example.customers_df2['Customer Name']
+        sg = StringGrouper(df, max_n_matches=2).fit()
+        # Obtain the upper and lower triangular parts of the matrix of matches:
+        upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
+        lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
+        # Switch the column names of the lower triangular part to convert it to upper triangular:
+        upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
+        # Obtain the intersection between upper and upper_prime:
+        intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
+        # If the intersection is empty this means _matches_list is completely non-symmetric (this is acceptable)
+        # If the intersection is not empty this means at least some matches are repeated.  
+        # To make sure all (and not just some) matches are repeated, the lengths of
+        # upper, upper_prime and their intersection should be identical.
+        self.assertTrue(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
 
     def test_match_list_diagonal(self):
         """test fails whenever _matches_list's number of self-joins is not equal to the number of strings"""
-        companies = pd.read_csv('../data/sec__edgar_company_info.csv')[0:50000]
-        matches = match_strings(companies['Company Name'], master_id=companies['Line Number'])
+        # This bug is difficult to reproduce -- I mostly encounter it while working with very large datasets;
+        # for small datasets setting max_n_matches=1 reproduces the bug
+        simple_example = SimpleExample()
+        df = simple_example.customers_df['Customer Name']
+        matches = match_strings(df, max_n_matches=1)
         num_self_joins = len(matches[matches['left_index'] == matches['right_index']])
-        num_strings = len(companies['Company Name'])
-        assert num_self_joins == num_strings
+        num_strings = len(df)
+        self.assertEqual(num_self_joins, num_strings)
 
     def test_n_grams_case_unchanged(self):
         """Should return all ngrams in a string with case"""
