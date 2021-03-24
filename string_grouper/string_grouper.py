@@ -16,6 +16,12 @@ DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to 
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
 
+# Option value to select the string in each group with
+# the largest similarity aggregate as group-representative:
+GROUP_REP_CENTROID: str = 'centroid'
+# Option value to select the first string in each group as group-representative:
+GROUP_REP_FIRST: str = 'first'
+DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID  # chooses group centroid as group-representative by default
 
 # High level functions
 
@@ -112,6 +118,8 @@ class StringGrouperConfig(NamedTuple):
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
     Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
+    :param group_rep: str.  The scheme to select the group-representative.  Default is 'centroid'.
+    The other choice is 'first'.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -120,6 +128,7 @@ class StringGrouperConfig(NamedTuple):
     min_similarity: float = DEFAULT_MIN_SIMILARITY
     number_of_processes: int = DEFAULT_N_PROCESSES
     ignore_case: bool = DEFAULT_IGNORE_CASE
+    group_rep: str = DEFAULT_GROUP_REP
 
 
 def validate_is_fit(f):
@@ -169,11 +178,12 @@ class StringGrouper(object):
             raise Exception('List of data Series options is invalid')
         StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
 
-        self._master: pd.Series = master.reset_index(drop=True)
-        self._duplicates: pd.Series = duplicates.reset_index(drop=True) if duplicates is not None else None
-        self._master_id: pd.Series = master_id.reset_index(drop=True) if master_id is not None else None
-        self._duplicates_id: pd.Series = duplicates_id.reset_index(drop=True) if duplicates_id is not None else None
+        self._master: pd.Series = master
+        self._duplicates: pd.Series = duplicates if duplicates is not None else None
+        self._master_id: pd.Series = master_id if master_id is not None else None
+        self._duplicates_id: pd.Series = duplicates_id if duplicates_id is not None else None
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
+        self._validate_group_rep_specs()
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
         # After the StringGrouper is build, _matches_list will contain the indices and similarities of two matches
@@ -199,6 +209,9 @@ class StringGrouper(object):
         matches = self._build_matches(master_matrix, duplicate_matrix)
         # retrieve all matches
         self._matches_list = self._get_matches_list(matches)
+        if self._duplicates is None:
+            # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
+            self._symmetrize_matches_list()
         self.is_build = True
         return self
 
@@ -208,34 +221,46 @@ class StringGrouper(object):
         Returns a DataFrame with all the matches and their cosine similarity.
         If optional IDs are used, returned as extra columns with IDs matched to respective data rows
         """
-        def get_both_sides(master, duplicates):
-            left = master[self._matches_list.master_side].reset_index(drop=True)
+        def get_both_sides(master: pd.Series, duplicates: pd.Series, generic_name=('side', 'side'), drop_index=False):
+            lname, rname = generic_name
+            left = master if master.name else master.rename(lname)
+            left = left.iloc[self._matches_list.master_side].reset_index(drop=drop_index)
             if self._duplicates is None:
-                right = master[self._matches_list.dupe_side].reset_index(drop=True)
+                right = master if master.name else master.rename(rname)
             else:
-                right = duplicates[self._matches_list.dupe_side].reset_index(drop=True)
-            return left, right
+                right = duplicates if duplicates.name else duplicates.rename(rname)
+            right = right.iloc[self._matches_list.dupe_side].reset_index(drop=drop_index)
+            return left, (right if isinstance(right, pd.Series) else right[right.columns[::-1]])
+
+        def prefix_columns(data: Union[pd.Series, pd.DataFrame], prefix: str):
+            if isinstance(data, pd.DataFrame):
+                return data.rename(columns={c: prefix + str(c) for c in data.columns})
+            else:
+                return data.rename(prefix + str(data.name))
 
         left_side, right_side = get_both_sides(self._master, self._duplicates)
         similarity = self._matches_list.similarity.reset_index(drop=True)
         if self._master_id is None:
-            return pd.DataFrame(
-                {
-                    'left_side': left_side,
-                    'right_side': right_side,
-                    'similarity': similarity
-                }
+            return pd.concat(
+                [
+                    prefix_columns(left_side, 'left_'),
+                    similarity,
+                    prefix_columns(right_side, 'right_')
+                ],
+                axis=1
             )
         else:
-            left_side_id, right_side_id = get_both_sides(self._master_id, self._duplicates_id)
-            return pd.DataFrame(
-                {
-                    'left_side_id': left_side_id,
-                    'left_side': left_side,
-                    'right_side_id': right_side_id,
-                    'right_side': right_side,
-                    'similarity': similarity
-                }
+            left_side_id, right_side_id = \
+                get_both_sides(self._master_id, self._duplicates_id, ('id', 'id'), drop_index=True)
+            return pd.concat(
+                [
+                    prefix_columns(left_side, 'left_'),
+                    prefix_columns(left_side_id, 'left_'),
+                    similarity,
+                    prefix_columns(right_side_id, 'right_'),
+                    prefix_columns(right_side, 'right_')
+                ],
+                axis=1
             )
 
     @validate_is_fit
@@ -333,6 +358,19 @@ class StringGrouper(object):
                                    self._config.min_similarity,
                                    **optional_kwargs)
 
+    def _symmetrize_matches_list(self):
+        self._matches_list.drop_duplicates(keep='first')
+        # symmetrized matches_list = matches_list UNION (matches_list with column-names swapped):
+        self._matches_list = self._matches_list.set_index(['master_side', 'dupe_side'])\
+            .combine_first(
+                self._matches_list.rename(
+                    columns={
+                        'master_side': 'dupe_side',
+                        'dupe_side': 'master_side'
+                    }
+                ).set_index(['master_side', 'dupe_side'])
+            ).reset_index()
+
     @staticmethod
     def _get_matches_list(matches) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
@@ -356,11 +394,11 @@ class StringGrouper(object):
         return matches_list
 
     def _get_nearest_matches(self) -> Union[pd.DataFrame, pd.Series]:
-        dupes = self._duplicates.rename('duplicates')
-        master = self._master.rename('master')
+        dupes = self._duplicates.rename('duplicates').reset_index(drop=True)
+        master = self._master.rename('master').reset_index(drop=True)
         if self._master_id is not None:
-            dupes = pd.concat([dupes, self._duplicates_id.rename('duplicates_id')], axis=1)
-            master = pd.concat([master, self._master_id.rename('master_id')], axis=1)
+            dupes = pd.concat([dupes, self._duplicates_id.rename('duplicates_id').reset_index(drop=True)], axis=1)
+            master = pd.concat([master, self._master_id.rename('master_id').reset_index(drop=True)], axis=1)
 
         dupes_max_sim = self._matches_list.groupby('dupe_side').agg({'similarity': 'max'}).reset_index()
         dupes_max_sim = dupes_max_sim.merge(self._matches_list, on=['dupe_side', 'similarity'])
@@ -384,39 +422,59 @@ class StringGrouper(object):
         dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
         dupes_max_sim.index.rename(None, inplace=True)
         if self._master_id is None:
-            return dupes_max_sim['master'].rename(None, inplace=True)
+            output = dupes_max_sim['master'].rename(None, inplace=True)
         else:
-            return dupes_max_sim[['master_id', 'master']].rename(columns={'master_id': 0, 'master': 1})
+            output = dupes_max_sim[['master_id', 'master']].rename(columns={'master_id': 0, 'master': 1})
+        output.index = self._duplicates.index
+        return output
 
     def _deduplicate(self) -> Union[pd.DataFrame, pd.Series]:
+        # discard self-matches: A matches A
+        pairs = self._matches_list[self._matches_list['master_side'] != self._matches_list['dupe_side']]
+        # rebuild graph adjacency matrix from already found matches:
         n = len(self._master)
         graph = csr_matrix(
             (
-                np.full(len(self._matches_list), 1),
-                (self._matches_list.master_side.to_numpy(), self._matches_list.dupe_side.to_numpy())
+                np.full(len(pairs), 1),
+                (pairs.master_side.to_numpy(), pairs.dupe_side.to_numpy())
             ),
             shape=(n, n)
         )
-        raw_group_id_of_master_id = pd.DataFrame(
-            {
-                'raw_group_id': pd.Series(connected_components(csgraph=graph, directed=False)[1]),
-                'master_id': self._master.index.to_series()
-            }
-        )
-        first_master_id_in_group = raw_group_id_of_master_id.groupby('raw_group_id')['master_id']\
-            .first()\
-            .rename('new_group_id')\
-            .reset_index()
-        new_group_id_of_master_id = first_master_id_in_group\
-            .merge(raw_group_id_of_master_id, how='left', on='raw_group_id')\
-            .sort_values('master_id')\
-            .reset_index(drop=True)
-        output = self._master[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
-        if self._master_id is None:
-            return output
-        else:
-            output_id = self._master_id[new_group_id_of_master_id.new_group_id].reset_index(drop=True)
-            return pd.concat([output_id, output], axis=1)
+        # apply scipy.csgraph's clustering algorithm (result is a 1D numpy array of length n):
+        _, groups = connected_components(csgraph=graph, directed=True)
+        group_of_master_id = pd.Series(groups, name='raw_group_id')
+
+        # merge groups with string indices to obtain two-column DataFrame:
+        # note: the following line automatically creates a new column named 'index' with the corresponding indices:
+        group_of_master_id = group_of_master_id.reset_index()
+
+        # Determine weights for obtaining group representatives:
+        # 1. option setting group_rep='first':
+        group_of_master_id.rename(columns={'index': 'weight'}, inplace=True)
+        method = 'first'
+        # 2. option setting group_rep='centroid':
+        if self._config.group_rep == GROUP_REP_CENTROID:
+            # reuse the adjacency matrix built above (change the 1's to corresponding cosine similarities):
+            graph.data = pairs['similarity'].to_numpy()
+            # sum along the rows to obtain numpy 1D matrix of similarity aggregates then ...
+            # ... convert to 1D numpy array (using asarray then squeeze) and then to Series:
+            group_of_master_id['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())
+            method = 'idxmax'
+
+        # Determine the group representatives AND merge with indices:
+        # pandas groupby transform function enables both in one step:
+        group_of_master_id['group_rep'] = \
+            group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(method)
+
+        # Prepare the output:
+        # use group rep indices obtained in the last step above to select the corresponding strings:
+        output = self._master.iloc[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
+        if self._master_id is not None:
+            # use indices obtained in the last step above to select the corresponding string IDs:
+            output_id = self._master_id.iloc[group_of_master_id.group_rep].reset_index(drop=True).rename(None)
+            output = pd.concat([output_id, output], axis=1)
+        output.index = self._master.index
+        return output
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
@@ -427,6 +485,13 @@ class StringGrouper(object):
         master_indices = master_strings[master_strings == master_side].index.to_series().reset_index(drop=True)
         dupe_indices = dupe_strings[dupe_strings == dupe_side].index.to_series().reset_index(drop=True)
         return master_indices, dupe_indices
+
+    def _validate_group_rep_specs(self):
+        group_rep_options = (GROUP_REP_FIRST, GROUP_REP_CENTROID)
+        if self._config.group_rep not in group_rep_options:
+            raise Exception(
+                f"Invalid option value for group_rep. The only permitted values are\n {group_rep_options}"
+                )
 
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
@@ -453,7 +518,9 @@ class StringGrouper(object):
     def _is_series_of_strings(series_to_test: pd.Series) -> bool:
         if not isinstance(series_to_test, pd.Series):
             return False
-        elif series_to_test.str.len().isna().any():
+        elif series_to_test.to_frame().applymap(
+                    lambda x: not isinstance(x, str)
+                ).squeeze().any():
             return False
         return True
 
@@ -471,4 +538,3 @@ class StringGrouper(object):
             raise Exception('Both master and master_id must be pandas.Series of the same length.')
         if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
             raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
-
