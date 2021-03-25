@@ -378,6 +378,8 @@ class StringGrouperTest(unittest.TestCase):
             _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, duplicates_id=good_test_series_id_2)
         with self.assertRaises(Exception):
             _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, drop=True, replace_na=True)
+        # Here we force an exception by making the number of index-levels of duplicates different from master:
+        # and setting replace_na=True
         test_series_2.index = pd.MultiIndex.from_tuples(list(zip(list('ABC'), [0, 1, 2])))
         with self.assertRaises(Exception):
             _ = StringGrouper(test_series_1, duplicates=test_series_2, replace_na=True)
@@ -398,7 +400,7 @@ class StringGrouperTest(unittest.TestCase):
 
     def test_get_groups_single_df_keep_index(self):
         """Should return a pd.Series object with the same length as the original df. The series object will contain
-        a list of the grouped strings"""
+        a list of the grouped strings with their indexes displayed in columns"""
         simple_example = SimpleExample()
         customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(

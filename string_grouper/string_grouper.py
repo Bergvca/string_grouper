@@ -15,8 +15,8 @@ DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
-DEFAULT_DROP_INDEX: bool = False  # includes indexes as columns in output
-DEFAULT_REPLACE_NA: bool = False    # when finding the most similar matches, replaces NaN values in most
+DEFAULT_DROP_INDEX: bool = False  # includes index-columns in output
+DEFAULT_REPLACE_NA: bool = False    # when finding the most similar strings, does not replace NaN values in most
                                     # similar string index-columns with corresponding duplicates-index values
 
 # Option value to select the string in each group with
@@ -121,7 +121,7 @@ class StringGrouperConfig(NamedTuple):
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
     Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
-    :param drop: whether or not to include string Series indexes as columns in output.  Defaults to False
+    :param drop: whether or not to exclude string Series index-columns in output.  Defaults to False.
     :param replace_na: whether or not to replace NaN values in most similar string index-columns with 
     corresponding duplicates-index values. Defaults to False.
     :param group_rep: str.  The scheme to select the group-representative.  Default is 'centroid'.
@@ -241,7 +241,7 @@ class StringGrouper(object):
             right = right.iloc[self._matches_list.dupe_side].reset_index(drop=drop_index)
             return left, (right if isinstance(right, pd.Series) else right[right.columns[::-1]])
 
-        def prefix_columns(data: Union[pd.Series, pd.DataFrame], prefix: str):
+        def prefix_column_names(data: Union[pd.Series, pd.DataFrame], prefix: str):
             if isinstance(data, pd.DataFrame):
                 return data.rename(columns={c: prefix + str(c) for c in data.columns})
             else:
@@ -252,9 +252,9 @@ class StringGrouper(object):
         if self._master_id is None:
             return pd.concat(
                 [
-                    prefix_columns(left_side, 'left_'),
+                    prefix_column_names(left_side, 'left_'),
                     similarity,
-                    prefix_columns(right_side, 'right_')
+                    prefix_column_names(right_side, 'right_')
                 ],
                 axis=1
             )
@@ -263,11 +263,11 @@ class StringGrouper(object):
                 get_both_sides(self._master_id, self._duplicates_id, ('id', 'id'), drop_index=True)
             return pd.concat(
                 [
-                    prefix_columns(left_side, 'left_'),
-                    prefix_columns(left_side_id, 'left_'),
+                    prefix_column_names(left_side, 'left_'),
+                    prefix_column_names(left_side_id, 'left_'),
                     similarity,
-                    prefix_columns(right_side_id, 'right_'),
-                    prefix_columns(right_side, 'right_')
+                    prefix_column_names(right_side_id, 'right_'),
+                    prefix_column_names(right_side, 'right_')
                 ],
                 axis=1
             )
@@ -368,8 +368,7 @@ class StringGrouper(object):
                                    **optional_kwargs)
 
     def _symmetrize_matches_list(self):
-        self._matches_list.drop_duplicates(keep='first')
-        # symmetrized matches_list = matches_list UNION (matches_list with column-names swapped):
+        # [symmetrized matches_list] = [matches_list] UNION [transposed matches_list] (i.e., column-names swapped):
         self._matches_list = self._matches_list.set_index(['master_side', 'dupe_side'])\
             .combine_first(
                 self._matches_list.rename(
@@ -405,30 +404,26 @@ class StringGrouper(object):
     def _get_nearest_matches(self) -> Union[pd.DataFrame, pd.Series]:
         prefix = 'most_similar_'
         master_label = prefix + (self._master.name if self._master.name else 'master')
-        dupes = self._duplicates.rename('duplicates').reset_index(drop=self._config.drop)
         master = self._master.rename(master_label).reset_index(drop=self._config.drop)
+        dupes = self._duplicates.rename('duplicates').reset_index(drop=self._config.drop)
         
-        # rename new master columns to avoid possible conflict with new dupes-columns when later merging 
+        # Rename new master-columns to avoid possible conflict with new dupes-columns when later merging 
         if isinstance(dupes, pd.DataFrame):
             master.rename(
-                columns={
-                    col: 'most_similar_' + str(col) \
-                    for col in list(master.columns) \
-                    if col != master_label
-                },
+                columns={col: prefix + str(col) for col in master.columns if str(col) != master_label},
                 inplace=True
             )
 
         if self._master_id is not None:
             master_id_label = prefix + (self._master_id.name if self._master_id.name else 'master_id')
-            dupes = pd.concat([dupes, self._duplicates_id.rename('duplicates_id').reset_index(drop=True)], axis=1)
             master = pd.concat([master, self._master_id.rename(master_id_label).reset_index(drop=True)], axis=1)
+            dupes = pd.concat([dupes, self._duplicates_id.rename('duplicates_id').reset_index(drop=True)], axis=1)
 
-        dupes_max_sim = self._matches_list.groupby('dupe_side')[['similarity']].max().reset_index()
+        dupes_max_sim = self._matches_list.groupby('dupe_side').agg({'similarity': 'max'}).reset_index()
         dupes_max_sim = dupes_max_sim.merge(self._matches_list, on=['dupe_side', 'similarity'])
 
-        # in case there are multiple equal similarities, we pick the one that comes first
-        dupes_max_sim = dupes_max_sim.groupby(['dupe_side'])[['master_side']].min().reset_index()
+        # In case there are multiple equal similarities, we pick the one that comes first
+        dupes_max_sim = dupes_max_sim.groupby(['dupe_side']).agg({'master_side': 'min'}).reset_index()
 
         # First we add the duplicate strings
         dupes_max_sim = dupes_max_sim.merge(dupes, left_on='dupe_side', right_index=True, how='outer')
@@ -436,36 +431,39 @@ class StringGrouper(object):
         # Now add the master strings
         dupes_max_sim = dupes_max_sim.merge(master, left_on='master_side', right_index=True, how='left')
 
-        # update the master series with the duplicates in cases were there is no match
+        # Update the master-series with the duplicates in cases were there is no match
         rows_to_update = dupes_max_sim[master_label].isnull()
         dupes_max_sim.loc[rows_to_update, master_label] = dupes_max_sim[rows_to_update].duplicates
         if self._master_id is not None:
-            # update the master_id series with the duplicates_id in cases were there is no match
+            # Also update the master_id-series with the duplicates_id in cases were there is no match
             dupes_max_sim.loc[rows_to_update, master_id_label] = dupes_max_sim[rows_to_update].duplicates_id
-            # For some weird reason, pandas merge function changes int-datatype columns to float when NaN values 
-            # appear within them. So here we change them back to their original datatypes if possible:
-            if dupes_max_sim.loc[:, master_id_label].dtype != self._master_id.dtype and \
-                self._master_id.dtype == self._duplicates_id.dtype:
-                dupes_max_sim.loc[:, master_id_label] = \
-                    dupes_max_sim.loc[:, master_id_label].astype(dupes_max_sim.duplicates_id.dtype)
             
-        # prepare output
+            # For some weird reason, pandas' merge function changes int-datatype columns to float when NaN values
+            # appear within them. So here we change them back to their original datatypes if possible:
+            if dupes_max_sim[master_id_label].dtype != self._master_id.dtype and \
+                self._duplicates_id.dtype == self._master_id.dtype:
+                dupes_max_sim.loc[:, master_id_label] = \
+                dupes_max_sim.loc[:, master_id_label].astype(self._master_id.dtype)
+            
+        # Prepare the output:
         required_column_list = [master_label] if self._master_id is None else [master_id_label, master_label]
-        index_column_list = (
-            [col for col in list(master.columns) if str(col) not in required_column_list]
-        ) if isinstance(master, pd.DataFrame) else []
+        index_column_list = \
+            [col for col in master.columns if col not in required_column_list] \
+            if isinstance(master, pd.DataFrame) else []
         if self._config.replace_na:
+            # Update the master index-columns with the duplicates index-column values in cases were there is no match
             dupes_index_columns = [col for col in dupes.columns if str(col) != 'duplicates']
-            # replace NaN values in index-columns:
             dupes_max_sim.loc[rows_to_update, index_column_list] = \
-                dupes_max_sim.loc[rows_to_update, dupes_index_columns].values
-            # restore their original datatypes if possible:
+            dupes_max_sim.loc[rows_to_update, dupes_index_columns].values
+            
+            # Restore their original datatypes if possible:
             for m, d in zip(index_column_list, dupes_index_columns):
-                if dupes_max_sim.loc[:, m].dtype != master[m].dtype and dupes[d].dtype == master[m].dtype:
+                if dupes_max_sim[m].dtype != master[m].dtype and dupes[d].dtype == master[m].dtype:
                     dupes_max_sim.loc[:, m] = dupes_max_sim.loc[:, m].astype(master[m].dtype)
-        # make sure to keep same order as duplicates
+                    
+        # Make sure to keep same order as duplicates
         dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
-        output = dupes_max_sim.loc[:, index_column_list + required_column_list]
+        output = dupes_max_sim[index_column_list + required_column_list]
         output.index = self._duplicates.index
         return output.squeeze()
 
@@ -513,17 +511,13 @@ class StringGrouper(object):
             .reset_index(drop=self._config.drop)
         if isinstance(output, pd.DataFrame):
             output.rename(
-                columns={
-                    col: 'group_rep_' + str(col) \
-                    for col in list(output.columns) \
-                    if col != 'group_rep'
-                },
+                columns={col: 'group_rep_' + str(col) for col in output.columns if str(col) != 'group_rep'},
                 inplace=True
             )
         if self._master_id is not None:
             # use group rep indices obtained above to select the corresponding string IDs:
-            output_id = self._master_id.iloc[group_of_master_id.group_rep].rename('group_rep_id')\
-                .reset_index(drop=True)
+            output_id = self._master_id.iloc[group_of_master_id.group_rep]\
+                .rename('group_rep_id').reset_index(drop=True)
             output = pd.concat([output_id, output], axis=1)
         output.index = self._master.index
         return output.squeeze()
@@ -543,7 +537,7 @@ class StringGrouper(object):
         if self._config.group_rep not in group_rep_options:
             raise Exception(
                 f"Invalid option value for group_rep. The only permitted values are\n {group_rep_options}"
-                )
+            )
 
     def _validate_replace_na_and_drop(self):
         if self._config.drop and self._config.replace_na:
