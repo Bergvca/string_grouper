@@ -153,17 +153,17 @@ class StringGrouperTest(unittest.TestCase):
         self.assertEqual(df, 'whatever')
 
     @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matches_list')
-    def test_match_list_symmetry_without_symmetrize_function(self, mock_StringGouper_symm):
+    def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matches_list):
         """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is 
         **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
-        mock_StringGouper_symm.return_value = None
         simple_example = SimpleExample()
         df = simple_example.customers_df2['Customer Name']
         sg = StringGrouper(df, max_n_matches=2).fit()
+        mock_symmetrize_matches_list.assert_called_once()
         # obtain the upper and lower triangular parts of the matrix of matches:
         upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
         lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
-        # switch the column names of lower triangular part to convert it to upper triangular:
+        # switch the column names of lower triangular part (i.e., transpose) to convert it to upper triangular:
         upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
         # obtain the intersection between upper and upper_prime:
         intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
@@ -181,7 +181,7 @@ class StringGrouperTest(unittest.TestCase):
         # Obtain the upper and lower triangular parts of the matrix of matches:
         upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
         lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
-        # Switch the column names of the lower triangular part to convert it to upper triangular:
+        # Switch the column names of the lower triangular part (i.e., transpose) to convert it to upper triangular:
         upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
         # Obtain the intersection between upper and upper_prime:
         intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
@@ -378,6 +378,8 @@ class StringGrouperTest(unittest.TestCase):
             _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, duplicates_id=good_test_series_id_2)
         with self.assertRaises(Exception):
             _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, drop=True, replace_na=True)
+        # Here we force an exception by making the number of index-levels of duplicates different from master:
+        # and setting replace_na=True
         test_series_2.index = pd.MultiIndex.from_tuples(list(zip(list('ABC'), [0, 1, 2])))
         with self.assertRaises(Exception):
             _ = StringGrouper(test_series_1, duplicates=test_series_2, replace_na=True)
@@ -398,7 +400,7 @@ class StringGrouperTest(unittest.TestCase):
 
     def test_get_groups_single_df_keep_index(self):
         """Should return a pd.Series object with the same length as the original df. The series object will contain
-        a list of the grouped strings"""
+        a list of the grouped strings with their indexes displayed in columns"""
         simple_example = SimpleExample()
         customers_df = simple_example.customers_df
         pd.testing.assert_frame_equal(
