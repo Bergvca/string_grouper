@@ -1,1 +1,2 @@
-from .string_grouper import group_similar_strings, match_most_similar, match_strings, StringGrouperConfig, StringGrouper
+from .string_grouper import compute_pairwise_similarities, group_similar_strings, match_most_similar, match_strings, \
+StringGrouperConfig, StringGrouper

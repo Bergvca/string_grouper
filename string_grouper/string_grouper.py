@@ -29,6 +29,20 @@ DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID  # chooses group centroid as group-r
 # High level functions
 
 
+def compute_pairwise_similarities(string_series_1: pd.Series,
+                                  string_series_2: pd.Series,
+                                  **kwargs) -> pd.Series:
+    """
+    Computes the similarity scores between two Series of strings row-wise.
+
+    :param string_series_1: pandas.Series. The input Series of strings to be grouped
+    :param string_series_2: pandas.Series. The input Series of the IDs of the strings to be grouped
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
+    :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
+    """
+    return StringGrouper(string_series_1, string_series_2, **kwargs).dot()
+
+
 def group_similar_strings(strings_to_group: pd.Series,
                           string_ids: Optional[pd.Series] = None,
                           **kwargs) -> Union[pd.DataFrame, pd.Series]:
@@ -223,6 +237,15 @@ class StringGrouper(object):
             self._symmetrize_matches_list()
         self.is_build = True
         return self
+
+    def dot(self) -> pd.Series:
+        """Computes the row-wise similarity scores between strings in _master and _duplicates"""
+        if len(self._master) != len(self._duplicates):
+            raise Exception("To perform this function, both input Series must have the same length.")
+        master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
+        # Calculate pairwise cosine similarities:
+        pairwise_similarities = np.asarray(master_matrix.multiply(duplicate_matrix).sum(axis=1)).squeeze()
+        return pd.Series(pairwise_similarities, name='similarity', index=self._master.index)
 
     @validate_is_fit
     def get_matches(self) -> pd.DataFrame:
@@ -488,10 +511,10 @@ class StringGrouper(object):
         group_of_master_id = group_of_master_id.reset_index()
 
         # Determine weights for obtaining group representatives:
-        # 1. option setting group_rep='first':
+        # 1. option-setting group_rep='first':
         group_of_master_id.rename(columns={'index': 'weight'}, inplace=True)
         method = 'first'
-        # 2. option setting group_rep='centroid':
+        # 2. option-setting group_rep='centroid':
         if self._config.group_rep == GROUP_REP_CENTROID:
             # reuse the adjacency matrix built above (change the 1's to corresponding cosine similarities):
             graph.data = pairs['similarity'].to_numpy()
@@ -501,7 +524,7 @@ class StringGrouper(object):
             method = 'idxmax'
 
         # Determine the group representatives AND merge with indices:
-        # pandas groupby transform function enables both in one step:
+        # pandas groupby transform function and enlargement enable both respectively in one step:
         group_of_master_id['group_rep'] = \
             group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(method)
 
