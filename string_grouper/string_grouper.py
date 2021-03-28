@@ -243,9 +243,9 @@ class StringGrouper(object):
 
         def prefix_column_names(data: Union[pd.Series, pd.DataFrame], prefix: str):
             if isinstance(data, pd.DataFrame):
-                return data.rename(columns={c: prefix + str(c) for c in data.columns})
+                return data.rename(columns={c: f"{prefix}{c}" for c in data.columns})
             else:
-                return data.rename(prefix + str(data.name))
+                return data.rename(f"{prefix}{data.name}")
 
         left_side, right_side = get_both_sides(self._master, self._duplicates, drop_index=self._config.drop)
         similarity = self._matches_list.similarity.reset_index(drop=True)
@@ -403,14 +403,14 @@ class StringGrouper(object):
 
     def _get_nearest_matches(self) -> Union[pd.DataFrame, pd.Series]:
         prefix = 'most_similar_'
-        master_label = prefix + (self._master.name if self._master.name else 'master')
+        master_label = f'{prefix}{self._master.name if self._master.name else "master"}'
         master = self._master.rename(master_label).reset_index(drop=self._config.drop)
         dupes = self._duplicates.rename('duplicates').reset_index(drop=self._config.drop)
         
         # Rename new master-columns to avoid possible conflict with new dupes-columns when later merging 
         if isinstance(dupes, pd.DataFrame):
             master.rename(
-                columns={col: prefix + str(col) for col in master.columns if str(col) != master_label},
+                columns={col: f'{prefix}{col}' for col in master.columns if str(col) != master_label},
                 inplace=True
             )
 
@@ -511,7 +511,7 @@ class StringGrouper(object):
             .reset_index(drop=self._config.drop)
         if isinstance(output, pd.DataFrame):
             output.rename(
-                columns={col: 'group_rep_' + str(col) for col in output.columns if str(col) != 'group_rep'},
+                columns={col: f'group_rep_{col}' for col in output.columns if str(col) != 'group_rep'},
                 inplace=True
             )
         if self._master_id is not None:
