@@ -121,7 +121,7 @@ class StringGrouperConfig(NamedTuple):
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
     Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
-    :param drop: whether or not to exclude string Series index-columns in output.  Defaults to False.
+    :param ignore_index: whether or not to exclude string Series index-columns in output.  Defaults to False.
     :param replace_na: whether or not to replace NaN values in most similar string index-columns with 
     corresponding duplicates-index values. Defaults to False.
     :param group_rep: str.  The scheme to select the group-representative.  Default is 'centroid'.
@@ -134,7 +134,7 @@ class StringGrouperConfig(NamedTuple):
     min_similarity: float = DEFAULT_MIN_SIMILARITY
     number_of_processes: int = DEFAULT_N_PROCESSES
     ignore_case: bool = DEFAULT_IGNORE_CASE
-    drop: bool = DEFAULT_DROP_INDEX
+    ignore_index: bool = DEFAULT_DROP_INDEX
     replace_na: bool = DEFAULT_REPLACE_NA
     group_rep: str = DEFAULT_GROUP_REP
 
@@ -247,7 +247,7 @@ class StringGrouper(object):
             else:
                 return data.rename(f"{prefix}{data.name}")
 
-        left_side, right_side = get_both_sides(self._master, self._duplicates, drop_index=self._config.drop)
+        left_side, right_side = get_both_sides(self._master, self._duplicates, drop_index=self._config.ignore_index)
         similarity = self._matches_list.similarity.reset_index(drop=True)
         if self._master_id is None:
             return pd.concat(
@@ -404,8 +404,8 @@ class StringGrouper(object):
     def _get_nearest_matches(self) -> Union[pd.DataFrame, pd.Series]:
         prefix = 'most_similar_'
         master_label = f'{prefix}{self._master.name if self._master.name else "master"}'
-        master = self._master.rename(master_label).reset_index(drop=self._config.drop)
-        dupes = self._duplicates.rename('duplicates').reset_index(drop=self._config.drop)
+        master = self._master.rename(master_label).reset_index(drop=self._config.ignore_index)
+        dupes = self._duplicates.rename('duplicates').reset_index(drop=self._config.ignore_index)
         
         # Rename new master-columns to avoid possible conflict with new dupes-columns when later merging 
         if isinstance(dupes, pd.DataFrame):
@@ -508,7 +508,7 @@ class StringGrouper(object):
         # Prepare the output:
         # use group rep indices obtained in the last step above to select the corresponding strings:
         output = self._master.iloc[group_of_master_id.group_rep].rename('group_rep')\
-            .reset_index(drop=self._config.drop)
+            .reset_index(drop=self._config.ignore_index)
         if isinstance(output, pd.DataFrame):
             output.rename(
                 columns={col: f'group_rep_{col}' for col in output.columns if str(col) != 'group_rep'},
@@ -540,8 +540,8 @@ class StringGrouper(object):
             )
 
     def _validate_replace_na_and_drop(self):
-        if self._config.drop and self._config.replace_na:
-            raise Exception("replace_na can only be set to True when drop=False.")
+        if self._config.ignore_index and self._config.replace_na:
+            raise Exception("replace_na can only be set to True when ignore_index=False.")
         if self._config.replace_na and self._master.index.nlevels != self._duplicates.index.nlevels:
             raise Exception(
                 "replace_na=True: Cannot replace NaN values of index-columns with the values of another "

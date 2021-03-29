@@ -377,7 +377,7 @@ class StringGrouperTest(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, duplicates_id=good_test_series_id_2)
         with self.assertRaises(Exception):
-            _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, drop=True, replace_na=True)
+            _ = StringGrouper(test_series_1, master_id=good_test_series_id_1, ignore_index=True, replace_na=True)
         # Here we force an exception by making the number of index-levels of duplicates different from master:
         # and setting replace_na=True
         test_series_2.index = pd.MultiIndex.from_tuples(list(zip(list('ABC'), [0, 1, 2])))
@@ -394,7 +394,7 @@ class StringGrouperTest(unittest.TestCase):
             group_similar_strings(
                 customers_df['Customer Name'],
                 min_similarity=0.6,
-                drop=True
+                ignore_index=True
             )
         )
 
@@ -408,7 +408,7 @@ class StringGrouperTest(unittest.TestCase):
             group_similar_strings(
                 customers_df['Customer Name'],
                 min_similarity=0.6,
-                drop=False
+                ignore_index=False
             )
         )
 
@@ -423,7 +423,7 @@ class StringGrouperTest(unittest.TestCase):
                 customers_df['Customer Name'],
                 group_rep='first',
                 min_similarity=0.6,
-                drop=True
+                ignore_index=True
             )
         )
 
@@ -442,7 +442,7 @@ class StringGrouperTest(unittest.TestCase):
         """Should return a pd.Series object with the same length as the original df. The series object will contain
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
-        sg = StringGrouper(test_series_1, drop=True)
+        sg = StringGrouper(test_series_1, ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], name='group_rep')
@@ -453,7 +453,7 @@ class StringGrouperTest(unittest.TestCase):
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
-        sg = StringGrouper(test_series_1, master_id=test_series_id_1, drop=True)
+        sg = StringGrouper(test_series_1, master_id=test_series_id_1, ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])),
@@ -465,7 +465,7 @@ class StringGrouperTest(unittest.TestCase):
         that matches the dupe with the highest similarity"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
-        sg = StringGrouper(test_series_1, test_series_2, drop=True)
+        sg = StringGrouper(test_series_1, test_series_2, ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], name='most_similar_master')
@@ -482,7 +482,7 @@ class StringGrouperTest(unittest.TestCase):
                            test_series_2,
                            master_id=test_series_id_1,
                            duplicates_id=test_series_id_2,
-                           drop=True)
+                           ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])),
@@ -500,7 +500,7 @@ class StringGrouperTest(unittest.TestCase):
                            test_series_2,
                            master_id=test_series_id_1,
                            duplicates_id=test_series_id_2,
-                           drop=True)
+                           ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip([0, 1, 102, 0], ['foooo', 'bar', 'baz', 'foooo'])),
@@ -525,7 +525,7 @@ class StringGrouperTest(unittest.TestCase):
         similarity, the first one is chosen"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooo'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
-        sg = StringGrouper(test_series_1, test_series_2, drop=True)
+        sg = StringGrouper(test_series_1, test_series_2, ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], name='most_similar_master')
@@ -542,7 +542,7 @@ class StringGrouperTest(unittest.TestCase):
                            test_series_2, 
                            master_id=test_series_id_1, 
                            duplicates_id=test_series_id_2,
-                           drop=True)
+                           ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip(['A0', 'A1', 'A2', 'A0'], ['foooo', 'bar', 'baz', 'foooo'])),
@@ -554,7 +554,7 @@ class StringGrouperTest(unittest.TestCase):
         the original will be returned"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooob'])
-        sg = StringGrouper(test_series_1, test_series_2, drop=True)
+        sg = StringGrouper(test_series_1, test_series_2, ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'dooz', 'bar', 'baz', 'foooo'], name='most_similar_master')
@@ -571,7 +571,7 @@ class StringGrouperTest(unittest.TestCase):
                            test_series_2,
                            master_id=test_series_id_1,
                            duplicates_id=test_series_id_2,
-                           drop=True)
+                           ignore_index=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip(
@@ -677,7 +677,7 @@ class StringGrouperTest(unittest.TestCase):
 
         df = pd.DataFrame(sample, columns=['name'])
 
-        sg = StringGrouper(df['name'], drop=True)
+        sg = StringGrouper(df['name'], ignore_index=True)
         sg = sg.fit()
 
         sg = sg.add_match('microsoft office', 'microsoftoffice 365 home')
