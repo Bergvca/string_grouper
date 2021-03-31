@@ -46,7 +46,7 @@ customers_df = pd.DataFrame(
       ('EE059082Q', 'Mega Enterprises Corp.', 'Address5', 'Tel5', 'Description5', 1.0, '1998-04-14 09:21:11+00:00')
    ],
    columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight', 'timestamp')
-)
+).set_index('Customer ID')
 ```
 
 **NB.** These 'timestamps' are not actual `pandas Timestamp` datatypes --- they are strings.  If we like, we could convert these strings to `pandas Timestamp` datatypes or datetime datatypes (from python module `datetime`), but this is not necessary because <samp>string_grouper_utils</samp> can deal with these strings just as they are and can automatically _parse_ them to into (localized) `pandas Timestamp` datatypes internally for comparison as we shall soon see.  
@@ -68,7 +68,6 @@ customers_df
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>Customer ID</th>
       <th>Customer Name</th>
       <th>Address</th>
       <th>Tel</th>
@@ -76,11 +75,19 @@ customers_df
       <th>weight</th>
       <th>timestamp</th>
     </tr>
+    <tr>
+      <th>Customer ID</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
   </thead>
   <tbody>
     <tr>
-      <th>0</th>
-      <td>BB016741P</td>
+      <th>BB016741P</th>
       <td>Mega Enterprises Corporation</td>
       <td>Address0</td>
       <td>Tel0</td>
@@ -89,8 +96,7 @@ customers_df
       <td>2014-12-30 10:55:00-02:00</td>
     </tr>
     <tr>
-      <th>1</th>
-      <td>CC082744L</td>
+      <th>CC082744L</th>
       <td>Hyper Startup Incorporated</td>
       <td></td>
       <td>Tel1</td>
@@ -99,8 +105,7 @@ customers_df
       <td>2017-01-01 20:23:15-05:00</td>
     </tr>
     <tr>
-      <th>2</th>
-      <td>AA098762D</td>
+      <th>AA098762D</th>
       <td>Hyper Startup Inc.</td>
       <td>Address2</td>
       <td>Tel2</td>
@@ -109,8 +114,7 @@ customers_df
       <td>2020-10-20 15:29:30+02:00</td>
     </tr>
     <tr>
-      <th>3</th>
-      <td>BB099931J</td>
+      <th>BB099931J</th>
       <td>Hyper-Startup Inc.</td>
       <td>Address3</td>
       <td>Tel3</td>
@@ -119,8 +123,7 @@ customers_df
       <td>2013-07-01 03:34:45-05:00</td>
     </tr>
     <tr>
-      <th>4</th>
-      <td>HH072982K</td>
+      <th>HH072982K</th>
       <td>Hyper Hyper Inc.</td>
       <td>Address4</td>
       <td></td>
@@ -129,8 +132,7 @@ customers_df
       <td>2005-09-11 11:56:00-07:00</td>
     </tr>
     <tr>
-      <th>5</th>
-      <td>EE059082Q</td>
+      <th>EE059082Q</th>
       <td>Mega Enterprises Corp.</td>
       <td>Address5</td>
       <td>Tel5</td>
@@ -153,7 +155,6 @@ With the following command, we can create a mapping table with the groupings tha
 customers_df[['group rep ID', 'group rep']] = \
     group_similar_strings(
         customers_df['Customer Name'], 
-        customers_df['Customer ID'], 
         min_similarity=0.6)
 ```
 
@@ -172,7 +173,6 @@ customers_df
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>Customer ID</th>
       <th>Customer Name</th>
       <th>Address</th>
       <th>Tel</th>
@@ -182,23 +182,32 @@ customers_df
       <th>group rep ID</th>
       <th>group rep</th>
     </tr>
+    <tr>
+      <th>Customer ID</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
   </thead>
   <tbody>
     <tr>
-      <th>0</th>
-      <td>BB016741P</td>
+      <th>BB016741P</th>
       <td>Mega Enterprises Corporation</td>
       <td>Address0</td>
       <td>Tel0</td>
       <td>Description0</td>
       <td>0.2</td>
       <td>2014-12-30 10:55:00-02:00</td>
-      <td>EE059082Q</td>
-      <td>Mega Enterprises Corp.</td>
+      <td>BB016741P</td>
+      <td>Mega Enterprises Corporation</td>
     </tr>
     <tr>
-      <th>1</th>
-      <td>CC082744L</td>
+      <th>CC082744L</th>
       <td>Hyper Startup Incorporated</td>
       <td></td>
       <td>Tel1</td>
@@ -209,8 +218,7 @@ customers_df
       <td>Hyper Startup Inc.</td>
     </tr>
     <tr>
-      <th>2</th>
-      <td>AA098762D</td>
+      <th>AA098762D</th>
       <td>Hyper Startup Inc.</td>
       <td>Address2</td>
       <td>Tel2</td>
@@ -221,8 +229,7 @@ customers_df
       <td>Hyper Startup Inc.</td>
     </tr>
     <tr>
-      <th>3</th>
-      <td>BB099931J</td>
+      <th>BB099931J</th>
       <td>Hyper-Startup Inc.</td>
       <td>Address3</td>
       <td>Tel3</td>
@@ -233,8 +240,7 @@ customers_df
       <td>Hyper Startup Inc.</td>
     </tr>
     <tr>
-      <th>4</th>
-      <td>HH072982K</td>
+      <th>HH072982K</th>
       <td>Hyper Hyper Inc.</td>
       <td>Address4</td>
       <td></td>
@@ -245,16 +251,15 @@ customers_df
       <td>Hyper Hyper Inc.</td>
     </tr>
     <tr>
-      <th>5</th>
-      <td>EE059082Q</td>
+      <th>EE059082Q</th>
       <td>Mega Enterprises Corp.</td>
       <td>Address5</td>
       <td>Tel5</td>
       <td>Description5</td>
       <td>1.0</td>
       <td>1998-04-14 09:21:11+00:00</td>
-      <td>EE059082Q</td>
-      <td>Mega Enterprises Corp.</td>
+      <td>BB016741P</td>
+      <td>Mega Enterprises Corporation</td>
     </tr>
   </tbody>
 </table>
@@ -269,7 +274,6 @@ Let's try this again, this time with <samp>group_rep='first'</samp>:
 customers_df[['group rep ID', 'group rep']] = \
     group_similar_strings(
         customers_df['Customer Name'], 
-        customers_df['Customer ID'], 
         group_rep='first', 
         min_similarity=0.6)
 ```
@@ -289,7 +293,6 @@ customers_df
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>Customer ID</th>
       <th>Customer Name</th>
       <th>Address</th>
       <th>Tel</th>
@@ -299,11 +302,21 @@ customers_df
       <th>group rep ID</th>
       <th>group rep</th>
     </tr>
+    <tr>
+      <th>Customer ID</th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
   </thead>
   <tbody>
     <tr>
-      <th>0</th>
-      <td>BB016741P</td>
+      <th>BB016741P</th>
       <td>Mega Enterprises Corporation</td>
       <td>Address0</td>
       <td>Tel0</td>
@@ -314,8 +327,7 @@ customers_df
       <td>Mega Enterprises Corporation</td>
     </tr>
     <tr>
-      <th>1</th>
-      <td>CC082744L</td>
+      <th>CC082744L</th>
       <td>Hyper Startup Incorporated</td>
       <td></td>
       <td>Tel1</td>
@@ -326,8 +338,7 @@ customers_df
       <td>Hyper Startup Incorporated</td>
     </tr>
     <tr>
-      <th>2</th>
-      <td>AA098762D</td>
+      <th>AA098762D</th>
       <td>Hyper Startup Inc.</td>
       <td>Address2</td>
       <td>Tel2</td>
@@ -338,8 +349,7 @@ customers_df
       <td>Hyper Startup Incorporated</td>
     </tr>
     <tr>
-      <th>3</th>
-      <td>BB099931J</td>
+      <th>BB099931J</th>
       <td>Hyper-Startup Inc.</td>
       <td>Address3</td>
       <td>Tel3</td>
@@ -350,8 +360,7 @@ customers_df
       <td>Hyper Startup Incorporated</td>
     </tr>
     <tr>
-      <th>4</th>
-      <td>HH072982K</td>
+      <th>HH072982K</th>
       <td>Hyper Hyper Inc.</td>
       <td>Address4</td>
       <td></td>
@@ -362,8 +371,7 @@ customers_df
       <td>Hyper Hyper Inc.</td>
     </tr>
     <tr>
-      <th>5</th>
-      <td>EE059082Q</td>
+      <th>EE059082Q</th>
       <td>Mega Enterprises Corp.</td>
       <td>Address5</td>
       <td>Tel5</td>
@@ -387,6 +395,7 @@ As mentioned above, there are still more choices of group-representatives availa
 
 
 ```python
+customers_df.reset_index(inplace=True)
 customers_df[['group rep ID', 'group rep']] = \
     new_group_rep_by_earliest_timestamp(
         grouped_data=customers_df,
@@ -413,7 +422,7 @@ help(new_group_rep_by_earliest_timestamp)
 
     Help on function new_group_rep_by_earliest_timestamp in module string_grouper_utils.string_grouper_utils:
     
-    new_group_rep_by_earliest_timestamp(grouped_data: pandas.core.frame.DataFrame, group_col: Union[str, int], record_id_col: Union[str, int], timestamps: Union[pandas.core.series.Series, str, int], record_name_col: Union[str, int, NoneType] = None, **kwargs) -> Union[pandas.core.frame.DataFrame, pandas.core.series.Series]
+    new_group_rep_by_earliest_timestamp(grouped_data: pandas.core.frame.DataFrame, group_col: Union[str, int], record_id_col: Union[str, int], timestamps: Union[pandas.core.series.Series, str, int], record_name_col: Union[str, int, NoneType] = None, parserinfo=None, **kwargs) -> Union[pandas.core.frame.DataFrame, pandas.core.series.Series]
         Selects the oldest string in each group as group-representative.
         :param grouped_data: The grouped DataFrame
         :param group_col: The name or positional index of the column in grouped_data containing the groups
@@ -423,75 +432,82 @@ help(new_group_rep_by_earliest_timestamp)
         This contains the timestamps of the strings to be grouped.
         :param record_name_col: (Optional) The name or positional index of the column in grouped_data with
         all groups' members' names. (This will appear in the output.)
-        :param **kwargs: These should the same keyword arguments you would pass to dateutil.parser.parse.
-        These help in interpreting the string input which is to be parsed into datetime datatypes, e.g. day first.
+        :param parserinfo: (See below.)
+        :param **kwargs: (See below.)
+        parserinfo and kwargs are the same arguments as those you would pass to dateutil.parser.parse.  They help in
+        interpreting the string inputs which are to be parsed into datetime datatypes.
         
-        FYI, the dateutil.parser.parse keyword arguments documentation follows:
-            The ``**kwargs`` parameter takes the following keyword arguments:
+        FYI, the dateutil.parser.parse documentation for these arguments follows:
+        :param parserinfo:
+            A :class:`parserinfo` object containing parameters for the parser.
+            If ``None``, the default arguments to the :class:`parserinfo`
+            constructor are used.
         
-            :param default:
-                The default datetime object, if this is a datetime object and not
-                ``None``, elements specified in ``timestr`` replace elements in the
-                default object.
+        The ``**kwargs`` parameter takes the following keyword arguments:
         
-            :param ignoretz:
-                If set ``True``, time zones in parsed strings are ignored and a naive
-                :class:`datetime` object is returned.
+        :param default:
+            The default datetime object, if this is a datetime object and not
+            ``None``, elements specified in the strings containing the date/time-stamps replace elements in the
+            default object.
         
-            :param tzinfos:
-                Additional time zone names / aliases which may be present in the
-                string. This argument maps time zone names (and optionally offsets
-                from those time zones) to time zones. This parameter can be a
-                dictionary with timezone aliases mapping time zone names to time
-                zones or a function taking two parameters (``tzname`` and
-                ``tzoffset``) and returning a time zone.
+        :param ignoretz:
+            If set ``True``, time zones in parsed strings are ignored and a naive
+            :class:`datetime` object is returned.
         
-                The timezones to which the names are mapped can be an integer
-                offset from UTC in seconds or a :class:`tzinfo` object.
+        :param tzinfos:
+            Additional time zone names / aliases which may be present in the
+            string. This argument maps time zone names (and optionally offsets
+            from those time zones) to time zones. This parameter can be a
+            dictionary with timezone aliases mapping time zone names to time
+            zones or a function taking two parameters (``tzname`` and
+            ``tzoffset``) and returning a time zone.
         
-                .. doctest::
-                   :options: +NORMALIZE_WHITESPACE
+            The timezones to which the names are mapped can be an integer
+            offset from UTC in seconds or a :class:`tzinfo` object.
         
-                    >>> from dateutil.parser import parse
-                    >>> from dateutil.tz import gettz
-                    >>> tzinfos = {"BRST": -7200, "CST": gettz("America/Chicago")}
-                    >>> parse("2012-01-19 17:21:00 BRST", tzinfos=tzinfos)
-                    datetime.datetime(2012, 1, 19, 17, 21, tzinfo=tzoffset(u'BRST', -7200))
-                    >>> parse("2012-01-19 17:21:00 CST", tzinfos=tzinfos)
-                    datetime.datetime(2012, 1, 19, 17, 21,
-                                      tzinfo=tzfile('/usr/share/zoneinfo/America/Chicago'))
+            .. doctest::
+               :options: +NORMALIZE_WHITESPACE
         
-                This parameter is ignored if ``ignoretz`` is set.
+                >>> from dateutil.parser import parse
+                >>> from dateutil.tz import gettz
+                >>> tzinfos = {"BRST": -7200, "CST": gettz("America/Chicago")}
+                >>> parse("2012-01-19 17:21:00 BRST", tzinfos=tzinfos)
+                datetime.datetime(2012, 1, 19, 17, 21, tzinfo=tzoffset(u'BRST', -7200))
+                >>> parse("2012-01-19 17:21:00 CST", tzinfos=tzinfos)
+                datetime.datetime(2012, 1, 19, 17, 21,
+                                  tzinfo=tzfile('/usr/share/zoneinfo/America/Chicago'))
         
-            :param dayfirst:
-                Whether to interpret the first value in an ambiguous 3-integer date
-                (e.g. 01/05/09) as the day (``True``) or month (``False``). If
-                ``yearfirst`` is set to ``True``, this distinguishes between YDM and
-                YMD. If set to ``None``, this value is retrieved from the current
-                :class:`parserinfo` object (which itself defaults to ``False``).
+            This parameter is ignored if ``ignoretz`` is set.
         
-            :param yearfirst:
-                Whether to interpret the first value in an ambiguous 3-integer date
-                (e.g. 01/05/09) as the year. If ``True``, the first number is taken to
-                be the year, otherwise the last number is taken to be the year. If
-                this is set to ``None``, the value is retrieved from the current
-                :class:`parserinfo` object (which itself defaults to ``False``).
+        :param dayfirst:
+            Whether to interpret the first value in an ambiguous 3-integer date
+            (e.g. 01/05/09) as the day (``True``) or month (``False``). If
+            ``yearfirst`` is set to ``True``, this distinguishes between YDM and
+            YMD. If set to ``None``, this value is retrieved from the current
+            :class:`parserinfo` object (which itself defaults to ``False``).
         
-            :param fuzzy:
-                Whether to allow fuzzy parsing, allowing for string like "Today is
-                January 1, 2047 at 8:21:00AM".
+        :param yearfirst:
+            Whether to interpret the first value in an ambiguous 3-integer date
+            (e.g. 01/05/09) as the year. If ``True``, the first number is taken to
+            be the year, otherwise the last number is taken to be the year. If
+            this is set to ``None``, the value is retrieved from the current
+            :class:`parserinfo` object (which itself defaults to ``False``).
         
-            :param fuzzy_with_tokens:
-                If ``True``, ``fuzzy`` is automatically set to True, and the parser
-                will return a tuple where the first element is the parsed
-                :class:`datetime.datetime` datetimestamp and the second element is
-                a tuple containing the portions of the string which were ignored:
+        :param fuzzy:
+            Whether to allow fuzzy parsing, allowing for string like "Today is
+            January 1, 2047 at 8:21:00AM".
         
-                .. doctest::
+        :param fuzzy_with_tokens:
+            If ``True``, ``fuzzy`` is automatically set to True, and the parser
+            will return a tuple where the first element is the parsed
+            :class:`datetime.datetime` datetimestamp and the second element is
+            a tuple containing the portions of the string which were ignored:
         
-                    >>> from dateutil.parser import parse
-                    >>> parse("Today is January 1, 2047 at 8:21:00AM", fuzzy_with_tokens=True)
-                    (datetime.datetime(2047, 1, 1, 8, 21), (u'Today is ', u' ', u'at '))
+            .. doctest::
+        
+                >>> from dateutil.parser import parse
+                >>> parse("Today is January 1, 2047 at 8:21:00AM", fuzzy_with_tokens=True)
+                (datetime.datetime(2047, 1, 1, 8, 21), (u'Today is ', u' ', u'at '))
     
     
 
@@ -839,3 +855,8 @@ customers_df
 </div>
 
 
+
+
+```python
+
+```

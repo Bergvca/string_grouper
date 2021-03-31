@@ -3,7 +3,7 @@ import pandas as pd
 from string_grouper import match_strings, match_most_similar, group_similar_strings
 ```
 
-# 1. **match_strings**(..., **drop**=[True | False])
+# 1. **match_strings**(..., **ignore_index**=[True | False])
 
 
 ```python
@@ -103,7 +103,7 @@ match_strings(test_series_1_nameless)
 
 
 ```python
-match_strings(test_series_1_nameless, drop=True)
+match_strings(test_series_1_nameless, ignore_index=True)
 ```
 
 
@@ -260,7 +260,7 @@ match_strings(test_series_1_named)
 
 
 ```python
-match_strings(test_series_1_named, drop=True)
+match_strings(test_series_1_named, ignore_index=True)
 ```
 
 
@@ -417,7 +417,7 @@ match_strings(test_series_1_nameless_index)
 
 
 ```python
-match_strings(test_series_1_nameless_index, drop=True)
+match_strings(test_series_1_nameless_index, ignore_index=True)
 ```
 
 
@@ -575,7 +575,7 @@ match_strings(test_series_1_named_index)
 
 
 ```python
-match_strings(test_series_1_named_index, drop=True)
+match_strings(test_series_1_named_index, ignore_index=True)
 ```
 
 
@@ -753,7 +753,7 @@ match_strings(test_df)
 
 
 ```python
-match_strings(test_df, drop=True)
+match_strings(test_df, ignore_index=True)
 ```
 
 
@@ -927,7 +927,7 @@ match_strings(test_df2)
 
 
 ```python
-match_strings(test_df2, drop=True)
+match_strings(test_df2, ignore_index=True)
 ```
 
 
@@ -1070,7 +1070,7 @@ match_strings(test_df2, test_series_1_named)
 
 
 ```python
-match_strings(test_df2, test_series_1_named, drop=True)
+match_strings(test_df2, test_series_1_named, ignore_index=True)
 ```
 
 
@@ -1129,7 +1129,7 @@ match_strings(test_df2, test_series_1_named, drop=True)
 
 
 
-# 2. **group_similar_strings**(..., **drop**=[True | False])
+# 2. **group_similar_strings**(..., **ignore_index**=[True | False])
 
 Let's import some data:
 
@@ -1442,11 +1442,11 @@ group_similar_strings(companies['Company Name'])
 
 Notice that `group_similar_strings` preeserves the index of the input Series while also showing the index(es) of the group-representatives in new columns with column-names prefixed by the string "group_rep_". 
 
-To ignore the indexes of the group-representatives, simply set the keyword argument `drop = True`:
+To ignore the indexes of the group-representatives, simply set the keyword argument `ignore_index = True`:
 
 
 ```python
-group_similar_strings(companies['Company Name'], drop=True)
+group_similar_strings(companies['Company Name'], ignore_index=True)
 ```
 
 
@@ -1871,7 +1871,7 @@ companies.sort_values('Group Size', ascending=False).iloc[(start:=1861):(start +
 </div>
 
 
-# <a name="MMS"></a>3. **match_most_similar**(..., **drop**=[True | False], **replace_na**=[True | False])
+# <a name="MMS"></a>3. **match_most_similar**(..., **ignore_index**=[True | False], **replace_na**=[True | False])
 
 Now let's create a 'master' Series of group-representatives (we will use it later in the function `match_most_similar`):
 
@@ -2212,14 +2212,14 @@ grouped_data.groupby('most_similar_Company Name')['most_similar_Line Number'].co
 
 
 
-Just like we did for function `group_similar_strings`, we can ignore the indexes of `master` if we choose, by setting `drop=True`:
+Just like we did for function `group_similar_strings`, we can ignore the indexes of `master` if we choose, by setting `ignore_index=True`:
 
 
 ```python
 grouped_data_dropped = match_most_similar(
     master,
     companies['Company Name'],
-    drop=True,
+    ignore_index=True,
     min_similarity=0.55,
     max_n_matches=2000
 )
