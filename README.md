@@ -16,9 +16,7 @@
 
 ```python
 import pandas as pd
-from string_grouper import match_strings, match_most_similar, \
-	group_similar_strings, compute_pairwise_similarities, \
-	StringGrouper
+from string_grouper import match_strings, match_most_similar, group_similar_strings, StringGrouper
 ```
 
 As shown above, the library may be used together with <samp>pandas</samp>, and contains three high level functions (<samp>match_strings</samp>, <samp>match_most_similar</samp> and <samp>group_similar_strings</samp>) that can be used directly, and one class (<samp>StringGrouper</samp>) that allows for a more iterative approach. 
@@ -35,7 +33,6 @@ The permitted calling patterns of the three functions, and their return types, a
 | <samp>match_most_similar</samp>| <samp>(master, duplicates, master_id, duplicates_id, **kwargs)</samp>| <samp>DataFrame</samp> |
 | <samp>group_similar_strings</samp>| <samp>(strings_to_group, **kwargs)</samp>| <samp>Series</samp> (if kwarg `ignore_index=True`) otherwise <samp>DataFrame</samp> (default)|
 | <samp>group_similar_strings</samp>| <samp>(strings_to_group, strings_id, **kwargs)</samp>| <samp>DataFrame</samp> |
-| <samp>compute_pairwise_similarities</samp>| <samp>(string_series_1, string_series_2, **kwargs)</samp>| <samp>Series</samp> |
 
 In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame</samp>, refer to the familiar <samp>pandas</samp> object types.
 #### Parameters:
@@ -48,7 +45,6 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
 |**<samp>duplicates_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>duplicates</samp>. |
 |**<samp>strings_to_group</samp>** | A <samp>Series</samp> of strings to be grouped. |
 |**<samp>strings_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>strings_to_group</samp>. |
-|**<samp>string_series_1(_2)</samp>** | A <samp>Series</samp> of strings each of which is to be compared with its corresponding string in <samp>string_series_2(_1)</samp>. |
 |**<samp>**kwargs</samp>** | Keyword arguments (see [below](#kwargs)).|
 
 #### Functions:
@@ -94,9 +90,6 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
    If <samp>strings_id</samp> is also given, then the IDs from <samp>strings_id</samp> corresponding to the group-representatives is also returned.  
    
 
-* #### `compute_pairwise_similarities`
-   Returns a <samp>Series</samp> of cosine similarity scores the same length as <samp>string_series_1</samp> and <samp>string_series_2</samp>.  Each score is the cosine similarity between its corresponding strings in the two input <samp>Series</samp>.
-   
 
 All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
    
