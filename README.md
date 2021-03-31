@@ -16,7 +16,9 @@
 
 ```python
 import pandas as pd
-from string_grouper import match_strings, match_most_similar, group_similar_strings, StringGrouper
+from string_grouper import match_strings, match_most_similar, \
+	group_similar_strings, compute_pairwise_similarities, \
+	StringGrouper
 ```
 
 As shown above, the library may be used together with <samp>pandas</samp>, and contains three high level functions (<samp>match_strings</samp>, <samp>match_most_similar</samp> and <samp>group_similar_strings</samp>) that can be used directly, and one class (<samp>StringGrouper</samp>) that allows for a more iterative approach. 
@@ -29,10 +31,11 @@ The permitted calling patterns of the three functions, and their return types, a
 | <samp>match_strings</samp>| <samp>(master, duplicates, **kwargs)</samp>| <samp>DataFrame</samp> |
 | <samp>match_strings</samp>| <samp>(master, master_id=id_series, **kwargs)</samp>| <samp>DataFrame</samp> |
 | <samp>match_strings</samp>| <samp>(master, duplicates, master_id, duplicates_id, **kwargs)</samp>| <samp>DataFrame</samp> |
-| <samp>match_most_similar</samp>| <samp>(master, duplicates, **kwargs)</samp>| <samp>Series</samp> |
+| <samp>match_most_similar</samp>| <samp>(master, duplicates, **kwargs)</samp>| <samp>Series</samp> (if kwarg `ignore_index=True`) otherwise <samp>DataFrame</samp> (default)|
 | <samp>match_most_similar</samp>| <samp>(master, duplicates, master_id, duplicates_id, **kwargs)</samp>| <samp>DataFrame</samp> |
-| <samp>group_similar_strings</samp>| <samp>(strings_to_group, **kwargs)</samp>| <samp>Series</samp> |
+| <samp>group_similar_strings</samp>| <samp>(strings_to_group, **kwargs)</samp>| <samp>Series</samp> (if kwarg `ignore_index=True`) otherwise <samp>DataFrame</samp> (default)|
 | <samp>group_similar_strings</samp>| <samp>(strings_to_group, strings_id, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>compute_pairwise_similarities</samp>| <samp>(string_series_1, string_series_2, **kwargs)</samp>| <samp>Series</samp> |
 
 In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame</samp>, refer to the familiar <samp>pandas</samp> object types.
 #### Parameters:
@@ -45,35 +48,56 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
 |**<samp>duplicates_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>duplicates</samp>. |
 |**<samp>strings_to_group</samp>** | A <samp>Series</samp> of strings to be grouped. |
 |**<samp>strings_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>strings_to_group</samp>. |
+|**<samp>string_series_1(_2)</samp>** | A <samp>Series</samp> of strings each of which is to be compared with its corresponding string in <samp>string_series_2(_1)</samp>. |
 |**<samp>**kwargs</samp>** | Keyword arguments (see [below](#kwargs)).|
 
 #### Functions:
 
 * #### `match_strings` 
-   Returns all pairs of highly similar strings in a <samp>DataFrame</samp>.  The column names of the output  <samp>DataFrame</samp> are 'left_side', 'right_side' and 'similarity'. 
+   Returns a <samp>DataFrame</samp> containing similarity-scores of all matching pairs of highly similar strings (from the input <samp>Series</samp> <samp>master</samp> and <samp>duplicates</samp>).  The column-names of the output are a concatenation of three sets:
+   1. The name of the Series <samp>master</samp> and the name(s) of its index(es) prefixed by the string `'left_'`,
+   2. `'similarity'` containing the similarity-scores, and 
+   3. The name of the Series <samp>duplicates</samp> (or <samp>master</samp> if <samp>duplicates</samp> is not given) and the name(s) of its index(es) prefixed by the string `'right_'`.
    
-   If only parameter <samp>master</samp> is given, it will return pairs of highly similar strings within <samp>master</samp>.    This can be seen as a self-join (both 'left_side' and 'right_side' column values come from <samp>master</samp>). If both parameters <samp>master</samp> and <samp>duplicates</samp> are given, it will return pairs of highly similar strings between <samp>master</samp> and <samp>duplicates</samp>. This can be seen as an inner-join ('left_side' and 'right_side' column values come from <samp>master</samp> and <samp>duplicates</samp> respectively).     
+   If any of the input <samp>Series</samp> has no name, it assumes the name `'side'` and is prefixed as described above.  Similarly, if any of the indexes has no name it assumes its <samp>pandas</samp> default name (`'index'`, `'level_0'`, and so on) and is prefixed as described above.
    
-   The function also supports optionally inputting IDs (<samp>master_id</samp> and <samp>duplicates_id</samp>) corresponding to the string values being matched. In which case, the output includes two additional columns whose names are 'left_side_id' and 'right_side_id' containing the IDs corresponding to the string values in 'left_side' and 'right_side' respectively.  
+   If only parameter <samp>master</samp> is given, it will return pairs of highly similar strings within <samp>master</samp>.    This can be seen as a self-join (both <samp>'left_'</samp> and <samp>'right_'</samp> prefixed columns come from <samp>master</samp>). If both parameters <samp>master</samp> and <samp>duplicates</samp> are given, it will return pairs of highly similar strings between <samp>master</samp> and <samp>duplicates</samp>. This can be seen as an inner-join (<samp>'left_'</samp> and <samp>'right_'</samp> prefixed columns come from <samp>master</samp> and <samp>duplicates</samp> respectively).     
+   
+   The function also supports optionally inputting IDs (<samp>master_id</samp> and <samp>duplicates_id</samp>) corresponding to the string values being matched. In which case, the output includes two additional columns whose names are the names of these optional Series prefixed by <samp>'left_'</samp> and <samp>'right_'</samp> accordingly, and containing the IDs corresponding to the strings in the output.  If any of these <samp>Series</samp> has no name, then it assumes the name `'id'` and is prefixed as described above.
+   
+   If no index-columns are desired in the output, the keyword argument setting `ignore_index=True` will exclude all the index-columns.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md) for a demonstration.)
    
    
 * #### `match_most_similar` 
-   Returns a nameless <samp>Series</samp> of strings of the same length as the parameter <samp>duplicates</samp>, where for each string in <samp>duplicates</samp> the most similar string in <samp>master</samp> is returned. If there are no similar strings in <samp>master</samp> for a given string in <samp>duplicates</samp>
-    (there is no potential match where the cosine similarity is above the threshold (default: 0.8)) 
-    the original string in <samp>duplicates</samp> is returned.
+   If `ignore_index=True`, returns a <samp>Series</samp> of strings, where for each string in <samp>duplicates</samp> the most similar string in <samp>master</samp> is returned.  If there are no similar strings in <samp>master</samp> for a given string in <samp>duplicates</samp> (because there is no potential match where the cosine similarity is above the threshold (default: 0.8)) then the original string in <samp>duplicates</samp> is returned.  The output <samp>Series</samp> thus has the same length and index as <samp>duplicates</samp>.  
+   
+   For example, if an input <samp>Series</samp> with the contents <samp>\[foooo, bar, baz\]</samp> is passed as the argument to <samp>master</samp>, and <samp>\[foooob, bar, new\]</samp> as the argument to <samp>duplicates</samp>, the function will return: <samp>[foooo, bar, new]</samp>.
+   
+   The name of the output <samp>Series</samp> is the same as that of <samp>master</samp> prefixed with the string `'most_similar_'`.  If <samp>master</samp> has no name, it is assumed to have the name `'master'` before being prefixed.
+       
+   If `ignore_index=False` (the default), `match_most_similar` returns a <samp>DataFrame</samp> containing the same <samp>Series</samp> described above as one of its columns.  So it also inherits the same index and length as <samp>duplicates</samp>.  The rest of its columns correspond to the index(es) of <samp>master</samp> and thus contain the index-labels of the most similar strings being output.  If there are no similar strings in <samp>master</samp> for a given string in <samp>duplicates</samp> then the value assigned to these index-columns is `NaN` by default.  However, if the keyword argument `replace_na=True`, then these `NaN` values are replaced with the index-label(s) of the corresponding string in <samp>duplicates</samp>.  Note that such replacements can only occur if the indexes of <samp>master</samp> and <samp>duplicates</samp> have the same number of levels.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md#MMS) for a demonstration.)
+   
+   Each column-name of the output <samp>DataFrame</samp> has the same name as its corresponding column, index, or index-level of <samp>master</samp> prefixed with the string `'most_similar_'`.
   
-   For example, if the input series <samp>\[foooo, bar, baz\]</samp> is passed as the argument to <samp>master</samp>, and <samp>\[foooob, bar, new\]</samp> as the argument to <samp>duplicates</samp>, the function will return:
-    <samp>[foooo, bar, new]</samp>.
-    
-    If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> with two unnamed columns is returned.  The second column is the same as the <samp>Series</samp> of strings described above, and the first column contains the corresponding IDs. 
-    
+    If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> is always returned with the same columns as described above, but with an additional column containing those IDs from these input <samp>Series</samp> corresponding to the output strings.  
+
+
 * #### `group_similar_strings` 
-  Takes a single <samp>Series</samp> (<samp>strings_to_group</samp>) of strings and groups them by assigning to each string one single string chosen as the group-representative (see [string_grouper_utils](tutorials/group_representatives.md)) for each group of similar strings found.   The output is a nameless <samp>Series</samp> of group-representative strings of the same length as the input <samp>Series</samp>.  
+  Takes a single <samp>Series</samp> of strings (<samp>strings_to_group</samp>) and groups them by assigning to each string one string from <samp>strings_to_group</samp> chosen as the group-representative for each group of similar strings found. (See [tutorials/group_representatives.md](tutorials/group_representatives.md) for details on how the the group-representatives are chosen.)   
+  
+  If `ignore_index=True`, the output is a <samp>Series</samp> (named `group_rep`) of the same length and index as <samp>strings_to_group</samp> containing the group-representative strings.  
    
-   For example, the input series: <samp>[foooo, foooob, bar]</samp> will return <samp>[foooo, foooo, bar]</samp>. Here <samp>foooo</samp> and <samp>foooob</samp> are grouped together into group <samp>foooo</samp> because they are found to be similar. (Another example can be found [here](#dedup).)
+  For example, an input Series with contents: <samp>\[foooo, foooob, bar\]</samp> will return <samp>\[foooo, foooo, bar\]</samp>.  Here <samp>foooo</samp> and <samp>foooob</samp> are grouped together into group <samp>foooo</samp> because they are found to be similar.  Another example can be found [below](#dedup).
+  
+   If `ignore_index=False`, the output is a <samp>DataFrame</samp> containing the above <samp>Series</samp> (named `group_rep`) as one of its columns.  The remaining column(s) correspond to the index(es) of <samp>strings_to_group</samp> and contain the index-labels of the group-representatives.
    
-   If <samp>strings_id</samp> is also given, then the IDs corresponding to the output <samp>Series</samp> above is also returned.  The combined output is a <samp>DataFrame</samp> with two columns.
+   If <samp>strings_id</samp> is also given, then the IDs from <samp>strings_id</samp> corresponding to the group-representatives is also returned.  
    
+
+* #### `compute_pairwise_similarities`
+   Returns a <samp>Series</samp> of cosine similarity scores the same length as <samp>string_series_1</samp> and <samp>string_series_2</samp>.  Each score is the cosine similarity between its corresponding strings in the two input <samp>Series</samp>.
+   
+
 All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
    
 
@@ -90,6 +114,9 @@ All functions are built using a class **<samp>StringGrouper</samp>**. This class
     Defaults to <samp>0.8</samp>
    * **<samp>number_of_processes</samp>**: The number of processes used by the cosine similarity calculation. Defaults to
     `number of cores on a machine - 1.`
+   * **<samp>ignore_index</samp>**: Determines whether indexes are ignored or not.  If `False` (the default), index-columns will appear in the output, otherwise not.
+   * **<samp>replace_na</samp>**: For function <samp>match_most_similar</samp>, determines whether `NaN` values in index-columns are replaced or not by index-labels from <samp>duplicates</samp>. Defaults to `False`.  
+   * **<samp>group_rep</samp>**: For function <samp>group_similar_strings</samp>, determines how group-representatives are chosen.  Allowed values are `'centroid'` (the default) and `'first'`.  See [tutorials/group_representatives.md](tutorials/group_representatives.md) for an explanation.
 
 ## Examples
 
@@ -101,7 +128,9 @@ In this section we will cover a few use cases for which string_grouper may be us
 ```python
 import pandas as pd
 import numpy as np
-from string_grouper import match_strings, match_most_similar, group_similar_strings, StringGrouper
+from string_grouper import match_strings, match_most_similar, \
+	group_similar_strings, compute_pairwise_similarities, \
+	StringGrouper
 ```
 
 
@@ -112,7 +141,7 @@ companies = pd.read_csv(company_names)[0:50000]
 # Create all matches:
 matches = match_strings(companies['Company Name'])
 # Look at only the non-exact matches:
-matches[matches.left_side != matches.right_side].head()
+matches[matches['left_Company Name'] != matches['right_Company Name']].head()
 ```
 
 
@@ -121,41 +150,53 @@ matches[matches.left_side != matches.right_side].head()
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>left_side</th>
-      <th>right_side</th>
+      <th>left_index</th>
+      <th>left_Company Name</th>
       <th>similarity</th>
+      <th>right_Company Name</th>
+      <th>right_index</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <th>15</th>
+      <td>14</td>
       <td>0210, LLC</td>
-      <td>90210 LLC</td>
       <td>0.870291</td>
+      <td>90210 LLC</td>
+      <td>4211</td>
     </tr>
     <tr>
       <th>167</th>
+      <td>165</td>
       <td>1 800 MUTUALS ADVISOR SERIES</td>
+      <td>0.931615</td>
       <td>1 800 MUTUALS ADVISORS SERIES</td>
-      <td>0.931616</td>
+      <td>166</td>
     </tr>
     <tr>
-      <th>169</th>
+      <th>168</th>
+      <td>166</td>
       <td>1 800 MUTUALS ADVISORS SERIES</td>
+      <td>0.931615</td>
       <td>1 800 MUTUALS ADVISOR SERIES</td>
-      <td>0.931616</td>
+      <td>165</td>
     </tr>
     <tr>
-      <th>171</th>
+      <th>172</th>
+      <td>168</td>
       <td>1 800 RADIATOR FRANCHISE INC</td>
-      <td>1-800-RADIATOR FRANCHISE INC.</td>
       <td>1.000000</td>
+      <td>1-800-RADIATOR FRANCHISE INC.</td>
+      <td>201</td>
     </tr>
     <tr>
       <th>178</th>
+      <td>173</td>
       <td>1 FINANCIAL MARKETPLACE SECURITIES LLC        ...</td>
-      <td>1 FINANCIAL MARKETPLACE SECURITIES, LLC</td>
       <td>0.949364</td>
+      <td>1 FINANCIAL MARKETPLACE SECURITIES, LLC</td>
+      <td>174</td>
     </tr>
   </tbody>
 </table>
@@ -180,41 +221,53 @@ matches
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>left_side</th>
-      <th>right_side</th>
+      <th>left_index</th>
+      <th>left_Company Name</th>
       <th>similarity</th>
+      <th>right_side</th>
+      <th>right_index</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <th>0</th>
+      <td>12</td>
       <td>012 SMILE.COMMUNICATIONS LTD</td>
-      <td>012 SMILE.COMMUNICATIONS</td>
       <td>0.944092</td>
+      <td>012 SMILE.COMMUNICATIONS</td>
+      <td>1</td>
     </tr>
     <tr>
       <th>1</th>
+      <td>49777</td>
       <td>B.A.S. MEDIA GROUP</td>
-      <td>S MEDIA GROUP</td>
       <td>0.854383</td>
+      <td>S MEDIA GROUP</td>
+      <td>0</td>
     </tr>
     <tr>
       <th>2</th>
-      <td>B4UTRADE COM CORP</td>
+      <td>49855</td>
       <td>B4UTRADE COM CORP</td>
       <td>1.000000</td>
+      <td>B4UTRADE COM CORP</td>
+      <td>3</td>
     </tr>
     <tr>
       <th>3</th>
+      <td>49856</td>
       <td>B4UTRADE COM INC</td>
-      <td>B4UTRADE COM CORP</td>
       <td>0.810217</td>
+      <td>B4UTRADE COM CORP</td>
+      <td>3</td>
     </tr>
     <tr>
       <th>4</th>
+      <td>49857</td>
       <td>B4UTRADE CORP</td>
-      <td>B4UTRADE COM CORP</td>
       <td>0.878276</td>
+      <td>B4UTRADE COM CORP</td>
+      <td>3</td>
     </tr>
   </tbody>
 </table>
@@ -248,8 +301,8 @@ pd.DataFrame({'new_companies': new_companies, 'duplicates': matches})
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>new_companies</th>
-      <th>duplicates</th>
+      <th>New Company</th>
+      <th>most_similar_Company Name</th>
     </tr>
   </thead>
   <tbody>
@@ -285,26 +338,26 @@ The <samp>group_similar_strings</samp> function groups strings that are similar 
 
 ```python
 # Add the grouped strings:
-companies['deduplicated_name'] = group_similar_strings(companies['Company Name'])
+companies['deduplicated_name'] = group_similar_strings(companies['Company Name'],
+                                                       ignore_index=True)
 # Show items with most duplicates:
-companies.groupby('deduplicated_name').count().sort_values('Line Number', ascending=False).head(10)['Line Number']
-
+companies.groupby('deduplicated_name')['Line Number'].count().sort_values(ascending=False).head(10)
 ```
 
 
 
 
     deduplicated_name
-    ADVISORS DISCIPLINED TRUST 1100                        188
-    ACE SECURITIES CORP HOME EQUITY LOAN TRUST 2005-HE4     32
-    AMERCREDIT AUTOMOBILE RECEIVABLES TRUST 2010-1          28
-    ADVENT LATIN AMERICAN PRIVATE EQUITY FUND II-A CV       25
-    ALLSTATE LIFE GLOBAL FUNDING TRUST 2004-1               24
-    ADVENT INTERNATIONAL GPE VII LIMITED PARTNERSHIP        24
-    7ADVISORS DISCIPLINED TRUST 1197                        23
-    AMERICREDIT AUTOMOBILE RECEIVABLES TRUST  2002 - D      23
-    ALLY AUTO RECEIVABLES TRUST 2010-1                      23
-    ANDERSON DAVID  A                                       23
+    ADVISORS DISCIPLINED TRUST                                      1824
+    AGL LIFE ASSURANCE CO SEPARATE ACCOUNT                           183
+    ANGELLIST-ART-FUND, A SERIES OF ANGELLIST-FG-FUNDS, LLC          116
+    AMERICREDIT AUTOMOBILE RECEIVABLES TRUST 2001-1                   87
+    ACE SECURITIES CORP. HOME EQUITY LOAN TRUST, SERIES 2006-HE2      57
+    ASSET-BACKED PASS-THROUGH CERTIFICATES SERIES 2004-W1             40
+    ALLSTATE LIFE GLOBAL FUNDING TRUST 2005-3                         39
+    ALLY AUTO RECEIVABLES TRUST 2014-1                                33
+    ANDERSON ROBERT E /                                               28
+    ADVENT INTERNATIONAL GPE VIII LIMITED PARTNERSHIP                 28
     Name: Line Number, dtype: int64
 
 
@@ -320,35 +373,107 @@ customers_df = pd.DataFrame(
       ('HH072982K', 'Hyper Hyper Inc.')
    ],
    columns=('Customer ID', 'Customer Name')
-)
+).set_index('Customer ID')
 # Display the data:
 customers_df
 ```
 
-|	|Customer ID  | Customer Name|
-|---|---|---|
-|0  |BB016741P  |Mega Enterprises Corporation|
-|1	|CC082744L	|Hyper Startup Incorporated|
-|2	|AA098762D	|Hyper Startup Inc.|
-|3	|BB099931J	|Hyper-Startup Inc.|
-|4	|HH072982K	|Hyper Hyper Inc.|
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Customer Name</th>
+    </tr>
+    <tr>
+      <th>Customer ID</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>BB016741P</th>
+      <td>Mega Enterprises Corporation</td>
+    </tr>
+    <tr>
+      <th>CC082744L</th>
+      <td>Hyper Startup Incorporated</td>
+    </tr>
+    <tr>
+      <th>AA098762D</th>
+      <td>Hyper Startup Inc.</td>
+    </tr>
+    <tr>
+      <th>BB099931J</th>
+      <td>Hyper-Startup Inc.</td>
+    </tr>
+    <tr>
+      <th>HH072982K</th>
+      <td>Hyper Hyper Inc.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
 
 The output of <samp>group_similar_strings</samp> can be directly used as a mapping table:
 ```python
 # Group customers with similar names:
 customers_df[["group-id", "name_deduped"]]  = \
-    group_similar_strings(customers_df["Customer Name"], customers_df["Customer ID"])
+    group_similar_strings(customers_df["Customer Name"])
 # Display the mapping table:
 customers_df
 ```
 
-Customer ID | Customer Name | group-id | name_deduped 
--- | -- | -- | --
-BB016741P | Mega Enterprises Corporation | BB016741P | Mega Enterprises Corporation 
-CC082744L | Hyper Startup Incorporated | CC082744L | Hyper Startup Incorporated 
-AA098762D | Hyper Startup Inc. | CC082744L | Hyper Startup Incorporated 
-BB099931J | Hyper-Startup Inc. | CC082744L | Hyper Startup Incorporated 
-HH072982K | Hyper Hyper Inc. | CC082744L | Hyper Startup Incorporated 
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>Customer Name</th>
+      <th>group-id</th>
+      <th>name_deduped</th>
+    </tr>
+    <tr>
+      <th>Customer ID</th>
+      <th></th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>BB016741P</th>
+      <td>Mega Enterprises Corporation</td>
+      <td>BB016741P</td>
+      <td>Mega Enterprises Corporation</td>
+    </tr>
+    <tr>
+      <th>CC082744L</th>
+      <td>Hyper Startup Incorporated</td>
+      <td>CC082744L</td>
+      <td>Hyper Startup Incorporated</td>
+    </tr>
+    <tr>
+      <th>AA098762D</th>
+      <td>Hyper Startup Inc.</td>
+      <td>AA098762D</td>
+      <td>Hyper Startup Inc.</td>
+    </tr>
+    <tr>
+      <th>BB099931J</th>
+      <td>Hyper-Startup Inc.</td>
+      <td>AA098762D</td>
+      <td>Hyper Startup Inc.</td>
+    </tr>
+    <tr>
+      <th>HH072982K</th>
+      <td>Hyper Hyper Inc.</td>
+      <td>HH072982K</td>
+      <td>Hyper Hyper Inc.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
 
 Note that here <samp>customers_df</samp> initially had only two columns "Customer ID" and "Customer Name" (before the <samp>group_similar_strings</samp> function call); and it acquired two more columns "group-id" and "name_deduped" after the call.
 
@@ -367,8 +492,7 @@ The <samp>StringGrouper</samp> class allows for this without having to re-calcul
 
 ```python
 company_names = '/media/chris/data/dev/name_matching/data/sec_edgar_company_info.csv'
-# We only look at the first 50k as an example
-companies = pd.read_csv(company_names)
+companies = pd.read_csv(company_names)[:50000]
 ```
 
 1. Create matches
@@ -376,7 +500,7 @@ companies = pd.read_csv(company_names)
 
 ```python
 # Create a new StringGrouper
-string_grouper = StringGrouper(companies['Company Name'])
+string_grouper = StringGrouper(companies['Company Name'], ignore_index=True)
 # Check if the ngram function does what we expect:
 string_grouper.n_grams('McDonalds')
 ```
