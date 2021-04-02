@@ -2353,3 +2353,9 @@ companies
 </div>
 
 
+# <a name="SG"></a>4. **StringGrouper**(..., **ignore_index**=[True | False], **replace_na**=[True | False])
+The options `ignore_index` and `replace_na` can be passed directly to  a `StringGrouper` object during instantiation.  These will be used by its methods `StringGrouper.get_groups` and `StringGrouper.get_matches`.
+ 
+The options `ignore_index` and `replace_na` can also, where applicable, be passed directly to `StringGrouper.get_groups` and `StringGrouper.get_matches` themselves to temporarily override the StringGrouper-instance's defaults. 
+
+
