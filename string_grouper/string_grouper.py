@@ -225,20 +225,28 @@ class StringGrouper(object):
         return self
 
     @validate_is_fit
-    def get_matches(self) -> pd.DataFrame:
+    def get_matches(self, include_zeroes=True) -> pd.DataFrame:
         """
         Returns a DataFrame with all the matches and their cosine similarity.
         If optional IDs are used, returned as extra columns with IDs matched to respective data rows
         """
+        if self._config.min_similarity > 0 or not include_zeroes:
+            matches_list = self._matches_list
+        elif include_zeroes:
+            # Here's a fix to a bug pointed out by one GitHub user (@nbcvijanovic):
+            # the fix includes zero-similarity matches that are missing by default 
+            # in _matches_list due to our use of sparse matrices 
+            matches_list = pd.concat([self._matches_list, self._get_non_matches_list()], axis=0, ignore_index=True)
+            
         def get_both_sides(master: pd.Series, duplicates: pd.Series, generic_name=('side', 'side'), drop_index=False):
             lname, rname = generic_name
             left = master if master.name else master.rename(lname)
-            left = left.iloc[self._matches_list.master_side].reset_index(drop=drop_index)
+            left = left.iloc[matches_list.master_side].reset_index(drop=drop_index)
             if self._duplicates is None:
                 right = master if master.name else master.rename(rname)
             else:
                 right = duplicates if duplicates.name else duplicates.rename(rname)
-            right = right.iloc[self._matches_list.dupe_side].reset_index(drop=drop_index)
+            right = right.iloc[matches_list.dupe_side].reset_index(drop=drop_index)
             return left, (right if isinstance(right, pd.Series) else right[right.columns[::-1]])
 
         def prefix_column_names(data: Union[pd.Series, pd.DataFrame], prefix: str):
@@ -248,7 +256,7 @@ class StringGrouper(object):
                 return data.rename(f"{prefix}{data.name}")
 
         left_side, right_side = get_both_sides(self._master, self._duplicates, drop_index=self._config.ignore_index)
-        similarity = self._matches_list.similarity.reset_index(drop=True)
+        similarity = matches_list.similarity.reset_index(drop=True)
         if self._master_id is None:
             return pd.concat(
                 [
@@ -379,6 +387,21 @@ class StringGrouper(object):
                 ).set_index(['master_side', 'dupe_side'])
             ).reset_index()
 
+    def _get_non_matches_list(self):
+        """Returns a list of all the indices of non-matching pairs"""
+        matched_pairs = map(tuple, self._matches_list.iloc[:, [0, 1]].values)
+        m_sz, d_sz = len(self._master), len(self._duplicates)
+        all_pairs = pd.MultiIndex.from_product([range(m_sz), range(d_sz)])
+        missing_pairs = set(all_pairs) - set(matched_pairs)
+        missing_pairs = np.array(list(missing_pairs))
+        return pd.DataFrame(
+            {
+                'master_side': missing_pairs[:, 0],
+                'dupe_side': missing_pairs[:, 1],
+                'similarity': np.full(len(missing_pairs), 0)
+            }
+        )
+
     @staticmethod
     def _get_matches_list(matches) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
@@ -415,7 +438,7 @@ class StringGrouper(object):
             )
 
         if self._master_id is not None:
-            master_id_label = prefix + (self._master_id.name if self._master_id.name else 'master_id')
+            master_id_label = f'{prefix}{self._master_id.name if self._master_id.name else "master_id"}'
             master = pd.concat([master, self._master_id.rename(master_id_label).reset_index(drop=True)], axis=1)
             dupes = pd.concat([dupes, self._duplicates_id.rename('duplicates_id').reset_index(drop=True)], axis=1)
 

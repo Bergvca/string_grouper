@@ -35,6 +35,18 @@ class SimpleExample(object):
            ],
            columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight')
         )
+        self.whatever_series_1 = pd.Series(['whatever'])
+        self.expected_result_with_zeros = pd.DataFrame(
+            [
+                (1, 'Hyper Startup Incorporated', 0.08170638, 'whatever', 0),
+                (4, 'Hyper Hyper Inc.', 0., 'whatever', 0),
+                (0, 'Mega Enterprises Corporation', 0., 'whatever', 0),
+                (2, 'Hyper Startup Inc.', 0., 'whatever', 0),
+                (3, 'Hyper-Startup Inc.', 0., 'whatever', 0),
+                (5, 'Mega Enterprises Corp.', 0., 'whatever', 0)
+            ],
+            columns=['left_index', 'left_Customer Name', 'similarity', 'right_side', 'right_index']
+        )
         self.expected_result_centroid = pd.Series(
             [
                 'Mega Enterprises Corporation',
@@ -201,6 +213,15 @@ class StringGrouperTest(unittest.TestCase):
         num_self_joins = len(matches[matches['left_index'] == matches['right_index']])
         num_strings = len(df)
         self.assertEqual(num_self_joins, num_strings)
+
+    def test_zero_min_similarity(self):
+        """Since sparse matrices exclude zero elements, this test ensures that zero similarity matches are 
+        returned when min_similarity <= 0.  A bug related to this was first pointed out by @nbcvijanovic"""
+        simple_example = SimpleExample()
+        s_master = simple_example.customers_df['Customer Name']
+        s_dup = simple_example.whatever_series_1
+        matches = match_strings(s_master, s_dup, max_n_matches=len(s_master), min_similarity=0)
+        pd.testing.assert_frame_equal(simple_example.expected_result_with_zeros, matches)
 
     def test_n_grams_case_unchanged(self):
         """Should return all ngrams in a string with case"""
