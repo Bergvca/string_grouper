@@ -12,12 +12,14 @@ from functools import wraps
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
-DEFAULT_MIN_SIMILARITY: float = 0.8  # Minimum cosine similarity for an item to be considered a match
+DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
 DEFAULT_DROP_INDEX: bool = False  # includes index-columns in output
 DEFAULT_REPLACE_NA: bool = False    # when finding the most similar strings, does not replace NaN values in most
                                     # similar string index-columns with corresponding duplicates-index values
+DEFAULT_INCLUDE_ZEROES: bool = True # when the minimum cosine similarity <=0, determines whether zero-similarity
+                                    # matches appear in the output 
 
 # Option value to select the string in each group with
 # the largest similarity aggregate as group-representative:
@@ -38,14 +40,14 @@ def group_similar_strings(strings_to_group: pd.Series,
     is chosen as the 'master' string and is returned for each member of the group.
 
     For example the input Series: [foooo, foooob, bar] will return [foooo, foooo, bar].  Here 'foooo' and
-    'foooob' are grouped together into group 'foooo' because they are found to be very similar
+    'foooob' are grouped together into group 'foooo' because they are found to be very similar.
 
     If string_ids is also given, a DataFrame of the strings and their corresponding IDs is instead returned.
 
-    :param strings_to_group: pandas.Series. The input Series of strings to be grouped
-    :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series or pandas.DataFrame
+    :param strings_to_group: pandas.Series. The input Series of strings to be grouped.
+    :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped. (Optional)
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+    :return: pandas.Series or pandas.DataFrame.
     """
     string_grouper = StringGrouper(strings_to_group, master_id=string_ids, **kwargs).fit()
     return string_grouper.get_groups()
@@ -60,21 +62,21 @@ def match_most_similar(master: pd.Series,
     If no IDs ('master_id' and 'duplicates_id') are given, returns a Series of strings of the same length
     as 'duplicates' where for each string in duplicates the most similar string in 'master' is returned.
     If there are no similar strings in master for a given string in duplicates
-    (there is no potential match where the cosine similarity is above the threshold (default: 0.8))
+    (there is no potential match where the cosine similarity is above the threshold [default: 0.8])
     the original string in duplicates is returned.
 
     For example the input Series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
-    [foooo, bar, new]
+    [foooo, bar, new].
 
     If IDs (both 'master_id' and 'duplicates_id') are also given, returns a DataFrame of the same strings
     output in the above case with their corresponding IDs.
 
-    :param master: pandas.Series. Series of strings that the duplicates will be matched with
-    :param duplicates: pandas.Series. Series of strings that will me matched with the master
-    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional)
-    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional)
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series or pandas.DataFrame
+    :param master: pandas.Series. Series of strings that the duplicates will be matched with.
+    :param duplicates: pandas.Series. Series of strings that will me matched with the master.
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows. (Optional)
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows. (Optional)
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+    :return: pandas.Series or pandas.DataFrame.
     """
     string_grouper = StringGrouper(master,
                                    duplicates=duplicates,
@@ -94,12 +96,12 @@ def match_strings(master: pd.Series,
     This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
     between master and duplicates. This can be seen as an inner-join.
 
-    :param master: pandas.Series. Series of strings against which matches are calculated
-    :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional)
-    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional)
-    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional)
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Dataframe
+    :param master: pandas.Series. Series of strings against which matches are calculated.
+    :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional).
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional).
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional).
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
+    :return: pandas.Dataframe.
     """
     string_grouper = StringGrouper(master,
                                    duplicates=duplicates,
@@ -111,17 +113,19 @@ def match_strings(master: pd.Series,
 
 class StringGrouperConfig(NamedTuple):
     """
-    Class with configuration variables
+    Class with configuration variables.
 
-    :param ngram_size: int. The amount of characters in each n-gram. Optional. Default is 3
-    :param regex: str. The regex string used to cleanup the input string. Optional. Default is [,-./]|\s
-    :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20
+    :param ngram_size: int. The amount of characters in each n-gram. Default is 3.
+    :param regex: str. The regex string used to cleanup the input string. Default is [,-./]|\s.
+    :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20.
     :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
-    Defaults to 0.8
+    Defaults to 0.8.
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
     Defaults to number of cores on a machine - 1.
-    :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case)
+    :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case).
     :param ignore_index: whether or not to exclude string Series index-columns in output.  Defaults to False.
+    :param include_zeros: when the minimum cosine similarity <=0, determines whether zero-similarity matches 
+    appear in the output.  Defaults to True.
     :param replace_na: whether or not to replace NaN values in most similar string index-columns with 
     corresponding duplicates-index values. Defaults to False.
     :param group_rep: str.  The scheme to select the group-representative.  Default is 'centroid'.
@@ -135,6 +139,7 @@ class StringGrouperConfig(NamedTuple):
     number_of_processes: int = DEFAULT_N_PROCESSES
     ignore_case: bool = DEFAULT_IGNORE_CASE
     ignore_index: bool = DEFAULT_DROP_INDEX
+    include_zeroes: bool = DEFAULT_INCLUDE_ZEROES
     replace_na: bool = DEFAULT_REPLACE_NA
     group_rep: str = DEFAULT_GROUP_REP
 
@@ -225,21 +230,16 @@ class StringGrouper(object):
         return self
 
     @validate_is_fit
-    def get_matches(self, include_zeroes=True) -> pd.DataFrame:
+    def get_matches(self, ignore_index: Optional[bool] = None, include_zeroes: Optional[bool]=None) -> pd.DataFrame:
         """
         Returns a DataFrame with all the matches and their cosine similarity.
         If optional IDs are used, returned as extra columns with IDs matched to respective data rows
+
+        :param ignore_index: whether or not to exclude string Series index-columns in output.  Defaults to 
+        self._config.ignore_index.
+        :param include_zeros: when the minimum cosine similarity <=0, determines whether zero-similarity matches 
+        appear in the output.  Defaults to self._config.include_zeros.
         """
-        if self._config.min_similarity > 0 or not include_zeroes:
-            matches_list = self._matches_list
-        elif include_zeroes:
-            # Here's a fix to a bug pointed out by one GitHub user (@nbcvijanovic):
-            # the fix includes zero-similarity matches that are missing by default 
-            # in _matches_list due to our use of sparse matrices 
-            non_matches_list = self._get_non_matches_list()
-            matches_list = self._matches_list if non_matches_list.empty else \
-                pd.concat([self._matches_list, non_matches_list], axis=0, ignore_index=True)
-            
         def get_both_sides(master: pd.Series, duplicates: pd.Series, generic_name=('side', 'side'), drop_index=False):
             lname, rname = generic_name
             left = master if master.name else master.rename(lname)
@@ -257,7 +257,19 @@ class StringGrouper(object):
             else:
                 return data.rename(f"{prefix}{data.name}")
 
-        left_side, right_side = get_both_sides(self._master, self._duplicates, drop_index=self._config.ignore_index)
+        if ignore_index is None: ignore_index = self._config.ignore_index
+        if include_zeroes is None: include_zeroes = self._config.include_zeroes
+        if self._config.min_similarity > 0 or not include_zeroes:
+            matches_list = self._matches_list
+        elif include_zeroes:
+            # Here's a fix to a bug pointed out by one GitHub user (@nbcvijanovic):
+            # the fix includes zero-similarity matches that are missing by default 
+            # in _matches_list due to our use of sparse matrices 
+            non_matches_list = self._get_non_matches_list()
+            matches_list = self._matches_list if non_matches_list.empty else \
+                pd.concat([self._matches_list, non_matches_list], axis=0, ignore_index=True)
+            
+        left_side, right_side = get_both_sides(self._master, self._duplicates, drop_index=ignore_index)
         similarity = matches_list.similarity.reset_index(drop=True)
         if self._master_id is None:
             return pd.concat(
@@ -283,7 +295,9 @@ class StringGrouper(object):
             )
 
     @validate_is_fit
-    def get_groups(self) -> Union[pd.DataFrame, pd.Series]:
+    def get_groups(self,
+                   ignore_index: Optional[bool] = None,
+                   replace_na: Optional[bool] = None) -> Union[pd.DataFrame, pd.Series]:
         """If there is only a master Series of strings, this will return a Series of 'master' strings.
          A single string in a group of near duplicates is chosen as 'master' and is returned for each string
          in the master Series.
@@ -291,11 +305,18 @@ class StringGrouper(object):
          for each duplicate and returned.
          If there are IDs (master_id and/or duplicates_id) then the IDs corresponding to the string outputs
          above are returned as well altogether in a DataFrame.
+
+        :param ignore_index: whether or not to exclude string Series index-columns in output.  Defaults to 
+        self._config.ignore_index.
+        :param replace_na: whether or not to replace NaN values in most similar string index-columns with 
+        corresponding duplicates-index values. Defaults to self._config.replace_na.
          """
+        if ignore_index is None: ignore_index = self._config.ignore_index
         if self._duplicates is None:
-            return self._deduplicate()
+            return self._deduplicate(ignore_index=ignore_index)
         else:
-            return self._get_nearest_matches()
+            if replace_na is None: replace_na = self._config.replace_na
+            return self._get_nearest_matches(ignore_index=ignore_index, replace_na=replace_na)
 
     @validate_is_fit
     def add_match(self, master_side: str, dupe_side: str) -> 'StringGrouper':
@@ -427,11 +448,13 @@ class StringGrouper(object):
                                      'similarity': similarity})
         return matches_list
 
-    def _get_nearest_matches(self) -> Union[pd.DataFrame, pd.Series]:
+    def _get_nearest_matches(self,
+                             ignore_index=False,
+                             replace_na=False) -> Union[pd.DataFrame, pd.Series]:
         prefix = 'most_similar_'
         master_label = f'{prefix}{self._master.name if self._master.name else "master"}'
-        master = self._master.rename(master_label).reset_index(drop=self._config.ignore_index)
-        dupes = self._duplicates.rename('duplicates').reset_index(drop=self._config.ignore_index)
+        master = self._master.rename(master_label).reset_index(drop=ignore_index)
+        dupes = self._duplicates.rename('duplicates').reset_index(drop=ignore_index)
         
         # Rename new master-columns to avoid possible conflict with new dupes-columns when later merging 
         if isinstance(dupes, pd.DataFrame):
@@ -476,7 +499,7 @@ class StringGrouper(object):
         index_column_list = \
             [col for col in master.columns if col not in required_column_list] \
             if isinstance(master, pd.DataFrame) else []
-        if self._config.replace_na:
+        if replace_na:
             # Update the master index-columns with the duplicates index-column values in cases were there is no match
             dupes_index_columns = [col for col in dupes.columns if str(col) != 'duplicates']
             dupes_max_sim.loc[rows_to_update, index_column_list] = \
@@ -493,7 +516,7 @@ class StringGrouper(object):
         output.index = self._duplicates.index
         return output.squeeze()
 
-    def _deduplicate(self) -> Union[pd.DataFrame, pd.Series]:
+    def _deduplicate(self, ignore_index=False) -> Union[pd.DataFrame, pd.Series]:
         # discard self-matches: A matches A
         pairs = self._matches_list[self._matches_list['master_side'] != self._matches_list['dupe_side']]
         # rebuild graph adjacency matrix from already found matches:
@@ -534,7 +557,7 @@ class StringGrouper(object):
         # Prepare the output:
         # use group rep indices obtained in the last step above to select the corresponding strings:
         output = self._master.iloc[group_of_master_id.group_rep].rename('group_rep')\
-            .reset_index(drop=self._config.ignore_index)
+            .reset_index(drop=ignore_index)
         if isinstance(output, pd.DataFrame):
             output.rename(
                 columns={col: f'group_rep_{col}' for col in output.columns if str(col) != 'group_rep'},

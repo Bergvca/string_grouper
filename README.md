@@ -107,6 +107,8 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
   
    If `ignore_index=False`, the output is a <samp>DataFrame</samp> containing the above <samp>Series</samp> (named `group_rep`) as one of its columns with the same name.  The remaining column(s) correspond to the index (or index-levels) of <samp>strings_to_group</samp> and contain the index-labels of the group-representatives as values.  These columns have the same names as their counterparts prefixed by the string `'group_rep_'`. 
    
+   If <samp>strings_id</samp> is also given, then the IDs from <samp>strings_id</samp> corresponding to the group-representatives are also returned in an additional column (with the same name prefixed as described above).  
+   
 
 
 All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
@@ -118,15 +120,16 @@ All functions are built using a class **<samp>StringGrouper</samp>**. This class
 
    All keyword arguments not mentioned in the function definitions above are used to update the default settings. The following optional arguments can be used:
 
-   * **<samp>ngram_size</samp>**: The amount of characters in each n-gram. Optional. Default is <samp>3</samp>
-   * **<samp>regex</samp>**: The regex string used to clean-up the input string. Optional. Default is <samp>"[,-./]|\s"</samp>.
+   * **<samp>ngram_size</samp>**: The amount of characters in each n-gram. Default is <samp>3</samp>.
+   * **<samp>regex</samp>**: The regex string used to clean-up the input string. Default is <samp>"[,-./]|\s"</samp>.
    * **<samp>max_n_matches</samp>**: The maximum number of matches allowed per string. Default is <samp>20</samp>.
    * **<samp>min_similarity</samp>**: The minimum cosine similarity for two strings to be considered a match.
     Defaults to <samp>0.8</samp>
    * **<samp>number_of_processes</samp>**: The number of processes used by the cosine similarity calculation. Defaults to
     `number of cores on a machine - 1.`
-   * **<samp>ignore_index</samp>**: Determines whether indexes are ignored or not.  If `False` (the default), index-columns will appear in the output, otherwise not.
-   * **<samp>replace_na</samp>**: For function <samp>match_most_similar</samp>, determines whether `NaN` values in index-columns are replaced or not by index-labels from <samp>duplicates</samp>. Defaults to `False`.  
+   * **<samp>ignore_index</samp>**: Determines whether indexes are ignored or not.  If `False` (the default), index-columns will appear in the output, otherwise not.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md) for a demonstration.)
+   * **<samp>replace_na</samp>**: For function <samp>match_most_similar</samp>, determines whether `NaN` values in index-columns are replaced or not by index-labels from <samp>duplicates</samp>. Defaults to `False`.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md) for a demonstration.)
+   * **<samp>include_zeroes</samp>**: When <samp>min_similarity</samp> &le; 0, determines whether zero-similarity matches appear in the output.  Defaults to `True`.  (See [tutorials/zero_similarity.md](tutorials/zero_similarity.md) for a demonstration.)
    * **<samp>group_rep</samp>**: For function <samp>group_similar_strings</samp>, determines how group-representatives are chosen.  Allowed values are `'centroid'` (the default) and `'first'`.  See [tutorials/group_representatives.md](tutorials/group_representatives.md) for an explanation.
 
 ## Examples
