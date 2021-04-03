@@ -236,7 +236,9 @@ class StringGrouper(object):
             # Here's a fix to a bug pointed out by one GitHub user (@nbcvijanovic):
             # the fix includes zero-similarity matches that are missing by default 
             # in _matches_list due to our use of sparse matrices 
-            matches_list = pd.concat([self._matches_list, self._get_non_matches_list()], axis=0, ignore_index=True)
+            non_matches_list = self._get_non_matches_list()
+            matches_list = self._matches_list if non_matches_list.empty else \
+                pd.concat([self._matches_list, non_matches_list], axis=0, ignore_index=True)
             
         def get_both_sides(master: pd.Series, duplicates: pd.Series, generic_name=('side', 'side'), drop_index=False):
             lname, rname = generic_name
@@ -387,12 +389,13 @@ class StringGrouper(object):
                 ).set_index(['master_side', 'dupe_side'])
             ).reset_index()
 
-    def _get_non_matches_list(self):
+    def _get_non_matches_list(self) -> pd.DataFrame:
         """Returns a list of all the indices of non-matching pairs"""
         matched_pairs = map(tuple, self._matches_list.iloc[:, [0, 1]].values)
         m_sz, d_sz = len(self._master), len(self._duplicates)
         all_pairs = pd.MultiIndex.from_product([range(m_sz), range(d_sz)])
         missing_pairs = set(all_pairs) - set(matched_pairs)
+        if missing_pairs == set(): return pd.DataFrame()
         missing_pairs = np.array(list(missing_pairs))
         return pd.DataFrame(
             {

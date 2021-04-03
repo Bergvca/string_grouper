@@ -35,6 +35,8 @@ class SimpleExample(object):
            ],
            columns=('Customer ID', 'Customer Name', 'Address', 'Tel', 'Description', 'weight')
         )
+        self.a_few_strings = pd.Series(['BB016741P', 'BB082744L', 'BB098762D', 'BB099931J', 'BB072982K', 'BB059082Q'])
+        self.one_string = pd.Series(['BB0'])
         self.whatever_series_1 = pd.Series(['whatever'])
         self.expected_result_with_zeros = pd.DataFrame(
             [
@@ -222,6 +224,14 @@ class StringGrouperTest(unittest.TestCase):
         s_dup = simple_example.whatever_series_1
         matches = match_strings(s_master, s_dup, max_n_matches=len(s_master), min_similarity=0)
         pd.testing.assert_frame_equal(simple_example.expected_result_with_zeros, matches)
+
+    def test_get_non_matches_empty_case(self):
+        """This test ensures that _get_non_matches() returns an empty DataFrame when all pairs of strings match"""
+        simple_example = SimpleExample()
+        s_master = simple_example.a_few_strings
+        s_dup = simple_example.one_string
+        sg = StringGrouper(s_master, s_dup, max_n_matches=len(s_master), min_similarity=0).fit()
+        self.assertTrue(sg._get_non_matches_list().empty)
 
     def test_n_grams_case_unchanged(self):
         """Should return all ngrams in a string with case"""
