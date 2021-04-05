@@ -44,7 +44,7 @@ class SimpleExample(object):
                 'Hyper Hyper Inc.',
                 'Mega Enterprises Corporation'
             ],
-            name='group_rep'
+            name='group_rep_Customer Name'
         )
         self.expected_result_centroid_with_index_col = pd.DataFrame(
             [
@@ -55,7 +55,7 @@ class SimpleExample(object):
                 (4, 'Hyper Hyper Inc.'),
                 (0, 'Mega Enterprises Corporation')
             ],
-            columns=['group_rep_index', 'group_rep']
+            columns=['group_rep_index', 'group_rep_Customer Name']
         )
         self.expected_result_first = pd.Series(
             [
@@ -66,7 +66,7 @@ class SimpleExample(object):
                  'Hyper Hyper Inc.',
                  'Mega Enterprises Corporation'
             ],
-            name='group_rep'
+            name='group_rep_Customer Name'
         )
 
 
