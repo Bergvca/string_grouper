@@ -41,10 +41,10 @@ class SimpleExample(object):
         self.expected_result_with_zeros = pd.DataFrame(
             [
                 (1, 'Hyper Startup Incorporated', 0.08170638, 'whatever', 0),
-                (4, 'Hyper Hyper Inc.', 0., 'whatever', 0),
                 (0, 'Mega Enterprises Corporation', 0., 'whatever', 0),
                 (2, 'Hyper Startup Inc.', 0., 'whatever', 0),
                 (3, 'Hyper-Startup Inc.', 0., 'whatever', 0),
+                (4, 'Hyper Hyper Inc.', 0., 'whatever', 0),
                 (5, 'Mega Enterprises Corp.', 0., 'whatever', 0)
             ],
             columns=['left_index', 'left_Customer Name', 'similarity', 'right_side', 'right_index']

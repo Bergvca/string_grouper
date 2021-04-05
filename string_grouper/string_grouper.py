@@ -411,20 +411,15 @@ class StringGrouper(object):
             ).reset_index()
 
     def _get_non_matches_list(self) -> pd.DataFrame:
-        """Returns a list of all the indices of non-matching pairs"""
-        matched_pairs = map(tuple, self._matches_list.iloc[:, [0, 1]].values)
+        """Returns a list of all the indices of non-matching pairs (with similarity set to 0)"""
         m_sz, d_sz = len(self._master), len(self._duplicates)
-        all_pairs = pd.MultiIndex.from_product([range(m_sz), range(d_sz)])
-        missing_pairs = set(all_pairs) - set(matched_pairs)
-        if missing_pairs == set(): return pd.DataFrame()
-        missing_pairs = np.array(list(missing_pairs))
-        return pd.DataFrame(
-            {
-                'master_side': missing_pairs[:, 0],
-                'dupe_side': missing_pairs[:, 1],
-                'similarity': np.full(len(missing_pairs), 0)
-            }
-        )
+        all_pairs = pd.MultiIndex.from_product([range(m_sz), range(d_sz)], names=['master_side', 'dupe_side'])
+        matched_pairs = pd.MultiIndex.from_frame(self._matches_list[['master_side', 'dupe_side']])
+        missing_pairs = all_pairs.difference(matched_pairs)
+        if missing_pairs.empty: return pd.DataFrame()
+        missing_pairs = missing_pairs.to_frame(index=False)
+        missing_pairs['similarity'] = 0
+        return missing_pairs
 
     @staticmethod
     def _get_matches_list(matches) -> pd.DataFrame:
