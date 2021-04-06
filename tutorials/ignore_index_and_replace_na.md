@@ -1345,7 +1345,7 @@ group_similar_strings(companies['Company Name'])
       <th></th>
       <th>group_rep_Line Number</th>
       <th>group_rep_Company CIK Key</th>
-      <th>group_rep</th>
+      <th>group_rep_Company Name</th>
     </tr>
     <tr>
       <th>Line Number</th>
@@ -1440,7 +1440,7 @@ group_similar_strings(companies['Company Name'])
 
 
 
-Notice that `group_similar_strings` preeserves the index of the input Series while also showing the index(es) of the group-representatives in new columns with column-names prefixed by the string "group_rep_". 
+Notice that `group_similar_strings` preserves the index of the input Series while also showing the index(es) of the group-representatives in new columns with column-names prefixed by the string "group_rep_". 
 
 To ignore the indexes of the group-representatives, simply set the keyword argument `ignore_index = True`:
 
@@ -1464,7 +1464,7 @@ group_similar_strings(companies['Company Name'], ignore_index=True)
     49998        1139504                        BABB INTERNATIONAL INC
     49999        1280368                                   BABB JACK J
     50000        1575424                             BABB JAMES G. III
-    Name: group_rep, Length: 50000, dtype: object
+    Name: group_rep_Company Name, Length: 50000, dtype: object
 
 
 

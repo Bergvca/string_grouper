@@ -65,14 +65,16 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
 #### Functions:
 
 * #### `match_strings` 
-   Returns a <samp>DataFrame</samp> containing similarity-scores of all matching pairs of highly similar strings from <samp>master</samp> and <samp>duplicates</samp> (if given).  Each matching pair in the output appears in its own row/record consisting of
-   1. a "left" part: string with or without its index from <samp>master</samp>, 
-   2. a similarity score, and  
-   3. a "right" part: string with/without its index from <samp>duplicates</samp>, or <samp>master</samp> (if <samp>duplicates</samp> is not given), 
+   Returns a <samp>DataFrame</samp> containing similarity-scores of all matching pairs of highly similar strings from <samp>master</samp> (and <samp>duplicates</samp> if given).  Each matching pair in the output appears in its own row/record consisting of
    
-   in that order.  Thus the column-names of the output are a collection of three sets of strings:
+   1. its "left" part: a string with or without its index from <samp>master</samp>, 
+   2. its similarity score, and  
+   3. its "right" part: a string with/without its index from <samp>duplicates</samp> (or <samp>master</samp> if <samp>duplicates</samp> is not given), 
+   
+   in that order.  Thus the column-names of the output are a collection of three groups:
+   
    1. The name of <samp>master</samp> and the name(s) of its index (or index-levels) all prefixed by the string `'left_'`,
-   2. `'similarity'` containing the similarity-scores, and 
+   2. `'similarity'` whose column has the similarity-scores as values, and 
    3. The name of <samp>duplicates</samp> (or <samp>master</samp> if <samp>duplicates</samp> is not given) and the name(s) of its index (or index-levels) prefixed by the string `'right_'`.
    
    Indexes (or their levels) only appear when the keyword argument `ignore_index=False` (the default). (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md) for a demonstration.)
@@ -95,19 +97,19 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
    
    Each column-name of the output <samp>DataFrame</samp> has the same name as its corresponding column, index, or index-level of <samp>master</samp> prefixed with the string `'most_similar_'`.
   
-    If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> is always returned with the same columns as described above, but with an additional column containing those IDs from these input <samp>Series</samp> corresponding to the output strings.  
+    If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> is always returned with the same column(s) as described above, but with an additional column containing those IDs from these input <samp>Series</samp> corresponding to the output strings.  This column's name is the same as that of <samp>master_id</samp> prefixed in the same way as described above.  If <samp>master_id</samp> has no name, it is assumed to have the name `'master_id'` before being prefixed.
 
 
 * #### `group_similar_strings` 
   Takes a single <samp>Series</samp> of strings (<samp>strings_to_group</samp>) and groups them by assigning to each string one string from <samp>strings_to_group</samp> chosen as the group-representative for each group of similar strings found. (See [tutorials/group_representatives.md](tutorials/group_representatives.md) for details on how the the group-representatives are chosen.)   
   
-  If `ignore_index=True`, the output is a <samp>Series</samp> (named `group_rep`) of the same length and index as <samp>strings_to_group</samp> containing the group-representative strings.  
+  If `ignore_index=True`, the output is a <samp>Series</samp> (with the same name as <samp>strings_to_group</samp> prefixed by the string `'group_rep_'`) of the same length and index as <samp>strings_to_group</samp> containing the group-representative strings.  If <samp>strings_to_group</samp> has no name then the name of the returned <samp>Series</samp> is `'group_rep'`.  
    
   For example, an input Series with values: <samp>\[foooo, foooob, bar\]</samp> will return <samp>\[foooo, foooo, bar\]</samp>.  Here <samp>foooo</samp> and <samp>foooob</samp> are grouped together into group <samp>foooo</samp> because they are found to be similar.  Another example can be found [below](#dedup).
   
-   If `ignore_index=False`, the output is a <samp>DataFrame</samp> containing the above <samp>Series</samp> (named `group_rep`) as one of its columns with the same name.  The remaining column(s) correspond to the index (or index-levels) of <samp>strings_to_group</samp> and contain the index-labels of the group-representatives as values.  These columns have the same names as their counterparts prefixed by the string `'group_rep_'`. 
+   If `ignore_index=False`, the output is a <samp>DataFrame</samp> containing the above output <samp>Series</samp> as one of its columns with the same name.  The remaining column(s) correspond to the index (or index-levels) of <samp>strings_to_group</samp> and contain the index-labels of the group-representatives as values.  These columns have the same names as their counterparts prefixed by the string `'group_rep_'`. 
    
-   If <samp>strings_id</samp> is also given, then the IDs from <samp>strings_id</samp> corresponding to the group-representatives are also returned in an additional column (with the same name prefixed as described above).  
+   If <samp>strings_id</samp> is also given, then the IDs from <samp>strings_id</samp> corresponding to the group-representatives are also returned in an additional column (with the same name as <samp>strings_id</samp> prefixed as described above).  If <samp>strings_id</samp> has no name, it is assumed to have the name `'id'` before being prefixed.
    
 
 

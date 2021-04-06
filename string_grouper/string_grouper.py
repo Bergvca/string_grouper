@@ -18,15 +18,22 @@ DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
 DEFAULT_DROP_INDEX: bool = False  # includes index-columns in output
 DEFAULT_REPLACE_NA: bool = False    # when finding the most similar strings, does not replace NaN values in most
                                     # similar string index-columns with corresponding duplicates-index values
-DEFAULT_INCLUDE_ZEROES: bool = True # when the minimum cosine similarity <=0, determines whether zero-similarity
-                                    # matches appear in the output 
+GROUP_REP_CENTROID: str = 'centroid'    # Option value to select the string in each group with the largest
+                                        # similarity aggregate as group-representative:
+GROUP_REP_FIRST: str = 'first'  # Option value to select the first string in each group as group-representative:
+DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID # chooses group centroid as group-representative by default
 
-# Option value to select the string in each group with
-# the largest similarity aggregate as group-representative:
-GROUP_REP_CENTROID: str = 'centroid'
-# Option value to select the first string in each group as group-representative:
-GROUP_REP_FIRST: str = 'first'
-DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID  # chooses group centroid as group-representative by default
+# The following string constants are used by (but aren't [yet] options passed to) StringGrouper
+DEFAULT_COLUMN_NAME: str = 'side'   # used to name non-index columns of the output of StringGrouper.get_matches
+DEFAULT_ID_NAME: str = 'id' # used to name id-columns in the output of StringGrouper.get_matches
+LEFT_PREFIX: str = 'left_'  # used to prefix columns on the left of the output of StringGrouper.get_matches
+RIGHT_PREFIX: str = 'right_'    # used to prefix columns on the right of the output of StringGrouper.get_matches
+MOST_SIMILAR_PREFIX: str = 'most_similar_'  # used to prefix columns of the output of
+                                            # StringGrouper._get_nearest_matches
+DEFAULT_MASTER_NAME: str = 'master' # used to name non-index column of the output of StringGrouper.get_nearest_matches
+DEFAULT_MASTER_ID_NAME: str = f'{DEFAULT_MASTER_NAME}_{DEFAULT_ID_NAME}'    # used to name id-column of the output of
+                                                                            # StringGrouper.get_nearest_matches
+GROUP_REP_PREFIX: str = 'group_rep_'    # used to prefix and name columns of the output of StringGrouper._deduplicate
 
 # High level functions
 
@@ -240,7 +247,10 @@ class StringGrouper(object):
         :param include_zeros: when the minimum cosine similarity <=0, determines whether zero-similarity matches 
         appear in the output.  Defaults to self._config.include_zeros.
         """
-        def get_both_sides(master: pd.Series, duplicates: pd.Series, generic_name=('side', 'side'), drop_index=False):
+        def get_both_sides(master: pd.Series,
+                           duplicates: pd.Series,
+                           generic_name=(DEFAULT_COLUMN_NAME, DEFAULT_COLUMN_NAME),
+                           drop_index=False):
             lname, rname = generic_name
             left = master if master.name else master.rename(lname)
             left = left.iloc[matches_list.master_side].reset_index(drop=drop_index)
@@ -274,22 +284,26 @@ class StringGrouper(object):
         if self._master_id is None:
             return pd.concat(
                 [
-                    prefix_column_names(left_side, 'left_'),
+                    prefix_column_names(left_side, LEFT_PREFIX),
                     similarity,
-                    prefix_column_names(right_side, 'right_')
+                    prefix_column_names(right_side, RIGHT_PREFIX)
                 ],
                 axis=1
             )
         else:
-            left_side_id, right_side_id = \
-                get_both_sides(self._master_id, self._duplicates_id, ('id', 'id'), drop_index=True)
+            left_side_id, right_side_id = get_both_sides(
+                self._master_id,
+                self._duplicates_id,
+                (DEFAULT_ID_NAME, DEFAULT_ID_NAME),
+                drop_index=True
+            )
             return pd.concat(
                 [
-                    prefix_column_names(left_side, 'left_'),
-                    prefix_column_names(left_side_id, 'left_'),
+                    prefix_column_names(left_side, LEFT_PREFIX),
+                    prefix_column_names(left_side_id, LEFT_PREFIX),
                     similarity,
-                    prefix_column_names(right_side_id, 'right_'),
-                    prefix_column_names(right_side, 'right_')
+                    prefix_column_names(right_side_id, RIGHT_PREFIX),
+                    prefix_column_names(right_side, RIGHT_PREFIX)
                 ],
                 axis=1
             )
@@ -446,8 +460,8 @@ class StringGrouper(object):
     def _get_nearest_matches(self,
                              ignore_index=False,
                              replace_na=False) -> Union[pd.DataFrame, pd.Series]:
-        prefix = 'most_similar_'
-        master_label = f'{prefix}{self._master.name if self._master.name else "master"}'
+        prefix = MOST_SIMILAR_PREFIX
+        master_label = f'{prefix}{self._master.name if self._master.name else DEFAULT_MASTER_NAME}'
         master = self._master.rename(master_label).reset_index(drop=ignore_index)
         dupes = self._duplicates.rename('duplicates').reset_index(drop=ignore_index)
         
@@ -459,7 +473,7 @@ class StringGrouper(object):
             )
 
         if self._master_id is not None:
-            master_id_label = f'{prefix}{self._master_id.name if self._master_id.name else "master_id"}'
+            master_id_label = f'{prefix}{self._master_id.name if self._master_id.name else DEFAULT_MASTER_ID_NAME}'
             master = pd.concat([master, self._master_id.rename(master_id_label).reset_index(drop=True)], axis=1)
             dupes = pd.concat([dupes, self._duplicates_id.rename('duplicates_id').reset_index(drop=True)], axis=1)
 
@@ -525,15 +539,15 @@ class StringGrouper(object):
         )
         # apply scipy.csgraph's clustering algorithm (result is a 1D numpy array of length n):
         _, groups = connected_components(csgraph=graph, directed=True)
-        group_of_master_id = pd.Series(groups, name='raw_group_id')
+        group_of_master_index = pd.Series(groups, name='raw_group_id')
 
         # merge groups with string indices to obtain two-column DataFrame:
         # note: the following line automatically creates a new column named 'index' with the corresponding indices:
-        group_of_master_id = group_of_master_id.reset_index()
+        group_of_master_index = group_of_master_index.reset_index()
 
         # Determine weights for obtaining group representatives:
         # 1. option-setting group_rep='first':
-        group_of_master_id.rename(columns={'index': 'weight'}, inplace=True)
+        group_of_master_index.rename(columns={'index': 'weight'}, inplace=True)
         method = 'first'
         # 2. option-setting group_rep='centroid':
         if self._config.group_rep == GROUP_REP_CENTROID:
@@ -541,27 +555,28 @@ class StringGrouper(object):
             graph.data = pairs['similarity'].to_numpy()
             # sum along the rows to obtain numpy 1D matrix of similarity aggregates then ...
             # ... convert to 1D numpy array (using asarray then squeeze) and then to Series:
-            group_of_master_id['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())
+            group_of_master_index['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())
             method = 'idxmax'
 
         # Determine the group representatives AND merge with indices:
         # pandas groupby transform function and enlargement enable both respectively in one step:
-        group_of_master_id['group_rep'] = \
-            group_of_master_id.groupby('raw_group_id', sort=False)['weight'].transform(method)
+        group_of_master_index['group_rep'] = \
+            group_of_master_index.groupby('raw_group_id', sort=False)['weight'].transform(method)
 
         # Prepare the output:
-        # use group rep indices obtained in the last step above to select the corresponding strings:
-        output = self._master.iloc[group_of_master_id.group_rep].rename('group_rep')\
-            .reset_index(drop=ignore_index)
+        prefix = GROUP_REP_PREFIX
+        label = f'{prefix}{self._master.name}' if self._master.name else prefix[:-1]
+        # use group rep indexes obtained in the last step above to select the corresponding strings:
+        output = self._master.iloc[group_of_master_index.group_rep].rename(label).reset_index(drop=ignore_index)
         if isinstance(output, pd.DataFrame):
             output.rename(
-                columns={col: f'group_rep_{col}' for col in output.columns if str(col) != 'group_rep'},
+                columns={col: f'{prefix}{col}' for col in output.columns if str(col) != label},
                 inplace=True
             )
         if self._master_id is not None:
-            # use group rep indices obtained above to select the corresponding string IDs:
-            output_id = self._master_id.iloc[group_of_master_id.group_rep]\
-                .rename('group_rep_id').reset_index(drop=True)
+            id_label = f'{prefix}{self._master_id.name if self._master_id.name else DEFAULT_ID_NAME}'
+            # use group rep indexes obtained above to select the corresponding string IDs:
+            output_id = self._master_id.iloc[group_of_master_index.group_rep].rename(id_label).reset_index(drop=True)
             output = pd.concat([output_id, output], axis=1)
         output.index = self._master.index
         return output.squeeze()
