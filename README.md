@@ -31,12 +31,14 @@ The image was designed using the graph-visualization software Gephi 0.9.2 with d
 
 ```python
 import pandas as pd
-from string_grouper import match_strings, match_most_similar, group_similar_strings, StringGrouper
+from string_grouper import match_strings, match_most_similar, \
+	group_similar_strings, compute_pairwise_similarities, \
+	StringGrouper
 ```
 
-As shown above, the library may be used together with <samp>pandas</samp>, and contains three high level functions (<samp>match_strings</samp>, <samp>match_most_similar</samp> and <samp>group_similar_strings</samp>) that can be used directly, and one class (<samp>StringGrouper</samp>) that allows for a more iterative approach. 
+As shown above, the library may be used together with <samp>pandas</samp>, and contains four high level functions (<samp>match_strings</samp>, <samp>match_most_similar</samp>, <samp>group_similar_strings</samp>, and <samp>compute_pairwise_similarities</samp>) that can be used directly, and one class (<samp>StringGrouper</samp>) that allows for a more iterative approach. 
 
-The permitted calling patterns of the three functions, and their return types, are:
+The permitted calling patterns of the four functions, and their return types, are:
 
 | Function        | Parameters | <samp>pandas</samp> Return Type |
 | -------------: |:-------------|:-----:|
@@ -48,6 +50,7 @@ The permitted calling patterns of the three functions, and their return types, a
 | <samp>match_most_similar</samp>| <samp>(master, duplicates, master_id, duplicates_id, **kwargs)</samp>| <samp>DataFrame</samp> |
 | <samp>group_similar_strings</samp>| <samp>(strings_to_group, **kwargs)</samp>| <samp>Series</samp> (if kwarg `ignore_index=True`) otherwise <samp>DataFrame</samp> (default)|
 | <samp>group_similar_strings</samp>| <samp>(strings_to_group, strings_id, **kwargs)</samp>| <samp>DataFrame</samp> |
+| <samp>compute_pairwise_similarities</samp>| <samp>(string_series_1, string_series_2, **kwargs)</samp>| <samp>Series</samp> |
 
 In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame</samp>, refer to the familiar <samp>pandas</samp> object types.
 #### Parameters:
@@ -60,6 +63,7 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
 |**<samp>duplicates_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>duplicates</samp>. |
 |**<samp>strings_to_group</samp>** | A <samp>Series</samp> of strings to be grouped. |
 |**<samp>strings_id</samp>** | A <samp>Series</samp> of IDs corresponding to the strings in <samp>strings_to_group</samp>. |
+|**<samp>string_series_1(_2)</samp>** | A <samp>Series</samp> of strings each of which is to be compared with its corresponding string in <samp>string_series_2(_1)</samp>. |
 |**<samp>**kwargs</samp>** | Keyword arguments (see [below](#kwargs)).|
 
 #### Functions:
@@ -112,8 +116,11 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
    If <samp>strings_id</samp> is also given, then the IDs from <samp>strings_id</samp> corresponding to the group-representatives are also returned in an additional column (with the same name as <samp>strings_id</samp> prefixed as described above).  If <samp>strings_id</samp> has no name, it is assumed to have the name `'id'` before being prefixed.
    
 
+* #### `compute_pairwise_similarities`
+   Returns a <samp>Series</samp> of cosine similarity scores the same length as <samp>string_series_1</samp> and <samp>string_series_2</samp>.  Each score is the cosine similarity between its corresponding strings in the two input <samp>Series</samp>.
+   
 
-All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the three high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
+All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the four high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
    
 
 #### Options:
@@ -145,7 +152,8 @@ In this section we will cover a few use cases for which string_grouper may be us
 import pandas as pd
 import numpy as np
 from string_grouper import match_strings, match_most_similar, \
-	group_similar_strings, StringGrouper
+	group_similar_strings, compute_pairwise_similarities, \
+	StringGrouper
 ```
 
 
@@ -493,10 +501,142 @@ customers_df
 
 Note that here <samp>customers_df</samp> initially had only two columns "Customer ID" and "Customer Name" (before the <samp>group_similar_strings</samp> function call); and it acquired two more columns "group-id" and "name_deduped" after the call.
 
+### <a name="dot"></a>Simply compute the cosine similarities of pairs of strings
+
+Sometimes we have pairs of strings that have already been matched but whose similarity scores need to be computed.  For this purpose we provide the function <samp>compute_pairwise_similarities</samp>:
+
+```python
+# Create a small DataFrame of pairs of strings:
+pair_s = pd.DataFrame(
+    [
+        ('Mega Enterprises Corporation', 'Mega Enterprises Corporation'),
+        ('Hyper Startup Inc.', 'Hyper Startup Incorporated'),
+        ('Hyper Startup Inc.', 'Hyper Startup Inc.'),
+        ('Hyper Startup Inc.', 'Hyper-Startup Inc.'),
+        ('Hyper Hyper Inc.', 'Hyper Hyper Inc.'),
+        ('Mega Enterprises Corporation', 'Mega Enterprises Corp.')
+   ],
+   columns=('left', 'right')
+)
+# Display the data:
+pair_s
+```
+
+
+
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>left</th>
+      <th>right</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>Mega Enterprises Corporation</td>
+      <td>Mega Enterprises Corporation</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>Hyper Startup Inc.</td>
+      <td>Hyper Startup Incorporated</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>Hyper Startup Inc.</td>
+      <td>Hyper Startup Inc.</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>Hyper Startup Inc.</td>
+      <td>Hyper-Startup Inc.</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>Hyper Hyper Inc.</td>
+      <td>Hyper Hyper Inc.</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>Mega Enterprises Corporation</td>
+      <td>Mega Enterprises Corp.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+
+
+```python
+# Compute their cosine similarities and display them:
+pair_s['similarity'] = compute_pairwise_similarities(pair_s['left'], pair_s['right'])
+pair_s
+```
+
+
+
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>left</th>
+      <th>right</th>
+      <th>similarity</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>Mega Enterprises Corporation</td>
+      <td>Mega Enterprises Corporation</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>Hyper Startup Inc.</td>
+      <td>Hyper Startup Incorporated</td>
+      <td>0.633620</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>Hyper Startup Inc.</td>
+      <td>Hyper Startup Inc.</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>Hyper Startup Inc.</td>
+      <td>Hyper-Startup Inc.</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>Hyper Hyper Inc.</td>
+      <td>Hyper Hyper Inc.</td>
+      <td>1.000000</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>Mega Enterprises Corporation</td>
+      <td>Mega Enterprises Corp.</td>
+      <td>0.826463</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
 
 ## The StringGrouper class
 
-The three functions mentioned above all create a <samp>StringGrouper</samp> object behind the scenes and call different functions on it. The <samp>StringGrouper</samp> class keeps track of all tuples of similar strings and creates the groups out of these. Since matches are often not perfect, a common workflow is to:
+The four functions mentioned above all create a <samp>StringGrouper</samp> object behind the scenes and call different functions on it. The <samp>StringGrouper</samp> class keeps track of all tuples of similar strings and creates the groups out of these. Since matches are often not perfect, a common workflow is to:
 
 1. Create matches
 2. Manually inspect the results
