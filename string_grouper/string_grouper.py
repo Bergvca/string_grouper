@@ -18,6 +18,8 @@ DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
 DEFAULT_DROP_INDEX: bool = False  # includes index-columns in output
 DEFAULT_REPLACE_NA: bool = False    # when finding the most similar strings, does not replace NaN values in most
                                     # similar string index-columns with corresponding duplicates-index values
+DEFAULT_INCLUDE_ZEROES: bool = True # when the minimum cosine similarity <=0, determines whether zero-similarity
+                                    # matches appear in the output 
 GROUP_REP_CENTROID: str = 'centroid'    # Option value to select the string in each group with the largest
                                         # similarity aggregate as group-representative:
 GROUP_REP_FIRST: str = 'first'  # Option value to select the first string in each group as group-representative:
