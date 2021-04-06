@@ -6,8 +6,7 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_MAX_N_MATCHES, DEFAULT_REGEX, \
     DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
-    match_most_similar, group_similar_strings, match_strings,\
-    compute_pairwise_similarities
+    match_most_similar, group_similar_strings, match_strings
 from unittest.mock import patch
 
 
@@ -45,7 +44,7 @@ class SimpleExample(object):
                 'Hyper Hyper Inc.',
                 'Mega Enterprises Corporation'
             ],
-            name='group_rep'
+            name='group_rep_Customer Name'
         )
         self.expected_result_centroid_with_index_col = pd.DataFrame(
             [
@@ -56,7 +55,7 @@ class SimpleExample(object):
                 (4, 'Hyper Hyper Inc.'),
                 (0, 'Mega Enterprises Corporation')
             ],
-            columns=['group_rep_index', 'group_rep']
+            columns=['group_rep_index', 'group_rep_Customer Name']
         )
         self.expected_result_first = pd.Series(
             [
@@ -67,7 +66,7 @@ class SimpleExample(object):
                  'Hyper Hyper Inc.',
                  'Mega Enterprises Corporation'
             ],
-            name='group_rep'
+            name='group_rep_Customer Name'
         )
 
 
@@ -202,34 +201,6 @@ class StringGrouperTest(unittest.TestCase):
         num_self_joins = len(matches[matches['left_index'] == matches['right_index']])
         num_strings = len(df)
         self.assertEqual(num_self_joins, num_strings)
-
-    def test_compute_pairwise_similarities(self):
-        """tests the high-level function compute_pairwise_similarities"""
-        simple_example = SimpleExample()
-        df1 = simple_example.customers_df['Customer Name']
-        df2 = simple_example.expected_result_centroid
-        similarities = compute_pairwise_similarities(df1, df2)
-        expected_result = pd.Series(
-            [
-                1.0,
-                0.6336195351561589,
-                1.0000000000000004,
-                1.0000000000000004,
-                1.0,
-                0.826462625999832
-            ],
-            name='similarity'
-        )
-        pd.testing.assert_series_equal(expected_result, similarities)
-
-    def test_compute_pairwise_similarities_data_integrity(self):
-        """tests that an exception is raised whenever the lengths of the two input series of the high-level function
-        compute_pairwise_similarities are unequal"""
-        simple_example = SimpleExample()
-        df1 = simple_example.customers_df['Customer Name']
-        df2 = simple_example.expected_result_centroid
-        with self.assertRaises(Exception):
-            _ = compute_pairwise_similarities(df1, df2[:-2])
 
     def test_n_grams_case_unchanged(self):
         """Should return all ngrams in a string with case"""
