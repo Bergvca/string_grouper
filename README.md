@@ -36,7 +36,7 @@ from string_grouper import match_strings, match_most_similar, \
 	StringGrouper
 ```
 
-As shown above, the library may be used together with <samp>pandas</samp>, and contains four high level functions (<samp>match_strings</samp>, <samp>match_most_similar</samp>, <samp>group_similar_strings</samp>, and <samp>compute_pairwise_similarities</samp>) that can be used directly, and one class (<samp>StringGrouper</samp>) that allows for a more iterative approach. 
+As shown above, the library may be used together with <samp>pandas</samp>, and contains four high level functions (<samp>match_strings</samp>, <samp>match_most_similar</samp>, <samp>group_similar_strings</samp>, and <samp>compute_pairwise_similarities</samp>) that can be used directly, and one class (<samp>StringGrouper</samp>) that allows for a more interactive approach. 
 
 The permitted calling patterns of the four functions, and their return types, are:
 
@@ -71,9 +71,9 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
 * #### `match_strings` 
    Returns a <samp>DataFrame</samp> containing similarity-scores of all matching pairs of highly similar strings from <samp>master</samp> (and <samp>duplicates</samp> if given).  Each matching pair in the output appears in its own row/record consisting of
    
-   1. its "left" part: a string with or without its index from <samp>master</samp>, 
+   1. its "left" part: a string (with/without its index-label) from <samp>master</samp>, 
    2. its similarity score, and  
-   3. its "right" part: a string with/without its index from <samp>duplicates</samp> (or <samp>master</samp> if <samp>duplicates</samp> is not given), 
+   3. its "right" part: a string (with/without its index-label) from <samp>duplicates</samp> (or <samp>master</samp> if <samp>duplicates</samp> is not given), 
    
    in that order.  Thus the column-names of the output are a collection of three groups:
    
@@ -85,23 +85,23 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
    
    If either <samp>master</samp> or <samp>duplicates</samp> has no name, it assumes the name `'side'` which is then prefixed as described above.  Similarly, if any of the indexes (or index-levels) has no name it assumes its <samp>pandas</samp> default name (`'index'`, `'level_0'`, and so on) and is then prefixed as described above.
    
-   In other words, if only parameter <samp>master</samp> is given, the function will return pairs of highly similar strings within <samp>master</samp>.    This can be seen as a self-join where both <samp>'left_'</samp> and <samp>'right_'</samp> prefixed columns come from <samp>master</samp>. If both parameters <samp>master</samp> and <samp>duplicates</samp> are given, it will return pairs of highly similar strings between <samp>master</samp> and <samp>duplicates</samp>. This can be seen as an inner-join where <samp>'left_'</samp> and <samp>'right_'</samp> prefixed columns come from <samp>master</samp> and <samp>duplicates</samp> respectively.     
+   In other words, if only parameter <samp>master</samp> is given, the function will return pairs of highly similar strings within <samp>master</samp>.  This can be seen as a self-join where both <samp>'left_'</samp> and <samp>'right_'</samp> prefixed columns come from <samp>master</samp>. If both parameters <samp>master</samp> and <samp>duplicates</samp> are given, it will return pairs of highly similar strings between <samp>master</samp> and <samp>duplicates</samp>. This can be seen as an inner-join where <samp>'left_'</samp> and <samp>'right_'</samp> prefixed columns come from <samp>master</samp> and <samp>duplicates</samp> respectively.     
    
-   The function also supports optionally inputting IDs (<samp>master_id</samp> and <samp>duplicates_id</samp>) corresponding to the string values being matched. In which case, the output includes two additional columns whose names are the names of these optional Series prefixed by <samp>'left_'</samp> and <samp>'right_'</samp> accordingly, and containing the IDs corresponding to the strings in the output.  If any of these <samp>Series</samp> has no name, then it assumes the name `'id'` and is then prefixed as described above.
+   The function also supports optionally inputting IDs (<samp>master_id</samp> and <samp>duplicates_id</samp>) corresponding to the strings being matched.  In which case, the output includes two additional columns whose names are the names of these optional <samp>Series</samp> prefixed by <samp>'left_'</samp> and <samp>'right_'</samp> accordingly, and containing the IDs corresponding to the strings in the output.  If any of these <samp>Series</samp> has no name, then it assumes the name `'id'` and is then prefixed as described above.
    
    
 * #### `match_most_similar` 
    If `ignore_index=True`, returns a <samp>Series</samp> of strings, where for each string in <samp>duplicates</samp> the most similar string in <samp>master</samp> is returned.  If there are no similar strings in <samp>master</samp> for a given string in <samp>duplicates</samp> (because there is no potential match where the cosine similarity is above the threshold \[default: 0.8\]) then the original string in <samp>duplicates</samp> is returned.  The output <samp>Series</samp> thus has the same length and index as <samp>duplicates</samp>.  
    
-   For example, if an input <samp>Series</samp> with the values <samp>\[foooo, bar, baz\]</samp> is passed as the argument <samp>master</samp>, and <samp>\[foooob, bar, new\]</samp> as the values of the argument <samp>duplicates</samp>, the function will return a <samp>Series</samp> with values: <samp>[foooo, bar, new]</samp>.
+   For example, if an input <samp>Series</samp> with the values <samp>\['foooo', 'bar', 'baz'\]</samp> is passed as the argument <samp>master</samp>, and <samp>\['foooob', 'bar', 'new'\]</samp> as the values of the argument <samp>duplicates</samp>, the function will return a <samp>Series</samp> with values: <samp>\['foooo', 'bar', 'new'\]</samp>.
    
    The name of the output <samp>Series</samp> is the same as that of <samp>master</samp> prefixed with the string `'most_similar_'`.  If <samp>master</samp> has no name, it is assumed to have the name `'master'` before being prefixed.
        
-   If `ignore_index=False` (the default), `match_most_similar` returns a <samp>DataFrame</samp> containing the same <samp>Series</samp> described above as one of its columns.  So it inherits the same index and length as <samp>duplicates</samp>.  The rest of its columns correspond to the index (or index-levels) of <samp>master</samp> and thus contain the index-labels of the most similar strings being output as values.  If there are no similar strings in <samp>master</samp> for a given string in <samp>duplicates</samp> then the value assigned to these index-columns is `NaN` by default.  However, if the keyword argument `replace_na=True`, then these `NaN` values are replaced with the index-label(s) of the corresponding string in <samp>duplicates</samp>.  Note that such replacements can only occur if the indexes of <samp>master</samp> and <samp>duplicates</samp> have the same number of levels.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md#MMS) for a demonstration.)
+   If `ignore_index=False` (the default), `match_most_similar` returns a <samp>DataFrame</samp> containing the same <samp>Series</samp> described above as one of its columns.  So it inherits the same index and length as <samp>duplicates</samp>.  The rest of its columns correspond to the index (or index-levels) of <samp>master</samp> and thus contain the index-labels of the most similar strings being output as values.  If there are no similar strings in <samp>master</samp> for a given string in <samp>duplicates</samp> then the value(s) assigned to this index-column(s) for that string is `NaN` by default.  However, if the keyword argument `replace_na=True`, then these `NaN` values are replaced with the index-label(s) of that string in <samp>duplicates</samp>.  Note that such replacements can only occur if the indexes of <samp>master</samp> and <samp>duplicates</samp> have the same number of levels.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md#MMS) for a demonstration.)
    
    Each column-name of the output <samp>DataFrame</samp> has the same name as its corresponding column, index, or index-level of <samp>master</samp> prefixed with the string `'most_similar_'`.
   
-    If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> is always returned with the same column(s) as described above, but with an additional column containing those IDs from these input <samp>Series</samp> corresponding to the output strings.  This column's name is the same as that of <samp>master_id</samp> prefixed in the same way as described above.  If <samp>master_id</samp> has no name, it is assumed to have the name `'master_id'` before being prefixed.
+   If both parameters <samp>master_id</samp> and <samp>duplicates_id</samp> are also given, then a <samp>DataFrame</samp> is always returned with the same column(s) as described above, but with an additional column containing those IDs from these input <samp>Series</samp> corresponding to the output strings.  This column's name is the same as that of <samp>master_id</samp> prefixed in the same way as described above.  If <samp>master_id</samp> has no name, it is assumed to have the name `'master_id'` before being prefixed.
 
 
 * #### `group_similar_strings` 
@@ -109,7 +109,7 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
   
   If `ignore_index=True`, the output is a <samp>Series</samp> (with the same name as <samp>strings_to_group</samp> prefixed by the string `'group_rep_'`) of the same length and index as <samp>strings_to_group</samp> containing the group-representative strings.  If <samp>strings_to_group</samp> has no name then the name of the returned <samp>Series</samp> is `'group_rep'`.  
    
-  For example, an input Series with values: <samp>\[foooo, foooob, bar\]</samp> will return <samp>\[foooo, foooo, bar\]</samp>.  Here <samp>foooo</samp> and <samp>foooob</samp> are grouped together into group <samp>foooo</samp> because they are found to be similar.  Another example can be found [below](#dedup).
+  For example, an input Series with values: <samp>\['foooo', 'foooob', 'bar'\]</samp> will return <samp>\['foooo', 'foooo', 'bar'\]</samp>.  Here <samp>'foooo'</samp> and <samp>'foooob'</samp> are grouped together into group <samp>'foooo'</samp> because they are found to be similar.  Another example can be found [below](#dedup).
   
    If `ignore_index=False`, the output is a <samp>DataFrame</samp> containing the above output <samp>Series</samp> as one of its columns with the same name.  The remaining column(s) correspond to the index (or index-levels) of <samp>strings_to_group</samp> and contain the index-labels of the group-representatives as values.  These columns have the same names as their counterparts prefixed by the string `'group_rep_'`. 
    
@@ -117,10 +117,10 @@ In the rest of this document the names, <samp>Series</samp> and <samp>DataFrame<
    
 
 * #### `compute_pairwise_similarities`
-   Returns a <samp>Series</samp> of cosine similarity scores the same length as <samp>string_series_1</samp> and <samp>string_series_2</samp>.  Each score is the cosine similarity between its corresponding strings in the two input <samp>Series</samp>.
+   Returns a <samp>Series</samp> of cosine similarity scores the same length and index as <samp>string_series_1</samp>.  Each score is the cosine similarity between the pair of strings in the same position (row) in the two input <samp>Series</samp>, <samp>string_series_1</samp> and <samp>string_series_2</samp>, as the position of the score in the output <samp>Series</samp>.  This can be seen as an element-wise comparison between the two input <samp>Series</samp>.
    
 
-All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the four high level functions above, as well as using a more iterative approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
+All functions are built using a class **<samp>StringGrouper</samp>**. This class can be used through pre-defined functions, for example the four high level functions above, as well as using a more interactive approach where matches can be added or removed if needed by calling the **<samp>StringGrouper</samp>** class directly.
    
 
 #### Options:
