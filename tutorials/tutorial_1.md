@@ -91,7 +91,7 @@ Next, use the `match_strings` function and pass the 'name' column as the argumen
 **N.B.** In production with a real data set, depending on its size, the following command can/may take a number of minutes — ***no update/progress indicator is shown***. This obviously also depends on the performance of the computer used. Memory and hard disk performance are a factor, as well as the CPU. String Grouper uses pandas which, in turn, uses NumPy, so matching is not done by computationally intensive looping, but by [array mathematics](https://realpython.com/numpy-array-programming/) — but it still may take some time to process large data sets.
 
 ```python
-matches = match_strings(accounts['name'], master_id = accounts['id'])
+matches = match_strings(accounts['name'], master_id = accounts['id'], ignore_index=True)
 matches
 ```
 This will return a pandas DataFrame as below. The values (company) we will focus on in this example will be those that have variations in the name of the fictitious company, 'Hyper Startup Inc.'.
@@ -102,11 +102,11 @@ This will return a pandas DataFrame as below. The values (company) we will focus
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>left_side_id</th>
-      <th>left_side</th>
-      <th>right_side_id</th>
-      <th>right_side</th>
+      <th>left_id</th>
+      <th>left_name</th>
       <th>similarity</th>
+      <th>right_name</th>
+      <th>right_id</th>
     </tr>
   </thead>
   <tbody>
@@ -122,41 +122,41 @@ This will return a pandas DataFrame as below. The values (company) we will focus
       <th>3</th>
       <td>AA098762D</td>
       <td>hyper startup inc.</td>
-      <td>BB099931J</td>
-      <td>hyper-startup inc.</td>
       <td>1.00</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
     </tr>
     <tr>
       <th>4</th>
       <td>AA098762D</td>
       <td>hyper startup inc.</td>
-      <td>AA098762D</td>
-      <td>hyper startup inc.</td>
       <td>1.00</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
     </tr>
     <tr>
       <th>5</th>
       <td>BB099931J</td>
       <td>hyper-startup inc.</td>
-      <td>BB099931J</td>
-      <td>hyper-startup inc.</td>
       <td>1.00</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
     </tr>
     <tr>
       <th>6</th>
       <td>BB099931J</td>
       <td>hyper-startup inc.</td>
-      <td>AA098762D</td>
-      <td>hyper startup inc.</td>
       <td>1.00</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
     </tr>
     <tr>
       <th>7</th>
       <td>CC082744L</td>
       <td>hyper startup incorporated</td>
-      <td>CC082744L</td>
-      <td>hyper startup incorporated</td>
       <td>1.00</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
     </tr>
     <tr>
       <th>...</th>
@@ -185,7 +185,7 @@ String Grouper has a number of configuration options (see the **kwargs** in READ
 The default minimum similarity is 0.8. It can be seen that more matches may be found by reducing the minimum similarity from 0.8 to, for example, 0.7.
 
 ```python
-matches = match_strings(accounts['name'], master_id = accounts['id'], min_similarity = 0.7)
+matches = match_strings(accounts['name'], master_id = accounts['id'], ignore_index = True, min_similarity = 0.7)
 ```
 
 ***Tip:*** If the data set being matched is large, and you wish to experiment with the minimum similarity option, it may be helpful to import only a limited data set during testing, and increase to the full data set when ready. The number of rows imported can be specified in this way:
@@ -202,11 +202,11 @@ Back to our example ... changing the option to `min_similarity = 0.7` returns th
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>left_side_id</th>
-      <th>left_side</th>
-      <th>right_side_id</th>
-      <th>right_side</th>
+      <th>left_id</th>
+      <th>left_name</th>
       <th>similarity</th>
+      <th>right_name</th>
+      <th>right_id</th>
     </tr>
   </thead>
   <tbody>
@@ -222,81 +222,81 @@ Back to our example ... changing the option to `min_similarity = 0.7` returns th
       <th>5</th>
       <td>AA098762D</td>
       <td>hyper startup inc.</td>
-      <td>BB099931J</td>
-      <td>hyper-startup inc.</td>
       <td>1.00</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
     </tr>
     <tr>
       <th>6</th>
       <td>AA098762D</td>
       <td>hyper startup inc.</td>
-      <td>AA098762D</td>
-      <td>hyper startup inc.</td>
       <td>1.00</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
     </tr>
     <tr>
       <th>7</th>
       <td>AA098762D</td>
       <td>hyper startup inc.</td>
-      <td>CC082744L</td>
-      <td>hyper startup incorporated</td>
       <td>0.78</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
     </tr>
     <tr>
       <th>8</th>
       <td>BB099931J</td>
       <td>hyper-startup inc.</td>
-      <td>BB099931J</td>
-      <td>hyper-startup inc.</td>
       <td>1.00</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
     </tr>
     <tr>
       <th>9</th>
       <td>BB099931J</td>
       <td>hyper-startup inc.</td>
-      <td>AA098762D</td>
-      <td>hyper startup inc.</td>
       <td>1.00</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
     </tr>
     <tr>
       <th>10</th>
       <td>BB099931J</td>
       <td>hyper-startup inc.</td>
-      <td>CC082744L</td>
-      <td>hyper startup incorporated</td>
       <td>0.78</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
     </tr>
     <tr>
       <th>11</th>
       <td>CC082744L</td>
       <td>hyper startup incorporated</td>
-      <td>CC082744L</td>
-      <td>hyper startup incorporated</td>
       <td>1.00</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
     </tr>
     <tr>
       <th>12</th>
       <td>CC082744L</td>
       <td>hyper startup incorporated</td>
-      <td>BB099931J</td>
-      <td>hyper-startup inc.</td>
       <td>0.78</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
     </tr>
     <tr>
       <th>13</th>
       <td>CC082744L</td>
       <td>hyper startup incorporated</td>
-      <td>AA098762D</td>
-      <td>hyper startup inc.</td>
       <td>0.78</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
     </tr>
     <tr>
       <th>14</th>
       <td>HH072982K</td>
       <td>hyper hyper inc.</td>
-      <td>HH072982K</td>
-      <td>hyper hyper inc.</td>
       <td>1.00</td>
+      <td>hyper hyper inc.</td>
+      <td>HH072982K</td>
     </tr>
     <tr>
       <th>...</th>
@@ -317,7 +317,7 @@ Now we see the IDs — AA098762D, BB099931J, CC082744L — have further matches.
 Once we are happy with the level of matching, we can remove the rows where the IDs are the same. Having the original (database) IDs for the rows means that we can precisely remove identical rows — that is, we are not removing matches based on similar values, but on the exact (database) IDs:
 
 ```python
-dupes = matches[matches.left_side_id != matches.right_side_id]
+dupes = matches[matches.left_id != matches.right_id]
 dupes
 ```
 And we see the following for the company name we have been following:
@@ -328,11 +328,11 @@ And we see the following for the company name we have been following:
   <thead>
     <tr style="text-align: right;">
       <th></th>
-      <th>left_side_id</th>
-      <th>left_side</th>
-      <th>right_side_id</th>
-      <th>right_side</th>
+      <th>left_id</th>
+      <th>left_name</th>
       <th>similarity</th>
+      <th>right_name</th>
+      <th>right_id</th>
     </tr>
   </thead>
   <tbody>
@@ -348,49 +348,49 @@ And we see the following for the company name we have been following:
       <th>5</th>
       <td>AA098762D</td>
       <td>hyper startup inc.</td>
-      <td>BB099931J</td>
-      <td>hyper-startup inc.</td>
       <td>1.00</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
     </tr>
     <tr>
       <th>7</th>
       <td>AA098762D</td>
       <td>hyper startup inc.</td>
-      <td>CC082744L</td>
-      <td>hyper startup incorporated</td>
       <td>0.78</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
     </tr>
     <tr>
       <th>9</th>
       <td>BB099931J</td>
       <td>hyper-startup inc.</td>
-      <td>AA098762D</td>
-      <td>hyper startup inc.</td>
       <td>1.00</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
     </tr>
     <tr>
       <th>10</th>
       <td>BB099931J</td>
       <td>hyper-startup inc.</td>
-      <td>CC082744L</td>
-      <td>hyper startup incorporated</td>
       <td>0.78</td>
+      <td>hyper startup incorporated</td>
+      <td>CC082744L</td>
     </tr>
     <tr>
       <th>12</th>
       <td>CC082744L</td>
       <td>hyper startup incorporated</td>
-      <td>BB099931J</td>
-      <td>hyper-startup inc.</td>
       <td>0.78</td>
+      <td>hyper-startup inc.</td>
+      <td>BB099931J</td>
     </tr>
     <tr>
       <th>13</th>
       <td>CC082744L</td>
       <td>hyper startup incorporated</td>
-      <td>AA098762D</td>
-      <td>hyper startup inc.</td>
       <td>0.78</td>
+      <td>hyper startup inc.</td>
+      <td>AA098762D</td>
     </tr>
     <tr>
       <th>...</th>
@@ -411,7 +411,7 @@ And we see the following for the company name we have been following:
 Finally we reduce the data to a pandas Series ready for exporting with one row for each record that has any duplicates.
 
 ```python
-company_dupes = pd.DataFrame(dupes.left_side_id.unique()).squeeze().rename('company_id')
+company_dupes = pd.DataFrame(dupes.left_id.unique()).squeeze().rename('company_id')
 company_dupes
 ```
 
