@@ -38,6 +38,20 @@ GROUP_REP_PREFIX: str = 'group_rep_'    # used to prefix and name columns of the
 # High level functions
 
 
+def compute_pairwise_similarities(string_series_1: pd.Series,
+                                  string_series_2: pd.Series,
+                                  **kwargs) -> pd.Series:
+    """
+    Computes the similarity scores between two Series of strings row-wise.
+
+    :param string_series_1: pandas.Series. The input Series of strings to be grouped
+    :param string_series_2: pandas.Series. The input Series of the IDs of the strings to be grouped
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
+    :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
+    """
+    return StringGrouper(string_series_1, string_series_2, **kwargs).dot()
+
+
 def group_similar_strings(strings_to_group: pd.Series,
                           string_ids: Optional[pd.Series] = None,
                           **kwargs) -> Union[pd.DataFrame, pd.Series]:
@@ -232,6 +246,15 @@ class StringGrouper(object):
             self._symmetrize_matches_list()
         self.is_build = True
         return self
+
+    def dot(self) -> pd.Series:
+        """Computes the row-wise similarity scores between strings in _master and _duplicates"""
+        if len(self._master) != len(self._duplicates):
+            raise Exception("To perform this function, both input Series must have the same length.")
+        master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
+        # Calculate pairwise cosine similarities:
+        pairwise_similarities = np.asarray(master_matrix.multiply(duplicate_matrix).sum(axis=1)).squeeze()
+        return pd.Series(pairwise_similarities, name='similarity', index=self._master.index)
 
     @validate_is_fit
     def get_matches(self, ignore_index: Optional[bool] = None) -> pd.DataFrame:
