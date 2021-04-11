@@ -9,6 +9,7 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     match_most_similar, group_similar_strings, match_strings,\
     compute_pairwise_similarities
 from unittest.mock import patch
+import warnings
 
 
 class SimpleExample(object):
@@ -38,8 +39,9 @@ class SimpleExample(object):
         )
         self.a_few_strings = pd.Series(['BB016741P', 'BB082744L', 'BB098762D', 'BB099931J', 'BB072982K', 'BB059082Q'])
         self.one_string = pd.Series(['BB0'])
+        self.two_strings = pd.Series(['Hyper', 'Hyp'])
         self.whatever_series_1 = pd.Series(['whatever'])
-        self.expected_result_with_zeros = pd.DataFrame(
+        self.expected_result_with_zeroes = pd.DataFrame(
             [
                 (1, 'Hyper Startup Incorporated', 0.08170638, 'whatever', 0),
                 (0, 'Mega Enterprises Corporation', 0., 'whatever', 0),
@@ -252,7 +254,17 @@ class StringGrouperTest(unittest.TestCase):
         s_master = simple_example.customers_df['Customer Name']
         s_dup = simple_example.whatever_series_1
         matches = match_strings(s_master, s_dup, max_n_matches=len(s_master), min_similarity=0)
-        pd.testing.assert_frame_equal(simple_example.expected_result_with_zeros, matches)
+        pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches)
+
+    def test_zero_min_similarity_small_max_n_matches(self):
+        """This test ensures that a warning is issued when n_max_matches is suspected to be too small while 
+        min_similarity <= 0 and include_zeroes is True"""
+        simple_example = SimpleExample()
+        s_master = simple_example.customers_df['Customer Name']
+        s_dup = simple_example.two_strings
+        warnings.simplefilter('error', UserWarning)
+        with self.assertRaises(Exception):
+            _ = match_strings(s_master, s_dup, max_n_matches=1, min_similarity=0)
 
     def test_get_non_matches_empty_case(self):
         """This test ensures that _get_non_matches() returns an empty DataFrame when all pairs of strings match"""
