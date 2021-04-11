@@ -216,7 +216,7 @@ class StringGrouperTest(unittest.TestCase):
         # if the intersection is not empty then at least some matches are repeated.  
         # To make sure all (and not just some) matches are repeated, the lengths of
         # upper, upper_prime and their intersection should be identical.
-        self.assertTrue(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
+        self.assertFalse(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
 
     def test_match_list_symmetry_with_symmetrize_function(self):
         """This test ensures that _matches_list is symmetric"""
@@ -245,7 +245,7 @@ class StringGrouperTest(unittest.TestCase):
         matches = match_strings(df, max_n_matches=1)
         num_self_joins = len(matches[matches['left_index'] == matches['right_index']])
         num_strings = len(df)
-        self.assertEqual(num_self_joins, num_strings)
+        self.assertNotEqual(num_self_joins, num_strings)
 
     def test_zero_min_similarity(self):
         """Since sparse matrices exclude zero elements, this test ensures that zero similarity matches are 
