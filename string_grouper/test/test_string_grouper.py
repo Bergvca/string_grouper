@@ -9,7 +9,6 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     match_most_similar, group_similar_strings, match_strings,\
     compute_pairwise_similarities
 from unittest.mock import patch
-import warnings
 
 
 class SimpleExample(object):
@@ -93,7 +92,7 @@ class StringGrouperConfigTest(unittest.TestCase):
         """Empty initialisation should set default values"""
         config = StringGrouperConfig()
         self.assertEqual(config.min_similarity, DEFAULT_MIN_SIMILARITY)
-        self.assertEqual(config.max_n_matches, DEFAULT_MAX_N_MATCHES)
+        self.assertEqual(config.max_n_matches, None)
         self.assertEqual(config.regex, DEFAULT_REGEX)
         self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
         self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
@@ -253,7 +252,7 @@ class StringGrouperTest(unittest.TestCase):
         simple_example = SimpleExample()
         s_master = simple_example.customers_df['Customer Name']
         s_dup = simple_example.whatever_series_1
-        matches = match_strings(s_master, s_dup, max_n_matches=len(s_master), min_similarity=0)
+        matches = match_strings(s_master, s_dup, min_similarity=0)
         pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches)
 
     def test_zero_min_similarity_small_max_n_matches(self):
@@ -262,7 +261,6 @@ class StringGrouperTest(unittest.TestCase):
         simple_example = SimpleExample()
         s_master = simple_example.customers_df['Customer Name']
         s_dup = simple_example.two_strings
-        warnings.simplefilter('error', UserWarning)
         with self.assertRaises(Exception):
             _ = match_strings(s_master, s_dup, max_n_matches=1, min_similarity=0)
 
