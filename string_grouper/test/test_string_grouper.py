@@ -3,13 +3,14 @@ import pandas as pd
 import numpy as np
 from scipy.sparse.csr import csr_matrix
 from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
-    DEFAULT_MAX_N_MATCHES, DEFAULT_REGEX, \
-    DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
+    DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
-    match_most_similar, group_similar_strings, match_strings,\
+    match_most_similar, group_similar_strings, match_strings, \
     compute_pairwise_similarities
 from unittest.mock import patch
 
+def mock_symmetrize_matrix(A: csr_matrix) -> csr_matrix:
+    return A
 
 class SimpleExample(object):
     def __init__(self):
@@ -196,14 +197,14 @@ class StringGrouperTest(unittest.TestCase):
         mock_StringGrouper_instance.get_matches.assert_called_once()
         self.assertEqual(df, 'whatever')
 
-    @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matches_list')
-    def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matches_list):
+    @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matrix', side_effect=mock_symmetrize_matrix)
+    def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matrix):
         """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is 
         **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
         simple_example = SimpleExample()
         df = simple_example.customers_df2['Customer Name']
         sg = StringGrouper(df, max_n_matches=2).fit()
-        mock_symmetrize_matches_list.assert_called_once()
+        mock_symmetrize_matrix.assert_called_once()
         # obtain the upper and lower triangular parts of the matrix of matches:
         upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
         lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
@@ -380,7 +381,7 @@ class StringGrouperTest(unittest.TestCase):
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         left_index = [0, 0, 1, 2, 3, 3]
-        right_index = [0, 3, 1, 2, 0, 3]
+        right_index = [3, 0, 1, 2, 3, 0]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
                                     'similarity': similarity,
@@ -396,8 +397,8 @@ class StringGrouperTest(unittest.TestCase):
         left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
         left_index = [0, 0, 1, 2, 3, 3]
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        right_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
-        right_index = [0, 3, 1, 2, 0, 3]
+        right_side_id = ['A3', 'A0', 'A1', 'A2', 'A3', 'A0']
+        right_index = [3, 0, 1, 2, 3, 0]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
                                     'similarity': similarity,
