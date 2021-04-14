@@ -6,8 +6,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse.csr import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
-from sparse_dot_topn import awesome_cossim_topn
+from sparse_dot_topn import awesome_cossim_minmax_topn
 from functools import wraps
+import time
 
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_REGEX: str = r'[,-./]|\s'
@@ -247,13 +248,15 @@ class StringGrouper(object):
     def fit(self) -> 'StringGrouper':
         """Builds the _matches list which contains string matches indices and similarity"""
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
+
         # Calculate the matches using the cosine similarity
-        matches = self._build_matches(master_matrix, duplicate_matrix)
-        # retrieve all matches
-        self._matches_list = self._get_matches_list(matches)
+        self._true_max_n_matches, matches = self._build_matches(master_matrix, duplicate_matrix)
         if self._duplicates is None:
             # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
-            self._symmetrize_matches_list()
+            matches = StringGrouper._symmetrize_matrix(matches)
+
+        # build list from matrix
+        self._matches_list = self._get_matches_list(matches)
         self.is_build = True
         return self
 
@@ -434,7 +437,10 @@ class StringGrouper(object):
         
         # if min_similarity <= 0 compute the true maximum number of matches over all strings in master:
         if self._config.min_similarity <= 0:
+            tic = time.perf_counter()
             self._true_max_n_matches = StringGrouper._get_true_max_n_matches(tf_idf_matrix_1, tf_idf_matrix_2)
+            toc = time.perf_counter()
+            print(f"1. _true_max_n_matches = {self._true_max_n_matches}; time: {toc - tic:0.4f} seconds", flush=True)
             if self._config.max_n_matches is None:
                 self._max_n_matches = self._true_max_n_matches
 
@@ -444,23 +450,14 @@ class StringGrouper(object):
                 'use_threads': True,
                 'n_jobs': self._config.number_of_processes
             }
-
-        return awesome_cossim_topn(tf_idf_matrix_1, tf_idf_matrix_2,
+        tic = time.perf_counter()
+        tup = awesome_cossim_minmax_topn(tf_idf_matrix_1, tf_idf_matrix_2,
                                    self._max_n_matches,
                                    self._config.min_similarity,
                                    **optional_kwargs)
-
-    def _symmetrize_matches_list(self):
-        # [symmetrized matches_list] = [matches_list] UNION [transposed matches_list] (i.e., column-names swapped):
-        self._matches_list = self._matches_list.set_index(['master_side', 'dupe_side'])\
-            .combine_first(
-                self._matches_list.rename(
-                    columns={
-                        'master_side': 'dupe_side',
-                        'dupe_side': 'master_side'
-                    }
-                ).set_index(['master_side', 'dupe_side'])
-            ).reset_index()
+        toc = time.perf_counter()
+        print(f"2. _true_max_n_matches = {tup[0]}; time: {toc - tic:0.4f} seconds", flush=True)
+        return tup
 
     def _get_non_matches_list(self) -> pd.DataFrame:
         """Returns a list of all the indices of non-matching pairs (with similarity set to 0)"""
@@ -480,6 +477,13 @@ class StringGrouper(object):
         return missing_pairs
 
     @staticmethod
+    def _symmetrize_matrix(AA: csr_matrix) -> csr_matrix:
+        A = AA.tolil()
+        r, c = A.nonzero()
+        A[c, r] = A[r, c]
+        return A.tocsr()
+
+    @staticmethod
     def _get_true_max_n_matches(AA: csr_matrix, BB: csr_matrix) -> int:
         """Returns the true maximum number of matches over all strings in master"""
         def get_n_matches(i: int) -> int:
@@ -496,25 +500,12 @@ class StringGrouper(object):
         return np.amax(v(range(M)))
         
     @staticmethod
-    def _get_matches_list(matches) -> pd.DataFrame:
+    def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
-        non_zeros = matches.nonzero()
-
-        sparserows = non_zeros[0]
-        sparsecols = non_zeros[1]
-        nr_matches = sparsecols.size
-        master_side = np.empty([nr_matches], dtype=int)
-        dupe_side = np.empty([nr_matches], dtype=int)
-        similarity = np.zeros(nr_matches)
-
-        for index in range(0, nr_matches):
-            master_side[index] = sparserows[index]
-            dupe_side[index] = sparsecols[index]
-            similarity[index] = matches.data[index]
-
-        matches_list = pd.DataFrame({'master_side': master_side,
-                                     'dupe_side': dupe_side,
-                                     'similarity': similarity})
+        r, c = matches.nonzero()
+        matches_list = pd.DataFrame({'master_side': r.astype(np.int64),
+                                     'dupe_side': c.astype(np.int64),
+                                     'similarity': matches.data})
         return matches_list
 
     def _get_nearest_matches(self,
