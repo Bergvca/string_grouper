@@ -3,13 +3,11 @@ import pandas as pd
 import numpy as np
 from scipy.sparse.csr import csr_matrix
 from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
-    DEFAULT_MAX_N_MATCHES, DEFAULT_REGEX, \
-    DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
+    DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
-    match_most_similar, group_similar_strings, match_strings,\
+    match_most_similar, group_similar_strings, match_strings, \
     compute_pairwise_similarities
 from unittest.mock import patch
-from scipy.sparse.csgraph._flow import csr_matrix
 
 def mock_symmetrize_matrix(A: csr_matrix) -> csr_matrix:
     return A
@@ -383,7 +381,7 @@ class StringGrouperTest(unittest.TestCase):
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         left_index = [0, 0, 1, 2, 3, 3]
-        right_index = [0, 3, 1, 2, 0, 3]
+        right_index = [3, 0, 1, 2, 3, 0]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
                                     'similarity': similarity,
@@ -399,8 +397,8 @@ class StringGrouperTest(unittest.TestCase):
         left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
         left_index = [0, 0, 1, 2, 3, 3]
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        right_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
-        right_index = [0, 3, 1, 2, 0, 3]
+        right_side_id = ['A3', 'A0', 'A1', 'A2', 'A3', 'A0']
+        right_index = [3, 0, 1, 2, 3, 0]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
                                     'similarity': similarity,

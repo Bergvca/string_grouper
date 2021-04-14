@@ -249,8 +249,8 @@ class StringGrouper(object):
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
         # Calculate the matches using the cosine similarity
         matches = self._build_matches(master_matrix, duplicate_matrix)
-        if self._duplicates is None:
-            # the matrix of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
+        if self._duplicates is None and self._max_n_matches < self._true_max_n_matches:
+            # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
             matches = StringGrouper._symmetrize_matrix(matches)
         # build list from matrix
         self._matches_list = self._get_matches_list(matches)
@@ -439,16 +439,16 @@ class StringGrouper(object):
                 'n_jobs': self._config.number_of_processes
             }
 
-        # if min_similarity <= 0 compute the true maximum number of matches over all strings in master:
-        if self._config.min_similarity <= 0:
-            self._true_max_n_matches = awesome_cossim_true_minmax_topn_only(
-                tf_idf_matrix_1,
-                tf_idf_matrix_2,
-                **optional_kwargs
-            )
-            # if kwarg max_n_matches was not set then set it now to true value
-            if self._config.max_n_matches is None:
-                self._max_n_matches = self._true_max_n_matches
+        # compute the true maximum number of matches over all strings in master:
+        self._true_max_n_matches = awesome_cossim_true_minmax_topn_only(
+            tf_idf_matrix_1,
+            tf_idf_matrix_2,
+            **optional_kwargs
+        )
+
+        if self._config.min_similarity <= 0 and self._config.max_n_matches is None:
+            # if kwarg max_n_matches was not set when min_similarity <= 0 then set it now to its true value
+            self._max_n_matches = self._true_max_n_matches
 
         return awesome_cossim_topn(
             tf_idf_matrix_1, tf_idf_matrix_2,
