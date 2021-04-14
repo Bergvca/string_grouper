@@ -17,6 +17,8 @@
 
 // Author: Zhe Sun, Ahmet Erdem
 // April 20, 2017
+// Modified by: Particular Miner
+// April 14, 2021
 
 #include <vector>
 #include <limits>
@@ -29,7 +31,7 @@ bool candidate_cmp(candidate c_i, candidate c_j) { return (c_i.value > c_j.value
 /*
     C++ implementation of sparse_dot_topn
 
-    This function will return a matrxi C in CSR format, where
+    This function will return a matrix C in CSR format, where
     C = [sorted top n results > lower_bound for each row of A * B]
 
     Input:
@@ -131,12 +133,12 @@ void sparse_dot_topn_source(int n_row,
 }
 
 /*
-    C++ implementation of sparse_dot_minmax_topn
+    C++ implementation of sparse_dot_plus_minmax_topn_source
 
     This function will return a matrix C in CSR format, where
     C = [sorted top n results > lower_bound for each row of A * B].
     It also returns minmax_ntop (the maximum number of columns set
-    for each row of A * B when ntop is infinite)
+    per row over all rows of A * B assuming ntop is infinite)
 
     Input:
         n_row: number of rows of A matrix
@@ -150,12 +152,12 @@ void sparse_dot_topn_source(int n_row,
 
     Output by reference:
         Cp, Cj, Cx: CSR expression of C matrix
-        minmax_ntop: the maximum number of columns set for each row of
-                     A * B when ntop is infinite
+        minmax_ntop: the maximum number of columns set per row over all
+                     rows of A * B assuming ntop is infinite
 
     N.B. A and B must be CSR format!!!
 */
-void sparse_dot_minmax_topn_source(int n_row,
+void sparse_dot_plus_minmax_topn_source(int n_row,
 									int n_col,
 									int Ap[],
 									int Aj[],
@@ -239,5 +241,59 @@ void sparse_dot_minmax_topn_source(int n_row,
         candidates.clear();
 
         Cp[i+1] = nnz;
+    }
+}
+
+/*
+    C++ implementation of sparse_dot_only_minmax_topn_source
+
+    This function will return the maximum number of columns set
+    per row over all rows of A * B
+
+    Input:
+        n_row: number of rows of A matrix
+        n_col: number of columns of B matrix
+
+        Ap, Aj, Ax: CSR expression of A matrix
+        Bp, Bj, Bx: CSR expression of B matrix
+
+    Output by reference:
+        minmax_ntop: the maximum number of columns set per row
+                     over all rows of A * B
+
+    N.B. A and B must be CSR format!!!
+*/
+void sparse_dot_only_minmax_topn_source(int n_row,
+									int n_col,
+									int Ap[],
+									int Aj[],
+									int Bp[],
+									int Bj[],
+									int *minmax_ntop)
+{
+    std::vector<bool> unmarked(n_col, true);
+
+    *minmax_ntop = 0;
+
+    for(int i = 0; i < n_row; i++){
+        int length =  0;
+
+        int jj_start = Ap[i];
+        int jj_end   = Ap[i+1];
+        for(int jj = jj_start; jj < jj_end; jj++){
+            int j = Aj[jj];
+
+            int kk_start = Bp[j];
+            int kk_end   = Bp[j+1];
+            for(int kk = kk_start; kk < kk_end; kk++){
+                int k = Bj[kk];	// kth column of B in row j
+
+                if(unmarked[k]){	// if this k is not already marked then ...
+                	unmarked[k] = false;	// keep a record of column k
+                    length++;
+                }
+            }
+        }
+        *minmax_ntop = (length > *minmax_ntop)? length : *minmax_ntop;
     }
 }

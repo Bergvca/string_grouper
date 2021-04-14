@@ -17,11 +17,14 @@
 
 // Author: Zhe Sun, Ahmet Erdem
 // April 20, 2017
+// Modified by: Particular Miner
+// April 14, 2021
 
 #include <vector>
 #include <limits>
 #include <algorithm>
 #include <thread>
+#include <iostream>
 
 #include "./sparse_dot_topn_source.h"
 #include "./sparse_dot_topn_parallel.h"
@@ -274,7 +277,7 @@ for(int i = start_row; i < end_row; i++){
 
 }
 
-void sparse_dot_minmax_topn_parallel(int n_row,
+void sparse_dot_plus_minmax_topn_parallel(int n_row,
                         int n_col,
                         int Ap[],
                         int Aj[],
@@ -363,4 +366,85 @@ void sparse_dot_minmax_topn_parallel(int n_row,
     }
     *minmax_ntop = *std::max_element(split_minmax_ntop.begin(), split_minmax_ntop.end());
 
+}
+
+void inner_sparse_only_minmax_function(int start_row, int end_row, int n_col_inner,
+									   int Ap_copy[], int Aj_copy[],
+									   int Bp_copy[], int Bj_copy[],
+									   int *minmax_ntop)
+{
+	std::vector<bool> unmarked(n_col_inner, true);
+
+	for(int i = start_row; i < end_row; i++){
+
+		int length =  0;
+
+		int jj_start = Ap_copy[i];
+		int jj_end   = Ap_copy[i+1];
+
+		for(int jj = jj_start; jj < jj_end; jj++){
+			int j = Aj_copy[jj];
+
+			int kk_start = Bp_copy[j];
+			int kk_end   = Bp_copy[j+1];
+			for(int kk = kk_start; kk < kk_end; kk++){
+				int k = Bj_copy[kk]; //kth column of B in row j
+
+				if(unmarked[k]){	// if this k is not already marked then ...
+					unmarked[k] = false;	// keep a record of column k
+					length++;
+				}
+			}
+		}
+		*minmax_ntop = (length > *minmax_ntop)? length : *minmax_ntop;
+	}
+}
+
+void sparse_dot_only_minmax_topn_parallel(int n_row,
+										  int n_col,
+										  int Ap[],
+										  int Aj[],
+										  int Bp[],
+										  int Bj[],
+										  int *minmax_ntop,
+										  int n_jobs)
+{
+	std::vector<int> job_load_sz(n_jobs, n_row/n_jobs);
+
+	int rem = n_row % n_jobs;
+	for (int r = 0; r < rem; r++) job_load_sz[r] += 1;
+
+	std::vector<std::vector<int>> split_row_vector(n_jobs);
+
+    std::vector<int> split_minmax_ntop(n_jobs, 0);
+
+    std::vector<std::thread> thread_list(n_jobs);
+
+    int start = 0;
+	for (int job_nr = 0; job_nr < n_jobs; job_nr++) {
+	    std::vector<int> temp_vector(2, 0);
+
+	    temp_vector[0] = start;
+	    temp_vector[1] = start + job_load_sz[job_nr];
+	    start = temp_vector[1];
+
+	    split_row_vector[job_nr] = temp_vector;
+	}
+
+	for (int job_nr = 0; job_nr < n_jobs; job_nr++) {
+
+
+	    int start_row = split_row_vector[job_nr][0];
+	    int end_row = split_row_vector[job_nr][1];
+
+	    thread_list[job_nr] = std::thread (inner_sparse_only_minmax_function,
+	    									start_row, end_row, n_col,
+	                                        Ap, Aj, Bp, Bj,
+											&split_minmax_ntop[job_nr]);
+
+    }
+
+    for (int job_nr = 0; job_nr < n_jobs; job_nr++) thread_list[job_nr].join();
+
+    *minmax_ntop = *std::max_element(split_minmax_ntop.begin(), split_minmax_ntop.end());
 }

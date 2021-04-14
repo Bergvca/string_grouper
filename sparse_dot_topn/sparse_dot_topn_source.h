@@ -17,6 +17,8 @@
 
 // Author: Zhe Sun, Ahmet Erdem
 // April 20, 2017
+// Modified by: Particular Miner
+// April 14, 2021
 
 #ifndef UTILS_CPPCLASS_H
 #define UTILS_CPPCLASS_H
@@ -26,32 +28,40 @@ struct candidate {int index; double value;};
 extern bool candidate_cmp(candidate c_i, candidate c_j);
 
 extern void sparse_dot_topn_source(int n_row,
-      	              int n_col,
-      	              int Ap[],
-      	              int Aj[],
-      	              double Ax[],
-      	              int Bp[],
-      	              int Bj[],
-      	              double Bx[],
-                      int ntop,
-                      double lower_bound,
-      	                    int Cp[],
-      	                    int Cj[],
-      	                    double Cx[]);
+								   int n_col,
+								   int Ap[],
+								   int Aj[],
+								   double Ax[],	//data of A
+								   int Bp[],
+								   int Bj[],
+								   double Bx[],	//data of B
+								   int ntop,
+								   double lower_bound,
+										int Cp[],
+										int Cj[],
+										double Cx[]);	//data of C
 
-extern void sparse_dot_minmax_topn_source(int n_row,
-										  int n_col,
-										  int Ap[],
-										  int Aj[],
-										  double Ax[],
-										  int Bp[],
-										  int Bj[],
-										  double Bx[],
-										  int ntop,
-										  double lower_bound,
-												int Cp[],
-												int Cj[],
-												double Cx[],
-												int *minmax_topn);
+extern void sparse_dot_plus_minmax_topn_source(int n_row,
+											   int n_col,
+											   int Ap[],
+											   int Aj[],
+											   double Ax[], //data of A
+											   int Bp[],
+											   int Bj[],
+											   double Bx[], //data of B
+											   int ntop,
+											   double lower_bound,
+												   int Cp[],
+												   int Cj[],
+												   double Cx[], //data of C
+												   int *minmax_topn);
+
+extern void sparse_dot_only_minmax_topn_source(int n_row,
+											   int n_col,
+											   int Ap[],
+											   int Aj[],
+											   int Bp[],
+											   int Bj[],
+											   	   int *minmax_ntop);
 
 #endif //UTILS_CPPCLASS_H

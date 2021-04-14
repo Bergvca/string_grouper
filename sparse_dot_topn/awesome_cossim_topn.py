@@ -87,3 +87,65 @@ def awesome_cossim_topn(A, B, ntop, lower_bound=0, use_threads=False, n_jobs=1):
             indptr, indices, data, n_jobs)
 
     return csr_matrix((data, indices, indptr), shape=(M, N))
+
+def awesome_cossim_true_minmax_topn_only(A, B, use_threads=False, n_jobs=1):
+    """
+    This function will return the maximum number of columns set
+    per row over all rows of A * B
+
+    Input:
+        A and B: two CSR matrix
+        use_threads: use multi-thread or not
+        n_jobs: number of thread, must be >= 1
+
+    Output:
+        minmax_topn: maximum number of columns set
+                     per row over all rows of A * B
+
+    N.B. if A and B are not CSR format, they will be converted to CSR
+    """
+    if not isspmatrix_csr(A):
+        A = A.tocsr()
+
+    if not isspmatrix_csr(B):
+        B = B.tocsr()
+
+    M, K1 = A.shape
+    K2, N = B.shape
+
+    if K1 != K2:
+        err_str = 'A matrix multiplication will be operated. A.shape[1] must be equal to B.shape[0]!'
+        raise ValueError(err_str)
+
+    idx_dtype = np.int32
+
+    minmax_topn = np.full(1, 0, dtype=idx_dtype)
+
+    # basic check. if A or B are all zeros matrix, return all zero matrix directly
+    if len(A.indices) == 0 or len(B.indices) == 0:
+        return 0
+
+    if not use_threads:
+
+        ct.sparse_dot_only_minmax_topn(
+            M, N,
+            np.asarray(A.indptr, dtype=idx_dtype),
+            np.asarray(A.indices, dtype=idx_dtype),
+            np.asarray(B.indptr, dtype=idx_dtype),
+            np.asarray(B.indices, dtype=idx_dtype),
+            minmax_topn)
+
+    else:
+        if n_jobs < 1:
+            err_str = 'You select the multi-thread mode and n_job must be a value greater equal than 1!'
+            raise ValueError(err_str)
+
+        ct_thread.sparse_dot_only_minmax_topn_threaded(
+            M, N,
+            np.asarray(A.indptr, dtype=idx_dtype),
+            np.asarray(A.indices, dtype=idx_dtype),
+            np.asarray(B.indptr, dtype=idx_dtype),
+            np.asarray(B.indices, dtype=idx_dtype),
+            minmax_topn, n_jobs)
+
+    return minmax_topn[0]

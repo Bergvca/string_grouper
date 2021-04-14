@@ -14,6 +14,8 @@
 
 # Author: Zhe Sun, Ahmet Erdem
 # April 20, 2017
+# Modified by: Particular Miner
+# April 14, 2021
 
 # distutils: language = c++
 
@@ -38,7 +40,7 @@ cdef extern from "sparse_dot_topn_parallel.h":
                         double Cx[],
                         int n_jobs);
 
-    cdef void sparse_dot_minmax_topn_parallel(
+    cdef void sparse_dot_plus_minmax_topn_parallel(
                         int n_row,
                         int n_col,
                         int Ap[],
@@ -52,6 +54,16 @@ cdef extern from "sparse_dot_topn_parallel.h":
                         int Cp[],
                         int Cj[],
                         double Cx[],
+                        int minmax_ntop[],
+                        int n_jobs);
+
+    cdef void sparse_dot_only_minmax_topn_parallel(
+                        int n_row,
+                        int n_col,
+                        int Ap[],
+                        int Aj[],
+                        int Bp[],
+                        int Bj[],
                         int minmax_ntop[],
                         int n_jobs);
 
@@ -86,7 +98,7 @@ cpdef sparse_dot_topn_threaded(
                              lower_bound, Cp, Cj, Cx, n_jobs)
     return
 
-cpdef sparse_dot_minmax_topn_threaded(
+cpdef sparse_dot_plus_minmax_topn_threaded(
         int n_row,
         int n_col,
         np.ndarray[int, ndim=1] a_indptr,
@@ -115,6 +127,26 @@ cpdef sparse_dot_minmax_topn_threaded(
     cdef double* Cx = &c_data[0]
     cdef int* o_minmax_ntop = &minmax_ntop[0]
 
-    sparse_dot_minmax_topn_parallel(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, ntop,
+    sparse_dot_plus_minmax_topn_parallel(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, ntop,
                              lower_bound, Cp, Cj, Cx, o_minmax_ntop, n_jobs)
+    return
+
+cpdef sparse_dot_only_minmax_topn_threaded(
+        int n_row,
+        int n_col,
+        np.ndarray[int, ndim=1] a_indptr,
+        np.ndarray[int, ndim=1] a_indices,
+        np.ndarray[int, ndim=1] b_indptr,
+        np.ndarray[int, ndim=1] b_indices,
+        np.ndarray[int, ndim=1] minmax_ntop,
+        int n_jobs
+    ):
+
+    cdef int* Ap = &a_indptr[0]
+    cdef int* Aj = &a_indices[0]
+    cdef int* Bp = &b_indptr[0]
+    cdef int* Bj = &b_indices[0]
+    cdef int* o_minmax_ntop = &minmax_ntop[0]
+
+    sparse_dot_only_minmax_topn_parallel(n_row, n_col, Ap, Aj, Bp, Bj, o_minmax_ntop, n_jobs)
     return

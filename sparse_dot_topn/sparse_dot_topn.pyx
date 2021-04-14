@@ -14,6 +14,8 @@
 
 # Author: Zhe Sun, Ahmet Erdem
 # April 20, 2017
+# Modified by: Particular Miner
+# April 14, 2021
 
 # distutils: language = c++
 
@@ -37,7 +39,7 @@ cdef extern from "sparse_dot_topn_source.h":
                         int Cj[],
                         double Cx[]);
 
-    cdef void sparse_dot_minmax_topn_source(
+    cdef void sparse_dot_plus_minmax_topn_source(
                         int n_row,
                         int n_col,
                         int Ap[],
@@ -51,6 +53,15 @@ cdef extern from "sparse_dot_topn_source.h":
                         int Cp[],
                         int Cj[],
                         double Cx[],
+                        int minmax_topn[]);
+
+    cdef void sparse_dot_only_minmax_topn_source(
+                        int n_row,
+                        int n_col,
+                        int Ap[],
+                        int Aj[],
+                        int Bp[],
+                        int Bj[],
                         int minmax_topn[]);
 
 cpdef sparse_dot_topn(
@@ -70,7 +81,7 @@ cpdef sparse_dot_topn(
     ):
     """
     Cython glue function to call sparse_dot_topn C++ implementation
-    This function will return a matrxi C in CSR format, where
+    This function will return a matrix C in CSR format, where
     C = [sorted top n results and results > lower_bound for each row of A * B]
 
     Input:
@@ -103,7 +114,7 @@ cpdef sparse_dot_topn(
     sparse_dot_topn_source(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, ntop, lower_bound, Cp, Cj, Cx)
     return
 
-cpdef sparse_dot_minmax_topn(
+cpdef sparse_dot_plus_minmax_topn(
         int n_row,
         int n_col,
         np.ndarray[int, ndim=1] a_indptr,
@@ -120,11 +131,11 @@ cpdef sparse_dot_minmax_topn(
         np.ndarray[int, ndim=1] minmax_topn
     ):
     """
-    Cython glue function to call sparse_dot_minmax_topn C++ implementation
+    Cython glue function to call sparse_dot_plus_minmax_topn C++ implementation
     This function will return a matrix C in CSR format, where
     C = [sorted top n results > lower_bound for each row of A * B].
     It also returns minmax_ntop (the maximum number of columns set
-    for each row of A * B when ntop is infinite)
+    per row over all rows of A * B assuming ntop is infinite)
 
     Input:
         n_row: number of rows of A matrix
@@ -138,8 +149,8 @@ cpdef sparse_dot_minmax_topn(
 
     Output by reference:
         c_indptr, c_indices, c_data: CSR expression of C matrix
-        minmax_ntop: the maximum number of columns set for each row of
-                     A * B when ntop is infinite
+        minmax_ntop: the maximum number of columns set per row over all rows of
+                     A * B assuming ntop is infinite
 
     N.B. A and B must be CSR format!!!
          The type of input numpy array must be aligned with types of C++ function aguments!
@@ -156,5 +167,43 @@ cpdef sparse_dot_minmax_topn(
     cdef double* Cx = &c_data[0]
     cdef int* o_minmax_topn = &minmax_topn[0]
 
-    sparse_dot_minmax_topn_source(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, ntop, lower_bound, Cp, Cj, Cx, o_minmax_topn)
+    sparse_dot_plus_minmax_topn_source(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, ntop, lower_bound, Cp, Cj, Cx, o_minmax_topn)
+    return
+
+cpdef sparse_dot_only_minmax_topn(
+        int n_row,
+        int n_col,
+        np.ndarray[int, ndim=1] a_indptr,
+        np.ndarray[int, ndim=1] a_indices,
+        np.ndarray[int, ndim=1] b_indptr,
+        np.ndarray[int, ndim=1] b_indices,
+        np.ndarray[int, ndim=1] minmax_topn
+    ):
+    """
+    Cython glue function to call sparse_dot_only_minmax_topn C++ implementation
+    This function will return the maximum number of columns set
+    per row over all rows of A * B
+
+    Input:
+        n_row: number of rows of A matrix
+        n_col: number of columns of B matrix
+
+        a_indptr, a_indices: CSR indices of A matrix
+        b_indptr, b_indices: CSR indices of B matrix
+
+    Output by reference:
+        minmax_ntop: the maximum number of columns set per row over all rows of 
+                     A * B
+
+    N.B. A and B must be CSR format!!!
+         The type of input numpy array must be aligned with types of C++ function arguments!
+    """
+
+    cdef int* Ap = &a_indptr[0]
+    cdef int* Aj = &a_indices[0]
+    cdef int* Bp = &b_indptr[0]
+    cdef int* Bj = &b_indices[0]
+    cdef int* o_minmax_topn = &minmax_topn[0]
+
+    sparse_dot_only_minmax_topn_source(n_row, n_col, Ap, Aj, Bp, Bj, o_minmax_topn)
     return

@@ -17,6 +17,8 @@
 
 // Author: Zhe Sun, Ahmet Erdem
 // April 20, 2017
+// Modified by: Particular Miner
+// April 14, 2021
 
 #ifndef UTILS_CPPCLASS_H
 #define UTILS_CPPCLASS_H
@@ -36,7 +38,7 @@ extern void sparse_dot_topn_parallel(int n_row,
       	                    double Cx[],
       	                    int n_jobs);
 
-extern void sparse_dot_minmax_topn_parallel(int n_row,
+extern void sparse_dot_plus_minmax_topn_parallel(int n_row,
       	              int n_col,
       	              int Ap[],
       	              int Aj[],
@@ -51,5 +53,14 @@ extern void sparse_dot_minmax_topn_parallel(int n_row,
       	                    double Cx[],
 							int* minmax_topn,
       	                    int n_jobs);
+
+extern void sparse_dot_only_minmax_topn_parallel(int n_row,
+										  int n_col,
+										  int Ap[],
+										  int Aj[],
+										  int Bp[],
+										  int Bj[],
+										  int *minmax_ntop,
+										  int n_jobs);
 
 #endif //UTILS_CPPCLASS_H
