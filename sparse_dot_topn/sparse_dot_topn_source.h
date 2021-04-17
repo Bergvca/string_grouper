@@ -23,6 +23,7 @@
 #ifndef UTILS_CPPCLASS_H
 #define UTILS_CPPCLASS_H
 
+
 struct candidate {int index; double value;};
 
 extern bool candidate_cmp(candidate c_i, candidate c_j);
@@ -41,20 +42,18 @@ extern void sparse_dot_topn_source(int n_row,
 										int Cj[],
 										double Cx[]);	//data of C
 
-extern void sparse_dot_plus_minmax_topn_source(int n_row,
-											   int n_col,
-											   int Ap[],
-											   int Aj[],
-											   double Ax[], //data of A
-											   int Bp[],
-											   int Bj[],
-											   double Bx[], //data of B
-											   int ntop,
-											   double lower_bound,
-												   int Cp[],
-												   int Cj[],
-												   double Cx[], //data of C
-												   int *minmax_topn);
+extern void sparse_dot_free_source(int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[], //data of A
+		int Bp[],
+		int Bj[],
+		double Bx[], //data of B
+		double lower_bound,
+		int Cp[],
+		std::vector<int>* Cj,
+		std::vector<double>* Cx);
 
 extern void sparse_dot_only_minmax_topn_source(int n_row,
 											   int n_col,

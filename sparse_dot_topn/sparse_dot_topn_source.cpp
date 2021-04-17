@@ -133,12 +133,10 @@ void sparse_dot_topn_source(int n_row,
 }
 
 /*
-    C++ implementation of sparse_dot_plus_minmax_topn_source
+    C++ implementation of sparse_dot_source
 
     This function will return a matrix C in CSR format, where
-    C = [sorted top n results > lower_bound for each row of A * B].
-    It also returns minmax_ntop (the maximum number of columns set
-    per row over all rows of A * B assuming ntop is infinite)
+    C = [all results > lower_bound sorted for each row of A * B].
 
     Input:
         n_row: number of rows of A matrix
@@ -147,17 +145,15 @@ void sparse_dot_topn_source(int n_row,
         Ap, Aj, Ax: CSR expression of A matrix
         Bp, Bj, Bx: CSR expression of B matrix
 
-        ntop: n top results
+        memory_bound: the maximum number of elements per row of C
         lower_bound: a threshold that the element of A*B must greater than
 
     Output by reference:
         Cp, Cj, Cx: CSR expression of C matrix
-        minmax_ntop: the maximum number of columns set per row over all
-                     rows of A * B assuming ntop is infinite
 
     N.B. A and B must be CSR format!!!
 */
-void sparse_dot_plus_minmax_topn_source(int n_row,
+void sparse_dot_source(int n_row,
 									int n_col,
 									int Ap[],
 									int Aj[],
@@ -165,23 +161,21 @@ void sparse_dot_plus_minmax_topn_source(int n_row,
 									int Bp[],
 									int Bj[],
 									double Bx[], //data of B
-			                        int ntop,
+									int memory_bound,
 									double lower_bound,
 									int Cp[],
 									int Cj[],
-									double Cx[],
-									int *minmax_ntop)
+									double Cx[])
 {
     std::vector<int> next(n_col,-1);
     std::vector<double> sums(n_col, 0);
 
     std::vector<candidate> candidates;
+    candidates.reserve(memory_bound);
 
     int nnz = 0;
 
     Cp[0] = 0;
-
-    *minmax_ntop = 0;
 
     for(int i = 0; i < n_row; i++){
         int head   = -2;
@@ -207,7 +201,6 @@ void sparse_dot_plus_minmax_topn_source(int n_row,
                 }
             }
         }
-        *minmax_ntop = (length > *minmax_ntop)? length : *minmax_ntop;
 
         for(int jj = 0; jj < length; jj++){ //length = number of columns set (may include 0s)
 
@@ -226,12 +219,7 @@ void sparse_dot_plus_minmax_topn_source(int n_row,
         }
 
         int len = (int)candidates.size();
-        if (len > ntop){
-            std::partial_sort(candidates.begin(), candidates.begin()+ntop, candidates.end(), candidate_cmp);
-            len = ntop;
-        } else {
-            std::sort(candidates.begin(), candidates.end(), candidate_cmp);
-        }
+        std::sort(candidates.begin(), candidates.end(), candidate_cmp);
 
         for(int a=0; a < len; a++){
             Cj[nnz] = candidates[a].index;
@@ -241,6 +229,191 @@ void sparse_dot_plus_minmax_topn_source(int n_row,
         candidates.clear();
 
         Cp[i+1] = nnz;
+    }
+}
+
+/*
+    C++ implementation of sparse_dot_free_source
+
+    This function will return a matrix C in CSR format, where
+    C = [all results > lower_bound sorted for each row of A * B].
+
+    Input:
+        n_row: number of rows of A matrix
+        n_col: number of columns of B matrix
+
+        Ap, Aj, Ax: CSR expression of A matrix
+        Bp, Bj, Bx: CSR expression of B matrix
+
+        memory_bound: the maximum number of elements per row of C
+        lower_bound: a threshold that the element of A*B must greater than
+
+    Output by reference:
+        Cp: C array for idx_pointer of CSR expression of C matrix
+        Cj: numpy array for indices of CSR expression of C matrix
+        Cx: numpy array for data values of CSR expression of C matrix
+
+    N.B. A and B must be CSR format!!!
+*/
+void sparse_dot_free_source(int n_row,
+									int n_col,
+									int Ap[],
+									int Aj[],
+									double Ax[], //data of A
+									int Bp[],
+									int Bj[],
+									double Bx[], //data of B
+									double lower_bound,
+									int Cp[],
+									std::vector<int>* Cj,
+									std::vector<double>* Cx)
+{
+	int sz = std::max(n_row, n_col);
+	Cj->reserve(sz);
+	Cx->reserve(sz);
+
+    std::vector<int> next(n_col,-1);
+    std::vector<double> sums(n_col, 0);
+
+    std::vector<candidate> candidates;
+
+    Cp[0] = 0;
+
+    for(int i = 0; i < n_row; i++){
+        int head   = -2;
+        int length =  0;
+
+        int jj_start = Ap[i];
+        int jj_end   = Ap[i+1];
+        for(int jj = jj_start; jj < jj_end; jj++){
+            int j = Aj[jj];
+            double v = Ax[jj]; //value of A in (i,j)
+
+            int kk_start = Bp[j];
+            int kk_end   = Bp[j+1];
+            for(int kk = kk_start; kk < kk_end; kk++){
+                int k = Bj[kk]; //kth column of B in row j
+
+                sums[k] += v*Bx[kk]; //multiply with value of B in (j,k) and accumulate to the result for kth column of row i
+
+                if(next[k] == -1){
+                    next[k] = head; //keep a linked list, every element points to the next column index
+                    head  = k;
+                    length++;
+                }
+            }
+        }
+
+        for(int jj = 0; jj < length; jj++){ //length = number of columns set (may include 0s)
+
+            if(sums[head] > lower_bound){ //append the nonzero elements
+                candidate c;
+                c.index = head;
+                c.value = sums[head];
+                candidates.push_back(c);
+            }
+
+            int temp = head;
+            head = next[head]; //iterate over columns
+
+            next[temp] = -1; //clear arrays
+            sums[temp] =  0; //clear arrays
+        }
+
+        int len = (int)candidates.size();
+        std::sort(candidates.begin(), candidates.end(), candidate_cmp);
+
+        for(int a=0; a < len; a++){
+            Cj->push_back(candidates[a].index);
+            Cx->push_back(candidates[a].value);
+        }
+        candidates.clear();
+
+        Cp[i+1] = Cj->size();
+    }
+}
+
+/*
+    C++ implementation of sparse_dot_nnz_source
+
+    This function will return the number nnz of nonzero elements
+    of the matrix C in CSR format, where
+    C = [all results > lower_bound sorted for each row of A * B]
+    and ntop the maximum number of elements per row of C.
+    This function is designed primarily to help with memory management for
+    very large sparse matrices.
+
+    Input:
+        n_row: number of rows of A matrix
+        n_col: number of columns of B matrix
+
+        Ap, Aj, Ax: CSR expression of A matrix
+        Bp, Bj, Bx: CSR expression of B matrix
+
+        lower_bound: a threshold that the element of A*B must greater than
+
+    Output:
+        nnz: number of nonzero elements of matrix C
+        ntop: maximum number of elements per row of C
+
+    N.B. A and B must be CSR format!!!
+*/
+void sparse_dot_nnz_source(int n_row,
+									int n_col,
+									int Ap[],
+									int Aj[],
+									double Ax[], //data of A
+									int Bp[],
+									int Bj[],
+									double Bx[], //data of B
+									double lower_bound,
+									int* nnz,
+									int* ntop)
+{
+    std::vector<int> next(n_col,-1);
+    std::vector<double> sums(n_col, 0);
+
+    *nnz = 0;
+    *ntop = 0;
+
+    for(int i = 0; i < n_row; i++){
+        int head   = -2;
+        int length =  0;
+
+        int jj_start = Ap[i];
+        int jj_end   = Ap[i+1];
+        for(int jj = jj_start; jj < jj_end; jj++){
+            int j = Aj[jj];
+            double v = Ax[jj]; //value of A in (i,j)
+
+            int kk_start = Bp[j];
+            int kk_end   = Bp[j+1];
+            for(int kk = kk_start; kk < kk_end; kk++){
+                int k = Bj[kk]; //kth column of B in row j
+
+                sums[k] += v*Bx[kk]; //multiply with value of B in (j,k) and accumulate to the result for kth column of row i
+
+                if(next[k] == -1){
+                    next[k] = head; //keep a linked list, every element points to the next column index
+                    head  = k;
+                    length++;
+                }
+            }
+        }
+
+        int nnz_k = 0;
+        for(int jj = 0; jj < length; jj++){ //length = number of columns set (may include 0s)
+
+            if(sums[head] > lower_bound) nnz_k++; //count this nonzero element in
+
+            int temp = head;
+            head = next[head]; //iterate over columns
+
+            next[temp] = -1; //clear arrays
+            sums[temp] =  0; //clear arrays
+        }
+        *ntop = (nnz_k > *ntop)? nnz_k : *ntop;
+        *nnz += nnz_k;
     }
 }
 
