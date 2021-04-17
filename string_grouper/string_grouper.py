@@ -6,7 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse.csr import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
-from sparse_dot_topn import awesome_cossim_topn, awesome_cossim_true_minmax_topn_only
+from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
 
 DEFAULT_NGRAM_SIZE: int = 3
@@ -219,16 +219,16 @@ class StringGrouper(object):
         self._master_id: pd.Series = master_id if master_id is not None else None
         self._duplicates_id: pd.Series = duplicates_id if duplicates_id is not None else None
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
-        self._max_n_matches = DEFAULT_MAX_N_MATCHES if self._config.max_n_matches is None \
+        self._max_n_matches = len(self._master) if self._config.max_n_matches is None \
             else self._config.max_n_matches
         self._validate_group_rep_specs()
         self._validate_replace_na_and_drop()
         self.is_build = False  # indicates if the grouper was fit or not
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
-        # After the StringGrouper is built, _matches_list will contain the indices and similarities of two matches
-        # and _true_max_n_matches will contain the true maximum number of matches over all strings in master if 
-        # self._config.min_similarity <= 0 
+        # After the StringGrouper is built, _matches_list will contain the indices and similarities of the matches
         self._matches_list: pd.DataFrame = pd.DataFrame()
+        # _true_max_n_matches will contain the true maximum number of matches over all strings in master if 
+        # self._config.min_similarity <= 0 
         self._true_max_n_matches = None
 
     def n_grams(self, string: str) -> List[str]:
@@ -248,7 +248,7 @@ class StringGrouper(object):
         """Builds the _matches list which contains string matches indices and similarity"""
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
         # Calculate the matches using the cosine similarity
-        matches = self._build_matches(master_matrix, duplicate_matrix)
+        matches, self._true_max_n_matches = self._build_matches(master_matrix, duplicate_matrix)
         if self._duplicates is None and self._max_n_matches < self._true_max_n_matches:
             # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
             matches = StringGrouper._symmetrize_matrix(matches)
@@ -435,20 +435,11 @@ class StringGrouper(object):
         optional_kwargs = dict()
         if self._config.number_of_processes > 1:
             optional_kwargs = {
+                'ntop_is_flexible': self._config.max_n_matches is None,
+                'return_best_topn': True,
                 'use_threads': True,
                 'n_jobs': self._config.number_of_processes
             }
-
-        # compute the true maximum number of matches over all strings in master:
-        self._true_max_n_matches = awesome_cossim_true_minmax_topn_only(
-            tf_idf_matrix_1,
-            tf_idf_matrix_2,
-            **optional_kwargs
-        )
-
-        if self._config.min_similarity <= 0 and self._config.max_n_matches is None:
-            # if kwarg max_n_matches was not set when min_similarity <= 0 then set it now to its true value
-            self._max_n_matches = self._true_max_n_matches
 
         return awesome_cossim_topn(
             tf_idf_matrix_1, tf_idf_matrix_2,

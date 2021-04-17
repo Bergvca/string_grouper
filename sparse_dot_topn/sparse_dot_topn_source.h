@@ -28,21 +28,41 @@ struct candidate {int index; double value;};
 
 extern bool candidate_cmp(candidate c_i, candidate c_j);
 
-extern void sparse_dot_topn_source(int n_row,
-								   int n_col,
-								   int Ap[],
-								   int Aj[],
-								   double Ax[],	//data of A
-								   int Bp[],
-								   int Bj[],
-								   double Bx[],	//data of B
-								   int ntop,
-								   double lower_bound,
-										int Cp[],
-										int Cj[],
-										double Cx[]);	//data of C
+extern void sparse_dot_topn_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[],	//data of A
+		int Bp[],
+		int Bj[],
+		double Bx[],	//data of B
+		int ntop,
+		double lower_bound,
+		int Cp[],
+		int Cj[],
+		double Cx[]		//data of C
+);
 
-extern void sparse_dot_free_source(int n_row,
+extern void sparse_dot_topn_extd_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[],	//data of A
+		int Bp[],
+		int Bj[],
+		double Bx[],	//data of B
+		int ntop,
+		double lower_bound,
+		int Cp[],
+		int Cj[],
+		double Cx[], 	//data of C
+		int* n_minmax
+);
+
+extern void sparse_dot_free_source(
+		int n_row,
 		int n_col,
 		int Ap[],
 		int Aj[],
@@ -53,14 +73,18 @@ extern void sparse_dot_free_source(int n_row,
 		double lower_bound,
 		int Cp[],
 		std::vector<int>* Cj,
-		std::vector<double>* Cx);
+		std::vector<double>* Cx,
+		int* n_minmax
+);
 
-extern void sparse_dot_only_minmax_topn_source(int n_row,
-											   int n_col,
-											   int Ap[],
-											   int Aj[],
-											   int Bp[],
-											   int Bj[],
-											   	   int *minmax_ntop);
+extern void sparse_dot_only_max_nnz_col_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		int Bp[],
+		int Bj[],
+		int *max_nnz_col
+);
 
 #endif //UTILS_CPPCLASS_H

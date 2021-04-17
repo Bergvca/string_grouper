@@ -19,72 +19,91 @@
 
 # distutils: language = c++
 
-from libc.stdio cimport printf
 from libcpp.vector cimport vector
-from libc.stdlib cimport free
-from cpython.pycapsule cimport PyCapsule_New, PyCapsule_IsValid, PyCapsule_GetPointer, PyCapsule_GetName
+from array_wrappers cimport ArrayWrapper_int, ArrayWrapper_double
+
 cimport numpy as np
+import numpy as np
 
 np.import_array()
 
-cdef extern from "numpy/arrayobject.h":
-    void PyArray_ENABLEFLAGS(np.ndarray arr, int flags)
 
 cdef extern from "sparse_dot_topn_source.h":
 
     cdef void sparse_dot_topn_source(
-                        int n_row,
-                        int n_col,
-                        int Ap[],
-                        int Aj[],
-                        double Ax[],
-                        int Bp[],
-                        int Bj[],
-                        double Bx[],
-                        int topn,
-                        double lower_bound,
-                        int Cp[],
-                        int Cj[],
-                        double Cx[]);
+                                        int n_row,
+                                        int n_col,
+                                        int Ap[],
+                                        int Aj[],
+                                        double Ax[],
+                                        int Bp[],
+                                        int Bj[],
+                                        double Bx[],
+                                        int topn,
+                                        double lower_bound,
+                                        int Cp[],
+                                        int Cj[],
+                                        double Cx[]
+                                    );
+
+    cdef void sparse_dot_topn_extd_source(
+                                        int n_row,
+                                        int n_col,
+                                        int Ap[],
+                                        int Aj[],
+                                        double Ax[],
+                                        int Bp[],
+                                        int Bj[],
+                                        double Bx[],
+                                        int topn,
+                                        double lower_bound,
+                                        int Cp[],
+                                        int Cj[],
+                                        double Cx[],
+                                        int* nminmax
+                                    );
 
     cdef void sparse_dot_free_source(
-                        int n_row,
-                        int n_col,
-                        int Ap[],
-                        int Aj[],
-                        double Ax[],
-                        int Bp[],
-                        int Bj[],
-                        double Bx[],
-                        double lower_bound,
-                        int Cp[],
-                        vector[int]* Cj,
-                        vector[double]* Cx);
+                                        int n_row,
+                                        int n_col,
+                                        int Ap[],
+                                        int Aj[],
+                                        double Ax[],
+                                        int Bp[],
+                                        int Bj[],
+                                        double Bx[],
+                                        double lower_bound,
+                                        int Cp[],
+                                        vector[int]* Cj,
+                                        vector[double]* Cx,
+                                        int* n_minmax
+                                    );
 
-    cdef void sparse_dot_only_minmax_topn_source(
-                        int n_row,
-                        int n_col,
-                        int Ap[],
-                        int Aj[],
-                        int Bp[],
-                        int Bj[],
-                        int minmax_topn[]);
+    cdef void sparse_dot_only_max_nnz_col_source(
+                                                    int n_row,
+                                                    int n_col,
+                                                    int Ap[],
+                                                    int Aj[],
+                                                    int Bp[],
+                                                    int Bj[],
+                                                    int* max_nnz_col
+                                                );
 
 cpdef sparse_dot_topn(
-        int n_row,
-        int n_col,
-        np.ndarray[int, ndim=1] a_indptr,
-        np.ndarray[int, ndim=1] a_indices,
-        np.ndarray[double, ndim=1] a_data,
-        np.ndarray[int, ndim=1] b_indptr,
-        np.ndarray[int, ndim=1] b_indices,
-        np.ndarray[double, ndim=1] b_data,
-        int ntop,
-        double lower_bound,
-        np.ndarray[int, ndim=1] c_indptr,
-        np.ndarray[int, ndim=1] c_indices,
-        np.ndarray[double, ndim=1] c_data
-    ):
+                        int n_row,
+                        int n_col,
+                        np.ndarray[int, ndim=1] a_indptr,
+                        np.ndarray[int, ndim=1] a_indices,
+                        np.ndarray[double, ndim=1] a_data,
+                        np.ndarray[int, ndim=1] b_indptr,
+                        np.ndarray[int, ndim=1] b_indices,
+                        np.ndarray[double, ndim=1] b_data,
+                        int ntop,
+                        double lower_bound,
+                        np.ndarray[int, ndim=1] c_indptr,
+                        np.ndarray[int, ndim=1] c_indices,
+                        np.ndarray[double, ndim=1] c_data
+                    ):
     """
     Cython glue function to call sparse_dot_topn C++ implementation
     This function will return a matrix C in CSR format, where
@@ -104,7 +123,7 @@ cpdef sparse_dot_topn(
         c_indptr, c_indices, c_data: CSR expression of C matrix
 
     N.B. A and B must be CSR format!!!
-         The type of input numpy array must be aligned with types of C++ function aguments!
+         The type of input numpy array must be aligned with types of C++ function arguments!
     """
 
     cdef int* Ap = &a_indptr[0]
@@ -120,28 +139,79 @@ cpdef sparse_dot_topn(
     sparse_dot_topn_source(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, ntop, lower_bound, Cp, Cj, Cx)
     return
 
-# destructor
-cdef void free_ptr(object cap):
-    # This should probably have some error checking in
-    # or at very least clear any errors raised once it's done
-    free(PyCapsule_GetPointer(cap, PyCapsule_GetName(cap)))
-
-cpdef sparse_dot_free(
-        int n_row,
-        int n_col,
-        np.ndarray[int, ndim=1] a_indptr,
-        np.ndarray[int, ndim=1] a_indices,
-        np.ndarray[double, ndim=1] a_data,
-        np.ndarray[int, ndim=1] b_indptr,
-        np.ndarray[int, ndim=1] b_indices,
-        np.ndarray[double, ndim=1] b_data,
-        double lower_bound,
-        np.ndarray[int, ndim=1] c_indptr
-    ):
+cpdef sparse_dot_topn_extd(
+                        int n_row,
+                        int n_col,
+                        np.ndarray[int, ndim=1] a_indptr,
+                        np.ndarray[int, ndim=1] a_indices,
+                        np.ndarray[double, ndim=1] a_data,
+                        np.ndarray[int, ndim=1] b_indptr,
+                        np.ndarray[int, ndim=1] b_indices,
+                        np.ndarray[double, ndim=1] b_data,
+                        int ntop,
+                        double lower_bound,
+                        np.ndarray[int, ndim=1] c_indptr,
+                        np.ndarray[int, ndim=1] c_indices,
+                        np.ndarray[double, ndim=1] c_data,
+                        np.ndarray[int, ndim=1] nminmax,
+                    ):
     """
     Cython glue function to call sparse_dot_topn C++ implementation
     This function will return a matrix C in CSR format, where
+    C = [sorted top n results > lower_bound for each row of A * B]
+    The maximum number of elements per row of C nminmax is also returned.
+
+    Input:
+        n_row: number of rows of A matrix
+        n_col: number of columns of B matrix
+
+        a_indptr, a_indices, a_data: CSR expression of A matrix
+        b_indptr, b_indices, b_data: CSR expression of B matrix
+
+        ntop: n top results
+        lower_bound: a threshold that the element of A*B must greater than
+
+    Output by reference:
+        c_indptr, c_indices, c_data: CSR expression of C matrix
+        nminmax: The maximum number of elements per row of C
+
+    N.B. A and B must be CSR format!!!
+         The type of input numpy array must be aligned with types of C++ function arguments!
+    """
+
+    cdef int* Ap = &a_indptr[0]
+    cdef int* Aj = &a_indices[0]
+    cdef double* Ax = &a_data[0]
+    cdef int* Bp = &b_indptr[0]
+    cdef int* Bj = &b_indices[0]
+    cdef double* Bx = &b_data[0]
+    cdef int* Cp = &c_indptr[0]
+    cdef int* Cj = &c_indices[0]
+    cdef double* Cx = &c_data[0]
+    cdef int* n_minmax = &nminmax[0]
+
+    sparse_dot_topn_extd_source(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, ntop, lower_bound, Cp, Cj, Cx, n_minmax)
+    return
+
+cpdef sparse_dot_free(
+                        int n_row,
+                        int n_col,
+                        np.ndarray[int, ndim=1] a_indptr,
+                        np.ndarray[int, ndim=1] a_indices,
+                        np.ndarray[double, ndim=1] a_data,
+                        np.ndarray[int, ndim=1] b_indptr,
+                        np.ndarray[int, ndim=1] b_indices,
+                        np.ndarray[double, ndim=1] b_data,
+                        double lower_bound,
+                        np.ndarray[int, ndim=1] c_indptr
+                    ):
+    """
+    Cython glue function to call sparse_dot_free C++ implementation
+    This function will return a matrix C in CSR format, where
     C = [all results > lower_bound for each row of A * B]
+    This function lets C++ decide how to manage (grow/allocate/reallocate) memory for the 
+    storage of these results as needed during the computation; then hands over to numpy
+    a pointer to the memory location where the data resides  
 
     Input:
         n_row: number of rows of A matrix
@@ -166,42 +236,29 @@ cpdef sparse_dot_free(
     cdef int* Bj = &b_indices[0]
     cdef double* Bx = &b_data[0]
     cdef int* Cp = &c_indptr[0]
+    cdef np.ndarray[int, ndim=1] nminmax = np.array([0], dtype=np.int32)
+    cdef int* n_minmax = &nminmax[0]
     
     cdef vector[int] vCj;
     cdef vector[double] vCx;
 
-    sparse_dot_free_source(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, lower_bound, Cp, &vCj, &vCx)
+    sparse_dot_free_source(n_row, n_col, Ap, Aj, Ax, Bp, Bj, Bx, lower_bound, Cp, &vCj, &vCx, n_minmax)
     
-    cdef np.npy_intp nnz = Cp[n_row]
-    cdef np.ndarray[np.int32_t, ndim=1] c_indices = np.PyArray_SimpleNewFromData(1, &nnz, np.NPY_INT32, vCj.data())
-    PyArray_ENABLEFLAGS(c_indices, np.NPY_OWNDATA)
-    cdef np.ndarray[np.double_t, ndim=1] c_data = np.PyArray_SimpleNewFromData(1, &nnz, np.NPY_DOUBLE, vCx.data())
-    PyArray_ENABLEFLAGS(c_data, np.NPY_OWNDATA)
+    c_indices = np.asarray(ArrayWrapper_int(vCj)).squeeze(axis=0)
+    c_data = np.asarray(ArrayWrapper_double(vCx)).squeeze(axis=0)
     
-    # cdef const char *name_vCj_capsule = "vCj"
-    # cdef int* vCj_data = vCj.data()
-    # vCj_capsule = PyCapsule_New(<void *> vCj_data, name_vCj_capsule, &free_ptr)
-    # if not PyCapsule_IsValid(vCj_capsule, name_vCj_capsule):
-        # raise ValueError(f"invalid pointer ({name_vCj_capsule}) to parameters")
-        #
-    # cdef const char *name_vCx_capsule = "vCx"
-    # cdef double* vCx_data = vCx.data()
-    # vCx_capsule = PyCapsule_New(<void *> vCx_data, name_vCx_capsule, &free_ptr)
-    # if not PyCapsule_IsValid(vCx_capsule, name_vCx_capsule):
-        # raise ValueError(f"invalid pointer ({name_vCx_capsule}) to parameters")
-    
-    return c_indices, c_data
+    return c_indices, c_data, nminmax[0]
 
 
-cpdef sparse_dot_only_minmax_topn(
-        int n_row,
-        int n_col,
-        np.ndarray[int, ndim=1] a_indptr,
-        np.ndarray[int, ndim=1] a_indices,
-        np.ndarray[int, ndim=1] b_indptr,
-        np.ndarray[int, ndim=1] b_indices,
-        np.ndarray[int, ndim=1] minmax_topn
-    ):
+cpdef sparse_dot_only_max_nnz_col(
+                                    int n_row,
+                                    int n_col,
+                                    np.ndarray[int, ndim=1] a_indptr,
+                                    np.ndarray[int, ndim=1] a_indices,
+                                    np.ndarray[int, ndim=1] b_indptr,
+                                    np.ndarray[int, ndim=1] b_indices,
+                                    np.ndarray[int, ndim=1] minmax_topn
+                                ):
     """
     Cython glue function to call sparse_dot_only_minmax_topn C++ implementation
     This function will return the maximum number of columns set
@@ -228,5 +285,5 @@ cpdef sparse_dot_only_minmax_topn(
     cdef int* Bj = &b_indices[0]
     cdef int* o_minmax_topn = &minmax_topn[0]
 
-    sparse_dot_only_minmax_topn_source(n_row, n_col, Ap, Aj, Bp, Bj, o_minmax_topn)
+    sparse_dot_only_max_nnz_col_source(n_row, n_col, Ap, Aj, Bp, Bj, o_minmax_topn)
     return

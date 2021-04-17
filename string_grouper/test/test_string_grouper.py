@@ -334,7 +334,7 @@ class StringGrouperTest(unittest.TestCase):
         expected_matches = np.array([[1., 0., 0.],
                                      [0., 1., 0.],
                                      [0., 0., 0.]])
-        np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe).toarray())
+        np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe)[0].toarray())
 
     def test_build_matches_list(self):
         """Should create the cosine similarity matrix of two series"""

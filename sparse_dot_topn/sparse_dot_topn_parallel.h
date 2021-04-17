@@ -23,44 +23,67 @@
 #ifndef UTILS_CPPCLASS_H
 #define UTILS_CPPCLASS_H
 
-extern void sparse_dot_topn_parallel(int n_row,
-      	              int n_col,
-      	              int Ap[],
-      	              int Aj[],
-      	              double Ax[],
-      	              int Bp[],
-      	              int Bj[],
-      	              double Bx[],
-                      int ntop,
-                      double lower_bound,
-      	                    int Cp[],
-      	                    int Cj[],
-      	                    double Cx[],
-      	                    int n_jobs);
+extern void sparse_dot_topn_parallel(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[],
+		int Bp[],
+		int Bj[],
+		double Bx[],
+		int ntop,
+		double lower_bound,
+		int Cp[],
+		int Cj[],
+		double Cx[],
+		int n_jobs
+);
 
-extern void sparse_dot_plus_minmax_topn_parallel(int n_row,
-      	              int n_col,
-      	              int Ap[],
-      	              int Aj[],
-      	              double Ax[],
-      	              int Bp[],
-      	              int Bj[],
-      	              double Bx[],
-                      int ntop,
-                      double lower_bound,
-      	                    int Cp[],
-      	                    int Cj[],
-      	                    double Cx[],
-							int* minmax_topn,
-      	                    int n_jobs);
+extern void sparse_dot_topn_extd_parallel(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[],
+		int Bp[],
+		int Bj[],
+		double Bx[],
+		int ntop,
+		double lower_bound,
+		int Cp[],
+		int Cj[],
+		double Cx[],
+		int* n_minmax,
+		int n_jobs
+);
 
-extern void sparse_dot_only_minmax_topn_parallel(int n_row,
-										  int n_col,
-										  int Ap[],
-										  int Aj[],
-										  int Bp[],
-										  int Bj[],
-										  int *minmax_ntop,
-										  int n_jobs);
+extern void sparse_dot_free_parallel(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[], //data of A
+		int Bp[],
+		int Bj[],
+		double Bx[], //data of B
+		double lower_bound,
+		int Cp[],
+		std::vector<int>* Cj,
+		std::vector<double>* Cx,
+		int* n_minmax,
+		int njobs
+);
+
+extern void sparse_dot_only_max_nnz_col_parallel(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		int Bp[],
+		int Bj[],
+		int *max_nnz_col,
+		int n_jobs
+);
 
 #endif //UTILS_CPPCLASS_H

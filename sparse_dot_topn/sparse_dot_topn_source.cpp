@@ -49,19 +49,21 @@ bool candidate_cmp(candidate c_i, candidate c_j) { return (c_i.value > c_j.value
 
     N.B. A and B must be CSR format!!!
 */
-void sparse_dot_topn_source(int n_row,
-                        int n_col,
-                        int Ap[],
-                        int Aj[],
-                        double Ax[], //data of A
-                        int Bp[],
-                        int Bj[],
-                        double Bx[], //data of B
-                        int ntop,
-                        double lower_bound,
-                        int Cp[],
-                        int Cj[],
-                        double Cx[])
+void sparse_dot_topn_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[], //data of A
+		int Bp[],
+		int Bj[],
+		double Bx[], //data of B
+		int ntop,
+		double lower_bound,
+		int Cp[],
+		int Cj[],
+		double Cx[]
+)
 {
     std::vector<int> next(n_col,-1);
     std::vector<double> sums(n_col, 0);
@@ -133,10 +135,12 @@ void sparse_dot_topn_source(int n_row,
 }
 
 /*
-    C++ implementation of sparse_dot_source
+    C++ implementation of sparse_dot_topn_extd_source
 
     This function will return a matrix C in CSR format, where
-    C = [all results > lower_bound sorted for each row of A * B].
+    C = [sorted top n results > lower_bound for each row of A * B].
+    The maximum number n_minmax of elements per row of C (assuming ntop = n_col)
+    is also returned.
 
     Input:
         n_row: number of rows of A matrix
@@ -145,37 +149,41 @@ void sparse_dot_topn_source(int n_row,
         Ap, Aj, Ax: CSR expression of A matrix
         Bp, Bj, Bx: CSR expression of B matrix
 
-        memory_bound: the maximum number of elements per row of C
+        ntop: n top results
         lower_bound: a threshold that the element of A*B must greater than
 
     Output by reference:
         Cp, Cj, Cx: CSR expression of C matrix
+        n_minmax: The maximum number of elements per row of C (assuming ntop = n_col)
 
     N.B. A and B must be CSR format!!!
 */
-void sparse_dot_source(int n_row,
-									int n_col,
-									int Ap[],
-									int Aj[],
-									double Ax[], //data of A
-									int Bp[],
-									int Bj[],
-									double Bx[], //data of B
-									int memory_bound,
-									double lower_bound,
-									int Cp[],
-									int Cj[],
-									double Cx[])
+void sparse_dot_topn_extd_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[],	//data of A
+		int Bp[],
+		int Bj[],
+		double Bx[],	//data of B
+		int ntop,
+		double lower_bound,
+		int Cp[],
+		int Cj[],
+		double Cx[], 	//data of C
+		int* n_minmax
+)
 {
     std::vector<int> next(n_col,-1);
     std::vector<double> sums(n_col, 0);
 
     std::vector<candidate> candidates;
-    candidates.reserve(memory_bound);
 
     int nnz = 0;
 
     Cp[0] = 0;
+    *n_minmax = 0;
 
     for(int i = 0; i < n_row; i++){
         int head   = -2;
@@ -219,7 +227,13 @@ void sparse_dot_source(int n_row,
         }
 
         int len = (int)candidates.size();
-        std::sort(candidates.begin(), candidates.end(), candidate_cmp);
+        *n_minmax = (len > *n_minmax)? len : *n_minmax;
+        if (len > ntop){
+            std::partial_sort(candidates.begin(), candidates.begin()+ntop, candidates.end(), candidate_cmp);
+            len = ntop;
+        } else {
+            std::sort(candidates.begin(), candidates.end(), candidate_cmp);
+        }
 
         for(int a=0; a < len; a++){
             Cj[nnz] = candidates[a].index;
@@ -237,6 +251,7 @@ void sparse_dot_source(int n_row,
 
     This function will return a matrix C in CSR format, where
     C = [all results > lower_bound sorted for each row of A * B].
+    It also returns the maximum number of elements per row of C.
 
     Input:
         n_row: number of rows of A matrix
@@ -250,24 +265,29 @@ void sparse_dot_source(int n_row,
 
     Output by reference:
         Cp: C array for idx_pointer of CSR expression of C matrix
-        Cj: numpy array for indices of CSR expression of C matrix
-        Cx: numpy array for data values of CSR expression of C matrix
+        Cj: STL vector for indices of CSR expression of C matrix
+        Cx: STL vector for data values of CSR expression of C matrix
+        n_minmax: the maximum number of elements per row of C
 
     N.B. A and B must be CSR format!!!
 */
-void sparse_dot_free_source(int n_row,
-									int n_col,
-									int Ap[],
-									int Aj[],
-									double Ax[], //data of A
-									int Bp[],
-									int Bj[],
-									double Bx[], //data of B
-									double lower_bound,
-									int Cp[],
-									std::vector<int>* Cj,
-									std::vector<double>* Cx)
+void sparse_dot_free_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[], //data of A
+		int Bp[],
+		int Bj[],
+		double Bx[], //data of B
+		double lower_bound,
+		int Cp[],
+		std::vector<int>* Cj,
+		std::vector<double>* Cx,
+		int* n_minmax
+)
 {
+	*n_minmax = 0;
 	int sz = std::max(n_row, n_col);
 	Cj->reserve(sz);
 	Cx->reserve(sz);
@@ -321,6 +341,7 @@ void sparse_dot_free_source(int n_row,
         }
 
         int len = (int)candidates.size();
+        *n_minmax = (len > *n_minmax)? len : *n_minmax;
         std::sort(candidates.begin(), candidates.end(), candidate_cmp);
 
         for(int a=0; a < len; a++){
@@ -358,17 +379,19 @@ void sparse_dot_free_source(int n_row,
 
     N.B. A and B must be CSR format!!!
 */
-void sparse_dot_nnz_source(int n_row,
-									int n_col,
-									int Ap[],
-									int Aj[],
-									double Ax[], //data of A
-									int Bp[],
-									int Bj[],
-									double Bx[], //data of B
-									double lower_bound,
-									int* nnz,
-									int* ntop)
+void sparse_dot_nnz_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		double Ax[], //data of A
+		int Bp[],
+		int Bj[],
+		double Bx[], //data of B
+		double lower_bound,
+		int* nnz,
+		int* ntop
+)
 {
     std::vector<int> next(n_col,-1);
     std::vector<double> sums(n_col, 0);
@@ -418,7 +441,7 @@ void sparse_dot_nnz_source(int n_row,
 }
 
 /*
-    C++ implementation of sparse_dot_only_minmax_topn_source
+    C++ implementation of sparse_dot_only_max_nnz_col_source
 
     This function will return the maximum number of columns set
     per row over all rows of A * B
@@ -431,22 +454,24 @@ void sparse_dot_nnz_source(int n_row,
         Bp, Bj, Bx: CSR expression of B matrix
 
     Output by reference:
-        minmax_ntop: the maximum number of columns set per row
+        max_nnz_col: the maximum number of columns set per row
                      over all rows of A * B
 
     N.B. A and B must be CSR format!!!
 */
-void sparse_dot_only_minmax_topn_source(int n_row,
-									int n_col,
-									int Ap[],
-									int Aj[],
-									int Bp[],
-									int Bj[],
-									int *minmax_ntop)
+void sparse_dot_only_max_nnz_col_source(
+		int n_row,
+		int n_col,
+		int Ap[],
+		int Aj[],
+		int Bp[],
+		int Bj[],
+		int *max_nnz_col
+)
 {
     std::vector<bool> unmarked(n_col, true);
 
-    *minmax_ntop = 0;
+    *max_nnz_col = 0;
 
     for(int i = 0; i < n_row; i++){
         int length =  0;
@@ -467,6 +492,6 @@ void sparse_dot_only_minmax_topn_source(int n_row,
                 }
             }
         }
-        *minmax_ntop = (length > *minmax_ntop)? length : *minmax_ntop;
+        *max_nnz_col = (length > *max_nnz_col)? length : *max_nnz_col;
     }
 }
