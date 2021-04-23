@@ -135,11 +135,11 @@ def match_strings(master: pd.Series,
 
 
 class StringGrouperConfig(NamedTuple):
-    """
+    r"""
     Class with configuration variables.
 
     :param ngram_size: int. The amount of characters in each n-gram. Default is 3.
-    :param regex: str. The regex string used to cleanup the input string. Default is [,-./]|\s.
+    :param regex: str. The regex string used to cleanup the input string. Default is '[,-./]|\s'.
     :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20.
     :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
     Defaults to 0.8.

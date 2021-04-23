@@ -35,6 +35,7 @@ array_wrappers_ext = Extension('sparse_dot_topn.array_wrappers',
                                     './sparse_dot_topn/sparse_dot_topn_source.cpp'
                                 ],
                          extra_compile_args=extra_compile_args,
+                         define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
                          language='c++')
 
 original_ext = Extension('sparse_dot_topn.sparse_dot_topn',
@@ -43,6 +44,7 @@ original_ext = Extension('sparse_dot_topn.sparse_dot_topn',
                                     './sparse_dot_topn/sparse_dot_topn_source.cpp'
                                 ],
                          extra_compile_args=extra_compile_args,
+                         define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
                          language='c++')
 
 threaded_ext = Extension('sparse_dot_topn.sparse_dot_topn_threaded',
@@ -52,6 +54,7 @@ threaded_ext = Extension('sparse_dot_topn.sparse_dot_topn_threaded',
                              './sparse_dot_topn/sparse_dot_topn_parallel.cpp'
                             ],
                          extra_compile_args=extra_compile_args,
+                         define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
                          language='c++')
 
 setup(
