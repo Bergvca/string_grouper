@@ -218,9 +218,13 @@ class StringGrouper(object):
         self._duplicates: pd.Series = duplicates if duplicates is not None else None
         self._master_id: pd.Series = master_id if master_id is not None else None
         self._duplicates_id: pd.Series = duplicates_id if duplicates_id is not None else None
+
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
-        self._max_n_matches = len(self._master) if self._config.max_n_matches is None \
-            else self._config.max_n_matches
+        if self._config.max_n_matches is None:
+            self._max_n_matches = len(self._master) if self._duplicates is None else len(self._duplicates)
+        else:
+            self._max_n_matches = self._config.max_n_matches
+
         self._validate_group_rep_specs()
         self._validate_replace_na_and_drop()
         self.is_build = False  # indicates if the grouper was fit or not
@@ -435,7 +439,6 @@ class StringGrouper(object):
         optional_kwargs = dict()
         if self._config.number_of_processes > 1:
             optional_kwargs = {
-                'ntop_is_flexible': self._config.max_n_matches is None,
                 'return_best_topn': True,
                 'use_threads': True,
                 'n_jobs': self._config.number_of_processes
