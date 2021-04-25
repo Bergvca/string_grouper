@@ -487,8 +487,8 @@ class StringGrouper(object):
         sparserows = non_zeros[0]
         sparsecols = non_zeros[1]
         nr_matches = sparsecols.size
-        master_side = np.empty([nr_matches], dtype=int)
-        dupe_side = np.empty([nr_matches], dtype=int)
+        master_side = np.empty([nr_matches], dtype=np.int64)
+        dupe_side = np.empty([nr_matches], dtype=np.int64)
         similarity = np.zeros(nr_matches)
 
         for index in range(0, nr_matches):
