@@ -11,6 +11,8 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
 from unittest.mock import patch
 import warnings
 
+def mock_symmetrize_matrix(A: csr_matrix) -> csr_matrix:
+    return A
 
 class SimpleExample(object):
     def __init__(self):
@@ -197,14 +199,14 @@ class StringGrouperTest(unittest.TestCase):
         mock_StringGrouper_instance.get_matches.assert_called_once()
         self.assertEqual(df, 'whatever')
 
-    @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matches_list')
-    def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matches_list):
+    @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matrix', side_effect=mock_symmetrize_matrix)
+    def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matrix):
         """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is 
         **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
         simple_example = SimpleExample()
         df = simple_example.customers_df2['Customer Name']
         sg = StringGrouper(df, max_n_matches=2).fit()
-        mock_symmetrize_matches_list.assert_called_once()
+        mock_symmetrize_matrix.assert_called_once()
         # obtain the upper and lower triangular parts of the matrix of matches:
         upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
         lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]

@@ -251,11 +251,11 @@ class StringGrouper(object):
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
         # Calculate the matches using the cosine similarity
         matches = self._build_matches(master_matrix, duplicate_matrix)
+        if self._duplicates is None:
+            # the matrix of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
+            matches = StringGrouper._symmetrize_matrix(matches)
         # retrieve all matches
         self._matches_list = self._get_matches_list(matches)
-        if self._duplicates is None:
-            # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
-            self._symmetrize_matches_list()
         self.is_build = True
         return self
 
@@ -450,18 +450,6 @@ class StringGrouper(object):
                                    self._config.min_similarity,
                                    **optional_kwargs)
 
-    def _symmetrize_matches_list(self):
-        # [symmetrized matches_list] = [matches_list] UNION [transposed matches_list] (i.e., column-names swapped):
-        self._matches_list = self._matches_list.set_index(['master_side', 'dupe_side'])\
-            .combine_first(
-                self._matches_list.rename(
-                    columns={
-                        'master_side': 'dupe_side',
-                        'dupe_side': 'master_side'
-                    }
-                ).set_index(['master_side', 'dupe_side'])
-            ).reset_index()
-
     def _get_non_matches_list(self, suppress_warning=False) -> pd.DataFrame:
         """Returns a list of all the indices of non-matching pairs (with similarity set to 0)"""
         m_sz, d_sz = len(self._master), len(self._master if self._duplicates is None else self._duplicates)
@@ -480,25 +468,19 @@ class StringGrouper(object):
         return missing_pairs
 
     @staticmethod
-    def _get_matches_list(matches) -> pd.DataFrame:
+    def _symmetrize_matrix(AA: csr_matrix) -> csr_matrix:
+        A = AA.tolil()
+        r, c = A.nonzero()
+        A[c, r] = A[r, c]
+        return A.tocsr()
+
+    @staticmethod
+    def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
-        non_zeros = matches.nonzero()
-
-        sparserows = non_zeros[0]
-        sparsecols = non_zeros[1]
-        nr_matches = sparsecols.size
-        master_side = np.empty([nr_matches], dtype=np.int64)
-        dupe_side = np.empty([nr_matches], dtype=np.int64)
-        similarity = np.zeros(nr_matches)
-
-        for index in range(0, nr_matches):
-            master_side[index] = sparserows[index]
-            dupe_side[index] = sparsecols[index]
-            similarity[index] = matches.data[index]
-
-        matches_list = pd.DataFrame({'master_side': master_side,
-                                     'dupe_side': dupe_side,
-                                     'similarity': similarity})
+        r, c = matches.nonzero()
+        matches_list = pd.DataFrame({'master_side': r.astype(np.int64),
+                                     'dupe_side': c.astype(np.int64),
+                                     'similarity': matches.data})
         return matches_list
 
     def _get_nearest_matches(self,
