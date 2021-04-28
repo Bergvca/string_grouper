@@ -13,7 +13,7 @@
 
 The image displayed above is a visualization of the graph-structure of one of the groups of strings found by `string_grouper`.  Each circle (node) represents a string, and each connecting arc (edge) represents a match between a pair of strings with a similarity score above a given threshold score (here `0.8`).  
 
-The ***centroid*** of the group, as determined by `string_grouper` (see [tutorials/group_representatives.md](tutorials/group_representatives.md) for an explanation), is the largest node, also with the most edges originating from it.  A thick line in the image denotes a strong similarity between the nodes at its ends, while a faint thin line denotes weak similarity.
+The ***centroid*** of the group, as determined by `string_grouper` (see [tutorials/group_representatives.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/group_representatives.md) for an explanation), is the largest node, also with the most edges originating from it.  A thick line in the image denotes a strong similarity between the nodes at its ends, while a faint thin line denotes weak similarity.
 
 The power of `string_grouper` is discernible from this image: in large datasets, `string_grouper` is often able to resolve indirect associations between strings even when, say, due to memory-resource-limitations, direct matches between those strings cannot be computed using conventional methods with a lower threshold similarity score.    
 
@@ -85,7 +85,7 @@ In the rest of this document the names, `Series` and `DataFrame`, refer to the f
    2. `'similarity'` whose column has the similarity-scores as values, and 
    3. The name of `duplicates` (or `master` if `duplicates` is not given) and the name(s) of its index (or index-levels) prefixed by the string `'right_'`.
    
-   Indexes (or their levels) only appear when the keyword argument `ignore_index=False` (the default). (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md) for a demonstration.)
+   Indexes (or their levels) only appear when the keyword argument `ignore_index=False` (the default). (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md) for a demonstration.)
    
    If either `master` or `duplicates` has no name, it assumes the name `'side'` which is then prefixed as described above.  Similarly, if any of the indexes (or index-levels) has no name it assumes its `pandas` default name (`'index'`, `'level_0'`, and so on) and is then prefixed as described above.
    
@@ -101,7 +101,7 @@ In the rest of this document the names, `Series` and `DataFrame`, refer to the f
    
    The name of the output `Series` is the same as that of `master` prefixed with the string `'most_similar_'`.  If `master` has no name, it is assumed to have the name `'master'` before being prefixed.
        
-   If `ignore_index=False` (the default), `match_most_similar` returns a `DataFrame` containing the same `Series` described above as one of its columns.  So it inherits the same index and length as `duplicates`.  The rest of its columns correspond to the index (or index-levels) of `master` and thus contain the index-labels of the most similar strings being output as values.  If there are no similar strings in `master` for a given string in `duplicates` then the value(s) assigned to this index-column(s) for that string is `NaN` by default.  However, if the keyword argument `replace_na=True`, then these `NaN` values are replaced with the index-label(s) of that string in `duplicates`.  Note that such replacements can only occur if the indexes of `master` and `duplicates` have the same number of levels.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md#MMS) for a demonstration.)
+   If `ignore_index=False` (the default), `match_most_similar` returns a `DataFrame` containing the same `Series` described above as one of its columns.  So it inherits the same index and length as `duplicates`.  The rest of its columns correspond to the index (or index-levels) of `master` and thus contain the index-labels of the most similar strings being output as values.  If there are no similar strings in `master` for a given string in `duplicates` then the value(s) assigned to this index-column(s) for that string is `NaN` by default.  However, if the keyword argument `replace_na=True`, then these `NaN` values are replaced with the index-label(s) of that string in `duplicates`.  Note that such replacements can only occur if the indexes of `master` and `duplicates` have the same number of levels.  (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md#MMS) for a demonstration.)
    
    Each column-name of the output `DataFrame` has the same name as its corresponding column, index, or index-level of `master` prefixed with the string `'most_similar_'`.
   
@@ -109,7 +109,7 @@ In the rest of this document the names, `Series` and `DataFrame`, refer to the f
 
 
 * #### `group_similar_strings` 
-  Takes a single `Series` of strings (`strings_to_group`) and groups them by assigning to each string one string from `strings_to_group` chosen as the group-representative for each group of similar strings found. (See [tutorials/group_representatives.md](tutorials/group_representatives.md) for details on how the the group-representatives are chosen.)   
+  Takes a single `Series` of strings (`strings_to_group`) and groups them by assigning to each string one string from `strings_to_group` chosen as the group-representative for each group of similar strings found. (See [tutorials/group_representatives.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/group_representatives.md) for details on how the the group-representatives are chosen.)   
   
   If `ignore_index=True`, the output is a `Series` (with the same name as `strings_to_group` prefixed by the string `'group_rep_'`) of the same length and index as `strings_to_group` containing the group-representative strings.  If `strings_to_group` has no name then the name of the returned `Series` is `'group_rep'`.  
    
@@ -140,11 +140,11 @@ All functions are built using a class **`StringGrouper`**. This class can be use
     Defaults to `0.8`
    * **`number_of_processes`**: The number of processes used by the cosine similarity calculation. Defaults to
     `number of cores on a machine - 1.`
-   * **`ignore_index`**: Determines whether indexes are ignored or not.  If `False` (the default), index-columns will appear in the output, otherwise not.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md) for a demonstration.)
-   * **`replace_na`**: For function `match_most_similar`, determines whether `NaN` values in index-columns are replaced or not by index-labels from `duplicates`. Defaults to `False`.  (See [tutorials/ignore_index_and_replace_na.md](tutorials/ignore_index_and_replace_na.md) for a demonstration.)
-   * **`include_zeroes`**: When `min_similarity` &le; 0, determines whether zero-similarity matches appear in the output.  Defaults to `True`.  (See [tutorials/zero_similarity.md](tutorials/zero_similarity.md) for a demonstration.)  **Warning:** Make sure the kwarg `max_n_matches` is sufficiently high to capture ***all*** nonzero-similarity-matches, otherwise some zero-similarity-matches returned will be false.
+   * **`ignore_index`**: Determines whether indexes are ignored or not.  If `False` (the default), index-columns will appear in the output, otherwise not.  (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md) for a demonstration.)
+   * **`replace_na`**: For function `match_most_similar`, determines whether `NaN` values in index-columns are replaced or not by index-labels from `duplicates`. Defaults to `False`.  (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md) for a demonstration.)
+   * **`include_zeroes`**: When `min_similarity` &le; 0, determines whether zero-similarity matches appear in the output.  Defaults to `True`.  (See [tutorials/zero_similarity.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/zero_similarity.md) for a demonstration.)  **Warning:** Make sure the kwarg `max_n_matches` is sufficiently high to capture ***all*** nonzero-similarity-matches, otherwise some zero-similarity-matches returned will be false.
    * **`suppress_warning`**: when `min_similarity` &le; 0 and `include_zeroes`  is `True`, determines whether or not to suppress the message warning that `max_n_matches` may be too small.  Defaults to `False`.
-   * **`group_rep`**: For function `group_similar_strings`, determines how group-representatives are chosen.  Allowed values are `'centroid'` (the default) and `'first'`.  See [tutorials/group_representatives.md](tutorials/group_representatives.md) for an explanation.
+   * **`group_rep`**: For function `group_similar_strings`, determines how group-representatives are chosen.  Allowed values are `'centroid'` (the default) and `'first'`.  See [tutorials/group_representatives.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/group_representatives.md) for an explanation.
 
 ## Examples
 
@@ -306,7 +306,7 @@ Out of the four company names in `duplicates`, three companies are found in the 
 
 ### Finding duplicates from a (database extract to) DataFrame where IDs for rows are supplied.
 
-A very common scenario is the case where duplicate records for an entity have been entered into a database. That is, there are two or more records where a name field has slightly different spelling. For example, "A.B. Corporation" and "AB Corporation". Using the optional 'ID' parameter in the `match_strings` function duplicates can be found easily. A [tutorial](tutorials/tutorial_1.md) that steps though the process with an example data set is available.
+A very common scenario is the case where duplicate records for an entity have been entered into a database. That is, there are two or more records where a name field has slightly different spelling. For example, "A.B. Corporation" and "AB Corporation". Using the optional 'ID' parameter in the `match_strings` function duplicates can be found easily. A [tutorial](https://github.com/Bergvca/string_grouper/blob/master/tutorials/tutorial_1.md) that steps though the process with an example data set is available.
 
 
 ### For a second data set, find only the most similar match
