@@ -468,22 +468,6 @@ class StringGrouper(object):
         missing_pairs['similarity'] = 0
         return missing_pairs
 
-    @staticmethod
-    def _symmetrize_matrix(AA: csr_matrix) -> csr_matrix:
-        A = AA.tolil()
-        r, c = A.nonzero()
-        A[c, r] = A[r, c]
-        return A.tocsr()
-
-    @staticmethod
-    def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
-        """Returns a list of all the indices of matches"""
-        r, c = matches.nonzero()
-        matches_list = pd.DataFrame({'master_side': r.astype(np.int64),
-                                     'dupe_side': c.astype(np.int64),
-                                     'similarity': matches.data})
-        return matches_list
-
     def _get_nearest_matches(self,
                              ignore_index=False,
                              replace_na=False) -> Union[pd.DataFrame, pd.Series]:
@@ -633,6 +617,21 @@ class StringGrouper(object):
                 "replace_na=True: Cannot replace NaN values of index-columns with the values of another "
                 "index if the number of index-levels does not equal the number of index-columns."
             )
+
+    @staticmethod
+    def _symmetrize_matrix(AA: csr_matrix) -> csr_matrix:
+        A = AA.tolil()
+        r, c = A.nonzero()
+        A[c, r] = A[r, c]
+        return A.tocsr()
+
+    @staticmethod
+    def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
+        """Returns a list of all the indices of matches"""
+        r, c = matches.nonzero()
+        return pd.DataFrame({'master_side': r.astype(np.int64),
+                                     'dupe_side': c.astype(np.int64),
+                                     'similarity': matches.data})
 
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
