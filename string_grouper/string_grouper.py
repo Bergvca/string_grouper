@@ -437,7 +437,7 @@ class StringGrouper(object):
         tf_idf_matrix_2 = duplicate_matrix.transpose()
         
         optional_kwargs = {
-            'return_best_topn': True,
+            'return_best_ntop': True,
             'use_threads': self._config.number_of_processes > 1,
             'n_jobs': self._config.number_of_processes
         }
