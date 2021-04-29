@@ -436,13 +436,11 @@ class StringGrouper(object):
         tf_idf_matrix_1 = master_matrix
         tf_idf_matrix_2 = duplicate_matrix.transpose()
         
-        optional_kwargs = dict()
-        if self._config.number_of_processes > 1:
-            optional_kwargs = {
-                'return_best_topn': True,
-                'use_threads': True,
-                'n_jobs': self._config.number_of_processes
-            }
+        optional_kwargs = {
+            'return_best_topn': True,
+            'use_threads': self._config.number_of_processes > 1,
+            'n_jobs': self._config.number_of_processes
+        }
 
         return awesome_cossim_topn(
             tf_idf_matrix_1, tf_idf_matrix_2,
