@@ -151,14 +151,22 @@ void sparse_dot_topn_source(
 
 		ntop: n top results
 		lower_bound: a threshold that the element of A*B must greater than
+		nnz_max: the size of the memory allocated for the results Cj and Cx.  If
+				nnz_max is found to be too small during the computation, then the
+				results will be placed in vectors alt_Cj and alt_Cx instead
 
 	Output by reference:
 		Cp, Cj, Cx: CSR expression of C matrix
 		n_minmax: The maximum number of elements per row of C (assuming ntop = n_col)
+				alt_Cj, alt_Cx: CSR expression of C matrix as vectors.  These will
+				contain the output only if nnz_max is found to be too small
 
+	Returned output:
+		nnz_max_is_too_small: int 1 or 0 depending on whether nnz_max was found to be
+							too small or not respectively
 	N.B. A and B must be CSR format!!!
 */
-void sparse_dot_topn_extd_source(
+int sparse_dot_topn_extd_source(
 		int n_row,
 		int n_col,
 		int Ap[],
@@ -172,6 +180,9 @@ void sparse_dot_topn_extd_source(
 		int Cp[],
 		int Cj[],
 		double Cx[], 	//data of C
+		std::vector<int>* alt_Cj,
+		std::vector<double>* alt_Cx,
+		int nnz_max,
 		int* n_minmax
 )
 {
@@ -181,6 +192,7 @@ void sparse_dot_topn_extd_source(
 	std::vector<candidate> candidates;
 
 	int nnz = 0;
+	int nnz_max_is_too_small = 0;
 
 	Cp[0] = 0;
 	*n_minmax = 0;
@@ -234,16 +246,32 @@ void sparse_dot_topn_extd_source(
 		} else {
 			std::sort(candidates.begin(), candidates.end(), candidate_cmp);
 		}
-
-		for(int a=0; a < len; a++){
-			Cj[nnz] = candidates[a].index;
-			Cx[nnz] = candidates[a].value;
-			nnz++;
+		if (len + nnz > nnz_max){
+			if (!nnz_max_is_too_small){
+				nnz_max_is_too_small = true;
+				alt_Cj->resize(nnz);
+				alt_Cx->resize(nnz);
+				std::copy(Cj, Cj + nnz, alt_Cj->data());
+				std::copy(Cx, Cx + nnz, alt_Cx->data());
+			}
+			for(int a = 0; a < len; a++){
+				alt_Cj->push_back(candidates[a].index);
+				alt_Cx->push_back(candidates[a].value);
+				nnz++;
+			}
+		}
+		else {
+			for(int a = 0; a < len; a++){
+				Cj[nnz] = candidates[a].index;
+				Cx[nnz] = candidates[a].value;
+				nnz++;
+			}
 		}
 		candidates.clear();
 
 		Cp[i+1] = nnz;
 	}
+	return nnz_max_is_too_small;
 }
 
 /*
