@@ -10,8 +10,6 @@ import pandas as pd
 from scipy.sparse import load_npz
 from sparse_dot_topn import awesome_cossim_topn  # noqa: F401
 
-df = pd.DataFrame(columns=['sample', '#threads', 'python', '+scout', '%inc'])
-
 a = load_npz('sparse_matrix_A.npz')
 b = load_npz('sparse_matrix_B.npz')
 
