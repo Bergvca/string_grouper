@@ -251,11 +251,21 @@ class StringGrouper(object):
     def fit(self) -> 'StringGrouper':
         """Builds the _matches list which contains string matches indices and similarity"""
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
+        
         # Calculate the matches using the cosine similarity
         matches, self._true_max_n_matches = self._build_matches(master_matrix, duplicate_matrix)
-        if self._duplicates is None and self._max_n_matches < self._true_max_n_matches:
-            # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
-            matches = StringGrouper._symmetrize_matrix_and_fix_diagonal(matches)
+        
+        if self._duplicates is None:
+            # convert to lil format for best efficiency when setting matrix-elements
+            matches = matches.tolil() 
+            # matrix diagonal elements must be exactly 1 (numerical precision errors introduced by 
+            # floating-point computations in awesome_cossim_topn sometimes lead to unexpected results)
+            matches = StringGrouper._fix_diagonal(matches)
+            if self._max_n_matches < self._true_max_n_matches:
+                # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
+                matches = StringGrouper._symmetrize_matrix(matches)
+            matches = matches.tocsr()
+        
         # build list from matrix
         self._matches_list = self._get_matches_list(matches)
         self.is_build = True
@@ -616,13 +626,16 @@ class StringGrouper(object):
             )
 
     @staticmethod
-    def _symmetrize_matrix_and_fix_diagonal(AA: csr_matrix) -> csr_matrix:
-        A = AA.tolil()
-        r, c = A.nonzero()
-        A[c, r] = A[r, c]
+    def _fix_diagonal(A) -> csr_matrix:
         r = np.arange(A.shape[0])
         A[r, r] = 1
-        return A.tocsr()
+        return A
+
+    @staticmethod
+    def _symmetrize_matrix(A) -> csr_matrix:
+        r, c = A.nonzero()
+        A[c, r] = A[r, c]
+        return A
 
     @staticmethod
     def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
