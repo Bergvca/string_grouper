@@ -199,7 +199,10 @@ class StringGrouperTest(unittest.TestCase):
         mock_StringGrouper_instance.get_matches.assert_called_once()
         self.assertEqual(df, 'whatever')
 
-    @patch('string_grouper.string_grouper.StringGrouper._symmetrize_matrix', side_effect=mock_symmetrize_matrix)
+    @patch(
+        'string_grouper.string_grouper.StringGrouper._symmetrize_matrix_and_fix_diagonal',
+        side_effect=mock_symmetrize_matrix
+    )
     def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matrix):
         """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is 
         **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
@@ -238,8 +241,24 @@ class StringGrouperTest(unittest.TestCase):
         # upper, upper_prime and their intersection should be identical.
         self.assertTrue(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
 
-    def test_match_list_diagonal(self):
+    @patch(
+        'string_grouper.string_grouper.StringGrouper._symmetrize_matrix_and_fix_diagonal',
+        side_effect=mock_symmetrize_matrix
+    )
+    def test_match_list_diagonal_without_the_fix(self, mock_symmetrize_matrix):
         """test fails whenever _matches_list's number of self-joins is not equal to the number of strings"""
+        # This bug is difficult to reproduce -- I mostly encounter it while working with very large datasets;
+        # for small datasets setting max_n_matches=1 reproduces the bug
+        simple_example = SimpleExample()
+        df = simple_example.customers_df['Customer Name']
+        matches = match_strings(df, max_n_matches=1)
+        mock_symmetrize_matrix.assert_called_once()
+        num_self_joins = len(matches[matches['left_index'] == matches['right_index']])
+        num_strings = len(df)
+        self.assertNotEqual(num_self_joins, num_strings)
+
+    def test_match_list_diagonal(self):
+        """This test ensures that all self-joins are present"""
         # This bug is difficult to reproduce -- I mostly encounter it while working with very large datasets;
         # for small datasets setting max_n_matches=1 reproduces the bug
         simple_example = SimpleExample()
@@ -247,7 +266,7 @@ class StringGrouperTest(unittest.TestCase):
         matches = match_strings(df, max_n_matches=1)
         num_self_joins = len(matches[matches['left_index'] == matches['right_index']])
         num_strings = len(df)
-        self.assertNotEqual(num_self_joins, num_strings)
+        self.assertEqual(num_self_joins, num_strings)
 
     def test_zero_min_similarity(self):
         """Since sparse matrices exclude zero elements, this test ensures that zero similarity matches are 
