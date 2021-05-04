@@ -255,7 +255,7 @@ class StringGrouper(object):
         matches, self._true_max_n_matches = self._build_matches(master_matrix, duplicate_matrix)
         if self._duplicates is None and self._max_n_matches < self._true_max_n_matches:
             # the list of matches needs to be symmetric!!! (i.e., if A != B and A matches B; then B matches A)
-            matches = StringGrouper._symmetrize_matrix(matches)
+            matches = StringGrouper._symmetrize_matrix_and_fix_diagonal(matches)
         # build list from matrix
         self._matches_list = self._get_matches_list(matches)
         self.is_build = True
@@ -532,11 +532,10 @@ class StringGrouper(object):
         dupes_max_sim = dupes_max_sim.sort_values('dupe_side').set_index('dupe_side')
         output = dupes_max_sim[index_column_list + required_column_list]
         output.index = self._duplicates.index
-        return output.squeeze()
+        return output.squeeze(axis=1)
 
     def _deduplicate(self, ignore_index=False) -> Union[pd.DataFrame, pd.Series]:
-        # discard self-matches: A matches A
-        pairs = self._matches_list[self._matches_list['master_side'] != self._matches_list['dupe_side']]
+        pairs = self._matches_list
         # rebuild graph adjacency matrix from already found matches:
         n = len(self._master)
         graph = csr_matrix(
@@ -564,7 +563,7 @@ class StringGrouper(object):
             graph.data = pairs['similarity'].to_numpy()
             # sum along the rows to obtain numpy 1D matrix of similarity aggregates then ...
             # ... convert to 1D numpy array (using asarray then squeeze) and then to Series:
-            group_of_master_index['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze())
+            group_of_master_index['weight'] = pd.Series(np.asarray(graph.sum(axis=1)).squeeze(axis=1))
             method = 'idxmax'
 
         # Determine the group representatives AND merge with indices:
@@ -588,7 +587,7 @@ class StringGrouper(object):
             output_id = self._master_id.iloc[group_of_master_index.group_rep].rename(id_label).reset_index(drop=True)
             output = pd.concat([output_id, output], axis=1)
         output.index = self._master.index
-        return output.squeeze()
+        return output
 
     def _get_indices_of(self, master_side: str, dupe_side: str) -> Tuple[pd.Series, pd.Series]:
         master_strings = self._master
@@ -617,19 +616,22 @@ class StringGrouper(object):
             )
 
     @staticmethod
-    def _symmetrize_matrix(AA: csr_matrix) -> csr_matrix:
+    def _symmetrize_matrix_and_fix_diagonal(AA: csr_matrix) -> csr_matrix:
         A = AA.tolil()
         r, c = A.nonzero()
         A[c, r] = A[r, c]
+        r = np.arange(A.shape[0])
+        A[r, r] = 1
         return A.tocsr()
 
     @staticmethod
     def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
         r, c = matches.nonzero()
-        return pd.DataFrame({'master_side': r.astype(np.int64),
+        matches_list = pd.DataFrame({'master_side': r.astype(np.int64),
                                      'dupe_side': c.astype(np.int64),
                                      'similarity': matches.data})
+        return matches_list
 
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
