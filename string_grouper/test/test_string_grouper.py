@@ -488,6 +488,43 @@ class StringGrouperTest(unittest.TestCase):
             )
         )
 
+    def test_get_groups_single_valued_series(self):
+        """This test ensures that get_groups() returns a single-valued DataFrame or Series object
+        since the input-series is also single-valued.  This test was created in response to a bug discovered
+        by George Walker"""
+        pd.testing.assert_frame_equal(
+            pd.DataFrame([(0, "hello")], columns=['group_rep_index', 'group_rep']),
+            group_similar_strings(
+                pd.Series(["hello"]),
+                min_similarity=0.6
+            )
+        )
+        pd.testing.assert_series_equal(
+            pd.Series(["hello"], name='group_rep'),
+            group_similar_strings(
+                pd.Series(["hello"]),
+                min_similarity=0.6,
+                ignore_index=True
+            )
+        )
+        pd.testing.assert_frame_equal(
+            pd.DataFrame([(0, "hello")], columns=['most_similar_index', 'most_similar_master']),
+            match_most_similar(
+                pd.Series(["hello"]),
+                pd.Series(["hello"]),
+                min_similarity=0.6
+            )
+        )
+        pd.testing.assert_series_equal(
+            pd.Series(["hello"], name='most_similar_master'),
+            match_most_similar(
+                pd.Series(["hello"]),
+                pd.Series(["hello"]),
+                min_similarity=0.6,
+                ignore_index=True
+            )
+        )
+
     def test_get_groups_single_df_keep_index(self):
         """Should return a pd.Series object with the same length as the original df. The series object will contain
         a list of the grouped strings with their indexes displayed in columns"""
