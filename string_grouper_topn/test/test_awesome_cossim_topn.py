@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from sparse_dot_topn import awesome_cossim_topn
+from string_grouper_topn import awesome_cossim_topn
 from scipy.sparse.csr import csr_matrix
 from scipy.sparse import coo_matrix
 from scipy.sparse import rand

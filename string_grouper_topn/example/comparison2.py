@@ -7,7 +7,7 @@ import timeit
 import numpy as np
 import pandas as pd
 from scipy.sparse import coo_matrix
-from sparse_dot_topn import awesome_cossim_topn  # noqa: F401
+from string_grouper_topn import awesome_cossim_topn  # noqa: F401
 
 df = pd.DataFrame(columns=['sample', '#threads', 'python'])
 

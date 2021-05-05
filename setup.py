@@ -29,27 +29,27 @@ if os.name == 'nt':
 else:
     extra_compile_args = ['-std=c++0x', '-pthread', '-O3']
 
-array_wrappers_ext = Extension('sparse_dot_topn.array_wrappers',
+array_wrappers_ext = Extension('string_grouper_topn.array_wrappers',
                          sources=[
-                                    './sparse_dot_topn/array_wrappers.pyx'
+                                    './string_grouper_topn/array_wrappers.pyx',
                                 ],
                          extra_compile_args=extra_compile_args,
                          language='c++')
 
-original_ext = Extension('sparse_dot_topn.sparse_dot_topn',
+original_ext = Extension('string_grouper_topn.sparse_dot_topn',
                          sources=[
-                                    './sparse_dot_topn/sparse_dot_topn.pyx',
-                                    './sparse_dot_topn/sparse_dot_topn_source.cpp'
+                                    './string_grouper_topn/sparse_dot_topn.pyx',
+                                    './string_grouper_topn/sparse_dot_topn_source.cpp',
                                 ],
                          extra_compile_args=extra_compile_args,
                          define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
                          language='c++')
 
-threaded_ext = Extension('sparse_dot_topn.sparse_dot_topn_threaded',
+threaded_ext = Extension('string_grouper_topn.sparse_dot_topn_threaded',
                          sources=[
-                             './sparse_dot_topn/sparse_dot_topn_threaded.pyx',
-                             './sparse_dot_topn/sparse_dot_topn_source.cpp',
-                             './sparse_dot_topn/sparse_dot_topn_parallel.cpp'
+                             './string_grouper_topn/sparse_dot_topn_threaded.pyx',
+                             './string_grouper_topn/sparse_dot_topn_source.cpp',
+                             './string_grouper_topn/sparse_dot_topn_parallel.cpp',
                             ],
                          extra_compile_args=extra_compile_args,
                          define_macros=[('NPY_NO_DEPRECATED_API', 'NPY_1_7_API_VERSION')],
@@ -59,9 +59,9 @@ setup(
     name='string_grouper',
     version='0.4.0',
     packages=[
-        'string_grouper'
-        , 'string_grouper_utils'
-        , 'sparse_dot_topn'
+        'string_grouper_topn',
+        'string_grouper',
+        'string_grouper_utils',
     ],
     license='MIT License',
     description='String grouper contains functions to do string matching using TF-IDF and the cossine similarity. '
@@ -75,18 +75,18 @@ setup(
     zip_safe=False,
     python_requires='>3.7',
     setup_requires=[# Setuptools 18.0 properly handles Cython extensions.
-                    'setuptools>=18.0'
-                    , 'cython>=0.29.15'
-                    , 'numpy'
-                    , 'scipy'
+                    'setuptools>=18.0',
+                    'cython>=0.29.15',
+                    'numpy',
+                    'scipy',
     ],
     install_requires=[# Setuptools 18.0 properly handles Cython extensions.
-                      'setuptools>=18.0'
-                      , 'cython>=0.29.15'
-                      , 'numpy'
-                      , 'scipy'
-                      , 'scikit-learn'
-                      , 'pandas>=0.25.3'
+                      'setuptools>=18.0',
+                      'cython>=0.29.15',
+                      'numpy',
+                      'scipy',
+                      'scikit-learn',
+                      'pandas>=0.25.3',
     ],
     cmdclass={'build_ext': my_build_ext},
     ext_modules=[array_wrappers_ext, original_ext, threaded_ext],

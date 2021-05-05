@@ -2,12 +2,11 @@ import sys
 import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.sparse import isspmatrix_csr
-from _ast import Continue
 from numpy import indices
 
 if sys.version_info[0] >= 3:
-    from sparse_dot_topn import sparse_dot_topn as ct
-    from sparse_dot_topn import sparse_dot_topn_threaded as ct_thread
+    from string_grouper_topn import sparse_dot_topn as ct
+    from string_grouper_topn import sparse_dot_topn_threaded as ct_thread
 else:
     import sparse_dot_topn as ct
     import sparse_dot_topn_threaded as ct_thread

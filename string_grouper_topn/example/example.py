@@ -1,5 +1,5 @@
 from scipy.sparse import rand
-from sparse_dot_topn import awesome_cossim_topn
+from string_grouper_topn import awesome_cossim_topn
 
 N = 10
 a = rand(100, 1000000, density=0.005, format='csr')

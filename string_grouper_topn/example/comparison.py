@@ -6,7 +6,7 @@ from __future__ import print_function
 import timeit
 import numpy as np
 from scipy.sparse import coo_matrix
-from sparse_dot_topn import awesome_cossim_topn  # noqa: F401
+from string_grouper_topn import awesome_cossim_topn  # noqa: F401
 
 N = 1000
 thresh = 0.01
