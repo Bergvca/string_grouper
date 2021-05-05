@@ -1,7 +1,7 @@
-import numpy as np
 import pandas as pd
 from typing import List, Optional, Union
 from dateutil.parser import parse
+from dateutil.tz import UTC
 from numbers import Number
 from datetime import datetime
 import re
@@ -143,13 +143,13 @@ def parse_timestamps(timestamps: pd.Series, parserinfo=None, **kwargs) -> pd.Ser
         # if any of the strings is not datetime-like raise an exception
         if timestamps.to_frame().applymap(is_date).squeeze().all():
             # convert strings to numpy datetime64
-            return timestamps.transform(lambda x: np.datetime64(parse(x, parserinfo, **kwargs)))
+            return timestamps.transform(lambda x: parse(x, parserinfo, **kwargs).astimezone(UTC))
     elif is_series_of_type(type(pd.Timestamp('15-1-2000')), timestamps):
         # convert pandas Timestamps to numpy datetime64
         return timestamps.transform(lambda x: x.to_numpy())
     elif is_series_of_type(datetime, timestamps):
         # convert python datetimes to numpy datetime64
-        return timestamps.transform(lambda x: np.datetime64(x))
+        return timestamps.transform(lambda x: x.astimezone(UTC))
     elif is_series_of_type(Number, timestamps):
         return timestamps
     raise Exception(error_msg)
