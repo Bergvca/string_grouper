@@ -266,7 +266,7 @@ class StringGrouper(object):
             raise Exception("To perform this function, both input Series must have the same length.")
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
         # Calculate pairwise cosine similarities:
-        pairwise_similarities = np.asarray(master_matrix.multiply(duplicate_matrix).sum(axis=1)).squeeze()
+        pairwise_similarities = np.asarray(master_matrix.multiply(duplicate_matrix).sum(axis=1)).squeeze(axis=1)
         return pd.Series(pairwise_similarities, name='similarity', index=self._master.index)
 
     @validate_is_fit
@@ -662,7 +662,7 @@ class StringGrouper(object):
             return False
         elif series_to_test.to_frame().applymap(
                     lambda x: not isinstance(x, str)
-                ).squeeze().any():
+                ).squeeze(axis=1).any():
             return False
         return True
 
