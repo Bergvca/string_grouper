@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import coo_matrix
 from string_grouper_topn import awesome_cossim_topn  # noqa: F401
+from test.sortperf import flush
+from _sqlite3 import Row
 
 df = pd.DataFrame(columns=['sample', '#threads', 'python'])
 
@@ -16,7 +18,7 @@ thresh = 0.01
 
 nr_vocab = int(26**3)
 density = 30/nr_vocab
-n_samples = 1000000
+n_samples = 10000000
 n_duplicates = N
 nnz_a = int(n_samples * nr_vocab * density)
 nnz_b = int(n_duplicates * nr_vocab * density)
@@ -38,22 +40,30 @@ nnz_arr = np.full(n_matrix_pairs, 0)
 ntop_arr = np.full(n_matrix_pairs, 0)
 r = 0
 for it in range(n_matrix_pairs):
+    print('Building matrices ...', end='', flush=True)
     
-    row = rng1.randint(n_samples, size=nnz_a)
-    cols = rng1.randint(nr_vocab, size=nnz_a)
-    data = rng1.rand(nnz_a)
+    row = np.repeat(np.arange(n_samples), int(nr_vocab*density))
+    cols = np.asarray([  rng1.randint(nr_vocab, size=int(nr_vocab*density)) for _ in range(n_samples)  ]).flatten()
+    data = rng1.rand(len(row))
     
-    a_sparse = coo_matrix((data, (row, cols)), shape=(n_samples, nr_vocab))
-    a = a_sparse.tocsr()
+    a = coo_matrix((data, (row, cols)), shape=(n_samples, nr_vocab))
+    a = a.tocsr()
     
-    row = rng1.randint(n_duplicates, size=nnz_b)
-    cols = rng1.randint(nr_vocab, size=nnz_b)
-    data = rng1.rand(nnz_b)
+    row = np.repeat(np.arange(n_duplicates), int(nr_vocab*density))
+    cols = np.asarray([  rng1.randint(nr_vocab, size=int(nr_vocab*density)) for _ in range(n_duplicates)  ]).flatten()
+    data = rng1.rand(len(row))
     
-    b_sparse = coo_matrix((data, (row, cols)), shape=(n_duplicates, nr_vocab))
-    b = b_sparse.T.tocsr()
+    b = coo_matrix((data, (row, cols)), shape=(n_duplicates, nr_vocab))
+    b = b.T.tocsr()
     
-    C, C_ntop = awesome_cossim_topn(a, b, N, thresh, return_best_ntop=True)
+    del row
+    del cols
+    del data
+    
+    print('Finished.', flush=True)
+
+    print('Computing matrix product ...', flush=True)
+    C, C_ntop = awesome_cossim_topn(a, b, N, thresh, return_best_ntop=True, use_threads=True, n_jobs=4)
     print(f'nnz(A*B) = {len(C.data)}', flush=True)
     print(f'ntop(A*B) = {C_ntop}', flush=True)
     print('', flush=True)
@@ -61,6 +71,7 @@ for it in range(n_matrix_pairs):
     ntop_arr[it] = C_ntop
     del C
     del C_ntop
+    print('Finished.', flush=True)
     
     # top 5 results per row
     
