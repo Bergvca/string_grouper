@@ -12,8 +12,10 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
 from unittest.mock import patch
 import warnings
 
-def mock_symmetrize_matrix(A: csr_matrix) -> csr_matrix:
-    return A
+
+def mock_symmetrize_matrix(x: csr_matrix) -> csr_matrix:
+    return x
+
 
 class SimpleExample(object):
     def __init__(self):
@@ -211,7 +213,7 @@ class StringGrouperTest(unittest.TestCase):
         side_effect=mock_symmetrize_matrix
     )
     def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matrix):
-        """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is 
+        """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is
         **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
         simple_example = SimpleExample()
         df = simple_example.customers_df2['Customer Name']
@@ -225,7 +227,7 @@ class StringGrouperTest(unittest.TestCase):
         # obtain the intersection between upper and upper_prime:
         intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
         # if the intersection is empty then _matches_list is completely non-symmetric (this is acceptable)
-        # if the intersection is not empty then at least some matches are repeated.  
+        # if the intersection is not empty then at least some matches are repeated.
         # To make sure all (and not just some) matches are repeated, the lengths of
         # upper, upper_prime and their intersection should be identical.
         self.assertFalse(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
@@ -243,7 +245,7 @@ class StringGrouperTest(unittest.TestCase):
         # Obtain the intersection between upper and upper_prime:
         intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
         # If the intersection is empty this means _matches_list is completely non-symmetric (this is acceptable)
-        # If the intersection is not empty this means at least some matches are repeated.  
+        # If the intersection is not empty this means at least some matches are repeated.
         # To make sure all (and not just some) matches are repeated, the lengths of
         # upper, upper_prime and their intersection should be identical.
         self.assertTrue(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
@@ -276,7 +278,7 @@ class StringGrouperTest(unittest.TestCase):
         self.assertEqual(num_self_joins, num_strings)
 
     def test_zero_min_similarity(self):
-        """Since sparse matrices exclude zero elements, this test ensures that zero similarity matches are 
+        """Since sparse matrices exclude zero elements, this test ensures that zero similarity matches are
         returned when min_similarity <= 0.  A bug related to this was first pointed out by @nbcvijanovic"""
         simple_example = SimpleExample()
         s_master = simple_example.customers_df['Customer Name']
@@ -285,7 +287,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches)
 
     def test_zero_min_similarity_small_max_n_matches(self):
-        """This test ensures that a warning is issued when n_max_matches is suspected to be too small while 
+        """This test ensures that a warning is issued when n_max_matches is suspected to be too small while
         min_similarity <= 0 and include_zeroes is True"""
         simple_example = SimpleExample()
         s_master = simple_example.customers_df['Customer Name']
@@ -675,9 +677,9 @@ class StringGrouperTest(unittest.TestCase):
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
         test_series_id_2 = pd.Series(['B0', 'B1', 'B2', 'B3'])
-        sg = StringGrouper(test_series_1, 
-                           test_series_2, 
-                           master_id=test_series_id_1, 
+        sg = StringGrouper(test_series_1,
+                           test_series_2,
+                           master_id=test_series_id_1,
                            duplicates_id=test_series_id_2,
                            ignore_index=True)
         sg = sg.fit()
@@ -805,7 +807,7 @@ class StringGrouperTest(unittest.TestCase):
             _ = StringGrouper(pd.Series(['foo', np.nan]), pd.Series(['foo', 'j']))
         with self.assertRaises(StringGrouperNotAllStringsException):
             _ = StringGrouper(pd.Series(['foo', 'j']), pd.Series(['foo', np.nan]))
-            
+
     def test_not_all_strings_exception_in_high_level_fucntions(self):
         good_series = pd.Series(['foo', 'bar'])
         bad_series = pd.Series([None, 'foo', 1, np.nan], name='dupes')
