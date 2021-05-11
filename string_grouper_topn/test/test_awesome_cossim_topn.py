@@ -39,7 +39,7 @@ def helper_awesome_cossim_topn_dense(
         b_dense,
         use_threads=False,
         n_jobs=1
-    ):
+        ):
     dense_result = np.dot(a_dense, np.transpose(b_dense))  # dot product
     sparse_result = csr_matrix(dense_result)
     sparse_result_top3 = [get_n_top_sparse(row, NUM_CANDIDATES)
@@ -115,7 +115,7 @@ def helper_awesome_cossim_topn_sparse(
         flag=True,
         use_threads=False,
         n_jobs=1
-    ):
+        ):
     # Note: helper function using awesome_cossim_topn
     sparse_result = a_sparse.dot(b_sparse.T)  # dot product
     sparse_result_top3 = [get_n_top_sparse(row, NUM_CANDIDATES)

@@ -137,8 +137,8 @@ def get_column(col: Union[str, int, List[Union[str, int]]], data: pd.DataFrame):
 
 
 def parse_timestamps(timestamps: pd.Series, parserinfo=None, **kwargs) -> pd.Series:
-    error_msg = f"timestamps must be a Series of date-like or datetime-like strings"
-    error_msg += f" or datetime datatype or pandas Timestamp datatype or numbers"
+    error_msg = "timestamps must be a Series of date-like or datetime-like strings"
+    error_msg += " or datetime datatype or pandas Timestamp datatype or numbers"
     if is_series_of_type(str, timestamps):
         # if any of the strings is not datetime-like raise an exception
         if timestamps.to_frame().applymap(is_date).squeeze().all():

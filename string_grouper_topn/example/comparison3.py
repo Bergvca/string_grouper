@@ -3,10 +3,10 @@ This file compare our boosting method with calling scipy+numpy function directly
 """
 
 from __future__ import print_function
-import timeit
+# import timeit
 import time
 import numpy as np
-import pandas as pd
+# import pandas as pd
 from scipy.sparse import load_npz
 from string_grouper_topn import awesome_cossim_topn  # noqa: F401
 
@@ -24,8 +24,8 @@ N = b.shape[1]
 thresh = 0.8
 
 nr_vocab = b.shape[0]
-density_A = len(a.data)/(a.shape[0]*a.shape[1]) 
-density_B = len(b.data)/(b.shape[0]*b.shape[1]) 
+density_A = len(a.data)/(a.shape[0]*a.shape[1])
+density_B = len(b.data)/(b.shape[0]*b.shape[1])
 n_samples = a.shape[0]
 n_duplicates = b.shape[1]
 nnz_a = len(a.data)
@@ -49,11 +49,10 @@ r = 0
 it = 0
 
 tic = time.perf_counter()
-C, C_ntop = awesome_cossim_topn(a, b, N, thresh, use_threads=True, n_jobs = 7, return_best_ntop=True)
+C, C_ntop = awesome_cossim_topn(a, b, N, thresh, use_threads=True, n_jobs=7, return_best_ntop=True)
 toc = time.perf_counter()
 
 print('scout_nnz=True, use_threads=True, n_jobs = 7')
 print(f'nnz(A*B) = {len(C.data)}', flush=True)
 print(f'ntop(A*B) = {C_ntop}', flush=True)
 print(f'duration(A*B) = {(toc - tic):0.4f}', flush=True)
-

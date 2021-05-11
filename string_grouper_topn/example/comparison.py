@@ -6,7 +6,6 @@ from __future__ import print_function
 import timeit
 import numpy as np
 from scipy.sparse import coo_matrix
-from string_grouper_topn import awesome_cossim_topn  # noqa: F401
 
 N = 1000
 thresh = 0.01
@@ -122,7 +121,7 @@ def get_csr_ntop_idx_data(csr_row, ntop):
     return sorted(result, key=lambda x: -x[1])
 
 
-def scipy_cossim_top(A, B, ntop, lower_bound=0):
+def scipy_cossim_top(A, B, ntop):
     C = A.dot(B)
     return [get_csr_ntop_idx_data(row, ntop) for row in C]
 

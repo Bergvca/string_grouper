@@ -8,8 +8,6 @@ import numpy as np
 import pandas as pd
 from scipy.sparse import coo_matrix
 from string_grouper_topn import awesome_cossim_topn  # noqa: F401
-from test.sortperf import flush
-from _sqlite3 import Row
 
 df = pd.DataFrame(columns=['sample', '#threads', 'python'])
 
@@ -41,25 +39,25 @@ ntop_arr = np.full(n_matrix_pairs, 0)
 r = 0
 for it in range(n_matrix_pairs):
     print('Building matrices ...', end='', flush=True)
-    
+
     row = np.repeat(np.arange(n_samples), int(nr_vocab*density))
-    cols = np.asarray([  rng1.randint(nr_vocab, size=int(nr_vocab*density)) for _ in range(n_samples)  ]).flatten()
+    cols = np.asarray([rng1.randint(nr_vocab, size=int(nr_vocab*density)) for _ in range(n_samples)]).flatten()
     data = rng1.rand(len(row))
-    
+
     a = coo_matrix((data, (row, cols)), shape=(n_samples, nr_vocab))
     a = a.tocsr()
-    
+
     row = np.repeat(np.arange(n_duplicates), int(nr_vocab*density))
-    cols = np.asarray([  rng1.randint(nr_vocab, size=int(nr_vocab*density)) for _ in range(n_duplicates)  ]).flatten()
+    cols = np.asarray([rng1.randint(nr_vocab, size=int(nr_vocab*density)) for _ in range(n_duplicates)]).flatten()
     data = rng1.rand(len(row))
-    
+
     b = coo_matrix((data, (row, cols)), shape=(n_duplicates, nr_vocab))
     b = b.T.tocsr()
-    
+
     del row
     del cols
     del data
-    
+
     print('Finished.', flush=True)
 
     print('Computing matrix product ...', flush=True)
@@ -72,11 +70,11 @@ for it in range(n_matrix_pairs):
     del C
     del C_ntop
     print('Finished.', flush=True)
-    
+
     # top 5 results per row
-    
+
     print("Non-parallelized sparse_dot_topn function")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh)',
                         number=3,
                         globals=globals())
@@ -84,9 +82,9 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print("Threaded function with 1 thread")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh, True, 1)',
                         number=3,
                         globals=globals())
@@ -94,9 +92,9 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print("Threaded function with 2 threads")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh, True, 2)',
                         number=3,
                         globals=globals())
@@ -104,9 +102,9 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print("Threaded function with 3 threads")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh, True, 3)',
                         number=3,
                         globals=globals())
@@ -114,9 +112,9 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print("Threaded function with 4 threads")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh, True, 4)',
                         number=3,
                         globals=globals())
@@ -124,9 +122,9 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print("Threaded function with 5 threads")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh, True, 5)',
                         number=3,
                         globals=globals())
@@ -134,9 +132,9 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print("Threaded function with 6 threads")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh, True, 6)',
                         number=3,
                         globals=globals())
@@ -144,9 +142,9 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print("Threaded function with 7 threads")
-    
+
     rtv = timeit.timeit('awesome_cossim_topn(a, b, N, thresh, True, 7)',
                         number=3,
                         globals=globals())
@@ -154,7 +152,7 @@ for it in range(n_matrix_pairs):
     r += 1
     print('sample\t\tpython', flush=True)
     print(f'{it}\t\t{rtv:7.4f}', flush=True)
-    
+
     print('')
     print(f'nnz(A*B) = {nnz_arr[:(it + 1)].mean()} +/- {nnz_arr[:(it + 1)].std()}')
     print(f'ntop(A*B) = {ntop_arr[:(it + 1)].mean()} +/- {ntop_arr[:(it + 1)].std()}')
@@ -162,7 +160,7 @@ for it in range(n_matrix_pairs):
     df = df.astype({
         'sample': np.int64, '#threads': np.int64, 'python': np.float64})
     results = df.groupby('#threads', as_index=True, sort=True)[['python']].mean()
-    
+
     print(results)
     print('')
     print('')
