@@ -7,7 +7,7 @@ from scipy.sparse.csr import csr_matrix
 from scipy.sparse.lil import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
-from string_grouper_topn import awesome_cossim_topn
+from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
 
 DEFAULT_NGRAM_SIZE: int = 3
