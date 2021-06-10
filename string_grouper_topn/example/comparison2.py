@@ -16,7 +16,7 @@ thresh = 0.01
 
 nr_vocab = int(26**3)
 density = 30/nr_vocab
-n_samples = 10000000
+n_samples = 1000000
 n_duplicates = N
 nnz_a = int(n_samples * nr_vocab * density)
 nnz_b = int(n_duplicates * nr_vocab * density)

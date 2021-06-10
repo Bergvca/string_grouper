@@ -76,6 +76,7 @@ def awesome_cossim_topn(
     indptr = np.empty(M + 1, dtype=idx_dtype)
 
     # reduce nnz_max if too large to fit in available memory:
+    nnz_max = 16*nnz_max
     while (not try_malloc(nnz_max, idx_dtype, A.dtype)):
         nnz_max = nnz_max//2
 
