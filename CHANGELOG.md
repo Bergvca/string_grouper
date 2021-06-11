@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1?] - 2021-06-11
+
+### Added
+[No additions were made]
+
+### Changed
+
+* Changed dependency on `sparse_dot_topn` from version 0.2.9 to 0.3.1
+* Changed the default value of the keyword argument `max_n_matches` from 20 to the number of strings in `duplicates` (or `master`, if 
+`duplicates` is not given). 
+* Changed warning issued when the condition \[`include_zeroes=True` and `min_similarity` &le; 0 and `max_n_matches` is not sufficiently high to capture all nonzero-similarity-matches\] is met to an exception. 
+ 
+### Removed
+
+* Removed the keyword argument `suppress_warning`
+
 ## [0.4.0] - 2021-04-11
 
 ### Added

@@ -27,6 +27,4 @@ jobs:
         pip install -v -e .
     
     - name: Run tests
-      run: |
-        pip install pytest
-        pytest -ra --capture=no --showlocals
+      run: python -m unittest
