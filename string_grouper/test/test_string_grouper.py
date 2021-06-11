@@ -133,6 +133,7 @@ class StringGrouperTest(unittest.TestCase):
             ],
             name='similarity'
         )
+        expected_result = expected_result.astype(np.float32)
         pd.testing.assert_series_equal(expected_result, similarities)
 
     def test_compute_pairwise_similarities_data_integrity(self):
@@ -367,6 +368,7 @@ class StringGrouperTest(unittest.TestCase):
         dupe_side = [0, 1]
         similarity = [1.0, 1.0]
         expected_df = pd.DataFrame({'master_side': master, 'dupe_side': dupe_side, 'similarity': similarity})
+        expected_df.loc[:, 'similarity'] = expected_df.loc[:, 'similarity'].astype(sg._config.tfidf_matrix_dtype)
         pd.testing.assert_frame_equal(expected_df, sg._matches_list)
 
     def test_case_insensitive_build_matches_list(self):
@@ -379,6 +381,7 @@ class StringGrouperTest(unittest.TestCase):
         dupe_side = [0, 1]
         similarity = [1.0, 1.0]
         expected_df = pd.DataFrame({'master_side': master, 'dupe_side': dupe_side, 'similarity': similarity})
+        expected_df.loc[:, 'similarity'] = expected_df.loc[:, 'similarity'].astype(sg._config.tfidf_matrix_dtype)
         pd.testing.assert_frame_equal(expected_df, sg._matches_list)
 
     def test_get_matches_two_dataframes(self):
@@ -393,6 +396,7 @@ class StringGrouperTest(unittest.TestCase):
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
                                     'similarity': similarity,
                                     'right_side': right_side, 'right_index': right_index})
+        expected_df.loc[:, 'similarity'] = expected_df.loc[:, 'similarity'].astype(sg._config.tfidf_matrix_dtype)
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_single(self):
@@ -407,6 +411,7 @@ class StringGrouperTest(unittest.TestCase):
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
                                     'similarity': similarity,
                                     'right_side': right_side, 'right_index': right_index})
+        expected_df.loc[:, 'similarity'] = expected_df.loc[:, 'similarity'].astype(sg._config.tfidf_matrix_dtype)
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_1_series_1_id_series(self):
@@ -424,6 +429,7 @@ class StringGrouperTest(unittest.TestCase):
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
                                     'similarity': similarity,
                                     'right_id': right_side_id, 'right_side': right_side, 'right_index': right_index})
+        expected_df.loc[:, 'similarity'] = expected_df.loc[:, 'similarity'].astype(sg._config.tfidf_matrix_dtype)
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_2_series_2_id_series(self):
@@ -443,6 +449,7 @@ class StringGrouperTest(unittest.TestCase):
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
                                     'similarity': similarity,
                                     'right_id': right_side_id, 'right_side': right_side, 'right_index': right_index})
+        expected_df.loc[:, 'similarity'] = expected_df.loc[:, 'similarity'].astype(sg._config.tfidf_matrix_dtype)
         pd.testing.assert_frame_equal(expected_df, sg.get_matches())
 
     def test_get_matches_raises_exception_if_unexpected_options_given(self):

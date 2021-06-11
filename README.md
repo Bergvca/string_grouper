@@ -134,6 +134,7 @@ All functions are built using a class **`StringGrouper`**. This class can be use
    All keyword arguments not mentioned in the function definitions above are used to update the default settings. The following optional arguments can be used:
 
    * **`ngram_size`**: The amount of characters in each n-gram. Default is `3`.
+   * **`tfidf_matrix_dtype`**: The datatype for the tf-idf values of the matrix components. Allowed values are `numpy.float32` and `numpy.float64`.  Default is `numpy.float32`.  (Note: `numpy.float32` often leads to faster processing and a smaller memory footprint albeit less numerical precision than `numpy.float64`.)
    * **`regex`**: The regex string used to clean-up the input string. Default is `"[,-./]|\s"`.
    * **`max_n_matches`**: The maximum number of matches allowed per string in `master`. Default is the number of strings in `duplicates` (or `master`, if `duplicates` is not given).
    * **`min_similarity`**: The minimum cosine similarity for two strings to be considered a match.

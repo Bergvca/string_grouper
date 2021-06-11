@@ -11,6 +11,7 @@ from sparse_dot_topn import awesome_cossim_topn
 from functools import wraps
 
 DEFAULT_NGRAM_SIZE: int = 3
+DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float32   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
 DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
@@ -140,6 +141,10 @@ class StringGrouperConfig(NamedTuple):
     Class with configuration variables.
 
     :param ngram_size: int. The amount of characters in each n-gram. Default is 3.
+    :param tfidf_matrix_dtype: type. The datatype for the tf-idf values of the matrix components.
+    Possible values allowed by sparse_dot_topn are np.float32 and np.float64.  Default is np.float32.
+    (Note: np.float32 often leads to faster processing and a smaller memory footprint albeit less precision
+    than np.float64.)
     :param regex: str. The regex string used to cleanup the input string. Default is '[,-./]|\s'.
     :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20.
     :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
@@ -157,6 +162,7 @@ class StringGrouperConfig(NamedTuple):
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
+    tfidf_matrix_dtype: int = DEFAULT_TFIDF_MATRIX_DTYPE
     regex: str = DEFAULT_REGEX
     max_n_matches: Optional[int] = None
     min_similarity: float = DEFAULT_MIN_SIMILARITY
@@ -227,9 +233,10 @@ class StringGrouper(object):
             self._max_n_matches = self._config.max_n_matches
 
         self._validate_group_rep_specs()
+        self._validate_tfidf_matrix_dtype()
         self._validate_replace_na_and_drop()
         self.is_build = False  # indicates if the grouper was fit or not
-        self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams)
+        self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams, dtype=self._config.tfidf_matrix_dtype)
         # After the StringGrouper is built, _matches_list will contain the indices and similarities of the matches
         self._matches_list: pd.DataFrame = pd.DataFrame()
         # _true_max_n_matches will contain the true maximum number of matches over all strings in master if
@@ -620,6 +627,13 @@ class StringGrouper(object):
         if self._config.group_rep not in group_rep_options:
             raise Exception(
                 f"Invalid option value for group_rep. The only permitted values are\n {group_rep_options}"
+            )
+
+    def _validate_tfidf_matrix_dtype(self):
+        dtype_options = (np.float32, np.float64)
+        if self._config.tfidf_matrix_dtype not in dtype_options:
+            raise Exception(
+                f"Invalid option value for tfidf_matrix_dtype. The only permitted values are\n {dtype_options}"
             )
 
     def _validate_replace_na_and_drop(self):
