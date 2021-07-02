@@ -9,7 +9,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name='string_grouper',
-    version='0.4.0',
+    version='0.5.0',
     packages=['string_grouper'],
     license='MIT License',
     description='String grouper contains functions to do string matching using TF-IDF and the cossine similarity. '
