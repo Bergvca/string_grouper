@@ -103,6 +103,7 @@ def match_most_similar(master: pd.Series,
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
     :return: pandas.Series or pandas.DataFrame.
     """
+    kwargs['max_n_matches'] = 1
     string_grouper = StringGrouper(master,
                                    duplicates=duplicates,
                                    master_id=master_id,
@@ -455,8 +456,8 @@ class StringGrouper(object):
 
     def _build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
         """Builds the cossine similarity matrix of two csr matrices"""
-        tf_idf_matrix_1 = master_matrix
-        tf_idf_matrix_2 = duplicate_matrix.transpose()
+        tf_idf_matrix_1 = duplicate_matrix
+        tf_idf_matrix_2 = master_matrix.transpose()
 
         optional_kwargs = {
             'return_best_ntop': True,
@@ -661,8 +662,8 @@ class StringGrouper(object):
     def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
         r, c = matches.nonzero()
-        matches_list = pd.DataFrame({'master_side': r.astype(np.int64),
-                                     'dupe_side': c.astype(np.int64),
+        matches_list = pd.DataFrame({'master_side': c.astype(np.int64),
+                                     'dupe_side': r.astype(np.int64),
                                      'similarity': matches.data})
         return matches_list
 
