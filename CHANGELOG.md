@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+## [0.5.1?] - 2021-07-05
+
+* Improved the performance of the function `match_most_similar`.
+* Changed the default value of the keyword argument `max_n_matches` to the total number of strings in `master`.  (`max_n_matches` is now defined as the maximum number of matches allowed per string in `duplicates` \[or `master` if `duplicates` is not given\]).
+
 ## [0.5.0] - 2021-06-11
 
 ### Added

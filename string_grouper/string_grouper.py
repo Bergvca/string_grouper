@@ -13,7 +13,6 @@ from functools import wraps
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float32   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
 DEFAULT_REGEX: str = r'[,-./]|\s'
-DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
@@ -147,7 +146,8 @@ class StringGrouperConfig(NamedTuple):
     (Note: np.float32 often leads to faster processing and a smaller memory footprint albeit less precision
     than np.float64.)
     :param regex: str. The regex string used to cleanup the input string. Default is '[,-./]|\s'.
-    :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20.
+    :param max_n_matches: int. The maximum number of matching strings in `master` allowed per string in
+    `duplicates` (or `master` if `duplicates` is not given). Default will be set by StringGrouper.
     :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
     Defaults to 0.8.
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
@@ -229,7 +229,7 @@ class StringGrouper(object):
 
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         if self._config.max_n_matches is None:
-            self._max_n_matches = len(self._master) if self._duplicates is None else len(self._duplicates)
+            self._max_n_matches = len(self._master)
         else:
             self._max_n_matches = self._config.max_n_matches
 
