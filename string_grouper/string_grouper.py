@@ -13,7 +13,6 @@ from functools import wraps
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float32   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
 DEFAULT_REGEX: str = r'[,-./]|\s'
-DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
@@ -42,7 +41,28 @@ GROUP_REP_PREFIX: str = 'group_rep_'    # used to prefix and name columns of the
 # High level functions
 
 
-def compute_pairwise_similarities(string_series_1: pd.Series,
+def who(bad_StringGrouper_param, param_1, param_name_1, param_2, param_name_2):
+    # Private utility function used by high-level functions (that call StringGrouper) to form a
+    # descriptive name for their series input parameter which caused the exception of type
+    # StringGrouperNotAllStringsException to occur
+    if bad_StringGrouper_param == 'master':
+        return f'\'{param_1.name}\' ({param_name_1})' if param_1.name else param_name_1
+    else:
+        return f'\'{param_2.name}\' ({param_name_2})' if param_2.name else param_name_2
+
+
+def add_this_arg(func):
+    # Behind-the-scenes function-wrapper (to be used as decorator for high-level functions "func")
+    # that shifts the parameters of "func" to the right by one, inserting a reference to local
+    # function "this" in the first parameter position
+    def this(*args, **kwargs):
+        return func(this, *args, **kwargs)
+    return this
+
+
+@add_this_arg
+def compute_pairwise_similarities(this,
+                                  string_series_1: pd.Series,
                                   string_series_2: pd.Series,
                                   **kwargs) -> pd.Series:
     """
@@ -53,10 +73,21 @@ def compute_pairwise_similarities(string_series_1: pd.Series,
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig
     :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
     """
-    return StringGrouper(string_series_1, string_series_2, **kwargs).dot()
+    sg = StringGrouperPrime(string_series_1, string_series_2, **kwargs)
+    # error handler (for input Series with values that are not strings)
+    if sg.non_strings_present:
+        sname = who(sg.bad_series_name,
+                    string_series_1, 'string_series_1',
+                    string_series_2, 'string_series_2')
+        this.issues = sg.issues
+        this.issues.rename(f'Non-strings in Series {sname}', inplace=True)
+        raise TypeError(sg.error_msg(sname, 'compute_pairwise_similarities'))
+    return sg.dot()
 
 
-def group_similar_strings(strings_to_group: pd.Series,
+@add_this_arg
+def group_similar_strings(this,
+                          strings_to_group: pd.Series,
                           string_ids: Optional[pd.Series] = None,
                           **kwargs) -> Union[pd.DataFrame, pd.Series]:
     """
@@ -74,11 +105,22 @@ def group_similar_strings(strings_to_group: pd.Series,
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
     :return: pandas.Series or pandas.DataFrame.
     """
-    string_grouper = StringGrouper(strings_to_group, master_id=string_ids, **kwargs).fit()
-    return string_grouper.get_groups()
+    sg = StringGrouperPrime(strings_to_group, master_id=string_ids, **kwargs)
+    # error handler (for input Series with values that are not strings)
+    if sg.non_strings_present:
+        sname = who(sg.bad_series_name,
+                    strings_to_group, 'strings_to_group',
+                    None, '')
+        this.issues = sg.issues
+        this.issues.rename(f'Non-strings in Series {sname}', inplace=True)
+        raise TypeError(sg.error_msg(sname, 'group_similar_strings'))
+    fit_sg = sg.fit()
+    return fit_sg.get_groups()
 
 
-def match_most_similar(master: pd.Series,
+@add_this_arg
+def match_most_similar(this,
+                       master: pd.Series,
                        duplicates: pd.Series,
                        master_id: Optional[pd.Series] = None,
                        duplicates_id: Optional[pd.Series] = None,
@@ -103,15 +145,27 @@ def match_most_similar(master: pd.Series,
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
     :return: pandas.Series or pandas.DataFrame.
     """
-    string_grouper = StringGrouper(master,
-                                   duplicates=duplicates,
-                                   master_id=master_id,
-                                   duplicates_id=duplicates_id,
-                                   **kwargs).fit()
-    return string_grouper.get_groups()
+    kwargs['max_n_matches'] = 1
+    sg = StringGrouperPrime(master,
+                            duplicates=duplicates,
+                            master_id=master_id,
+                            duplicates_id=duplicates_id,
+                            **kwargs)
+    # error handler (for input Series with values that are not strings)
+    if sg.non_strings_present:
+        sname = who(sg.bad_series_name,
+                    master, 'master',
+                    duplicates, 'duplicates')
+        this.issues = sg.issues
+        this.issues.rename(f'Non-strings in Series {sname}', inplace=True)
+        raise TypeError(sg.error_msg(sname, 'match_most_similar'))
+    fit_sg = sg.fit()
+    return fit_sg.get_groups()
 
 
-def match_strings(master: pd.Series,
+@add_this_arg
+def match_strings(this,
+                  master: pd.Series,
                   duplicates: Optional[pd.Series] = None,
                   master_id: Optional[pd.Series] = None,
                   duplicates_id: Optional[pd.Series] = None,
@@ -128,12 +182,20 @@ def match_strings(master: pd.Series,
     :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
     :return: pandas.Dataframe.
     """
-    string_grouper = StringGrouper(master,
-                                   duplicates=duplicates,
-                                   master_id=master_id,
-                                   duplicates_id=duplicates_id,
-                                   **kwargs).fit()
-    return string_grouper.get_matches()
+    sg = StringGrouperPrime(master,
+                            duplicates=duplicates,
+                            master_id=master_id,
+                            duplicates_id=duplicates_id,
+                            **kwargs)
+    if sg.non_strings_present:
+        sname = who(sg.bad_series_name,
+                    master, 'master',
+                    duplicates, 'duplicates')
+        this.issues = sg.issues
+        this.issues.rename(f'Non-strings in Series {sname}', inplace=True)
+        raise TypeError(sg.error_msg(sname, 'match_strings'))
+    fit_sg = sg.fit()
+    return fit_sg.get_matches()
 
 
 class StringGrouperConfig(NamedTuple):
@@ -146,7 +208,8 @@ class StringGrouperConfig(NamedTuple):
     (Note: np.float32 often leads to faster processing and a smaller memory footprint albeit less precision
     than np.float64.)
     :param regex: str. The regex string used to cleanup the input string. Default is '[,-./]|\s'.
-    :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20.
+    :param max_n_matches: int. The maximum number of matching strings in `master` allowed per string in
+    `duplicates` (or `master` if `duplicates` is not given). Default will be set by StringGrouper.
     :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
     Defaults to 0.8.
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
@@ -194,6 +257,11 @@ class StringGrouperNotFitException(Exception):
     pass
 
 
+class StringGrouperNotAllStringsException(TypeError):
+    """Raised when either input Series master or duplicates contains non-strings"""
+    pass
+
+
 class StringGrouper(object):
     def __init__(self, master: pd.Series,
                  duplicates: Optional[pd.Series] = None,
@@ -213,9 +281,10 @@ class StringGrouper(object):
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
         # Validate match strings input
-        if not StringGrouper._is_series_of_strings(master) or \
-                (duplicates is not None and not StringGrouper._is_series_of_strings(duplicates)):
-            raise TypeError('Input does not consist of pandas.Series containing only Strings')
+        self.issues: pd.Series = None
+        self._check_string_series(master, 'master')
+        if (duplicates is not None):
+            self._check_string_series(duplicates, 'duplicates')
         # Validate optional IDs input
         if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
             raise Exception('List of data Series options is invalid')
@@ -228,7 +297,7 @@ class StringGrouper(object):
 
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
         if self._config.max_n_matches is None:
-            self._max_n_matches = len(self._master) if self._duplicates is None else len(self._duplicates)
+            self._max_n_matches = len(self._master)
         else:
             self._max_n_matches = self._config.max_n_matches
 
@@ -455,8 +524,8 @@ class StringGrouper(object):
 
     def _build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
         """Builds the cossine similarity matrix of two csr matrices"""
-        tf_idf_matrix_1 = master_matrix
-        tf_idf_matrix_2 = duplicate_matrix.transpose()
+        tf_idf_matrix_1 = duplicate_matrix
+        tf_idf_matrix_2 = master_matrix.transpose()
 
         optional_kwargs = {
             'return_best_ntop': True,
@@ -622,6 +691,21 @@ class StringGrouper(object):
         dupe_indices = dupe_strings[dupe_strings == dupe_side].index.to_series().reset_index(drop=True)
         return master_indices, dupe_indices
 
+    def _check_string_series(self, series_to_test: pd.Series, which: str):
+        self.bad_series_name = which
+        StringGrouper._check_type(series_to_test, which)
+        self._check_content(series_to_test, which)
+
+    def _check_content(self, series_to_test: pd.Series, which: str):
+        non_strings_exist = series_to_test.to_frame().applymap(
+            lambda x: (not isinstance(x, str)) or len(x) == 0
+        ).squeeze(axis=1)
+        if non_strings_exist.any():
+            self.issues = series_to_test[non_strings_exist]
+            sname = f' {series_to_test.name}' if series_to_test.name else ''
+            self.issues.rename(f'Non-strings in {which} Series{sname}', inplace=True)
+            raise StringGrouperNotAllStringsException
+
     def _validate_group_rep_specs(self):
         group_rep_options = (GROUP_REP_FIRST, GROUP_REP_CENTROID)
         if self._config.group_rep not in group_rep_options:
@@ -646,6 +730,11 @@ class StringGrouper(object):
             )
 
     @staticmethod
+    def _check_type(series_to_test: pd.Series, which: str):
+        if not isinstance(series_to_test, pd.Series):
+            raise TypeError(f'Input {which} is not a  pandas.Series containing only Strings')
+
+    @staticmethod
     def _fix_diagonal(m: lil_matrix) -> csr_matrix:
         r = np.arange(m.shape[0])
         m[r, r] = 1
@@ -661,8 +750,8 @@ class StringGrouper(object):
     def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
         r, c = matches.nonzero()
-        matches_list = pd.DataFrame({'master_side': r.astype(np.int64),
-                                     'dupe_side': c.astype(np.int64),
+        matches_list = pd.DataFrame({'master_side': c.astype(np.int64),
+                                     'dupe_side': r.astype(np.int64),
                                      'similarity': matches.data})
         return matches_list
 
@@ -688,16 +777,6 @@ class StringGrouper(object):
             raise ValueError(f'{dupe_side} not found in StringGrouper dupe string series')
 
     @staticmethod
-    def _is_series_of_strings(series_to_test: pd.Series) -> bool:
-        if not isinstance(series_to_test, pd.Series):
-            return False
-        elif series_to_test.to_frame().applymap(
-                    lambda x: not isinstance(x, str)
-                ).squeeze(axis=1).any():
-            return False
-        return True
-
-    @staticmethod
     def _is_input_data_combination_valid(duplicates, master_id, duplicates_id) -> bool:
         if duplicates is None and (duplicates_id is not None) \
                 or duplicates is not None and ((master_id is None) ^ (duplicates_id is None)):
@@ -711,3 +790,35 @@ class StringGrouper(object):
             raise Exception('Both master and master_id must be pandas.Series of the same length.')
         if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
             raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
+
+
+class StringGrouperPrime(StringGrouper):
+    # (To be used in high-level functions)
+    # Child class of StringGrouper that captures information about the input Series
+    # that caused the StringGrouperNotAllStringsException even when the StringGrouper
+    # instance is not fully initialized
+    def __init__(self, master: pd.Series,
+                 duplicates: Optional[pd.Series] = None,
+                 master_id: Optional[pd.Series] = None,
+                 duplicates_id: Optional[pd.Series] = None,
+                 **kwargs):
+        self.issues = None
+        self.non_strings_present = False
+        self.bad_series_name = None
+        try:
+            super().__init__(master,
+                             duplicates=duplicates,
+                             master_id=master_id,
+                             duplicates_id=duplicates_id,
+                             **kwargs)
+        except StringGrouperNotAllStringsException:
+            self.non_strings_present = True
+
+    def error_msg(self, bad_series_name, function_name):
+        nl = ':\n'
+        return (
+            f'\n\nERROR: Input pandas Series {bad_series_name} contains values that are not strings!\n'
+            f'Display the pandas Series \'{function_name}.issues\' to find where these values are'
+            f'{nl if 0 < len(self.issues) < 12 else "."}'
+            f'{self.issues.to_frame() if 0 < len(self.issues) < 12 else ""}'
+        )

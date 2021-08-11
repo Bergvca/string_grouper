@@ -4,8 +4,9 @@ import numpy as np
 from scipy.sparse.csr import csr_matrix
 from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
-    StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
-    match_most_similar, group_similar_strings, match_strings, \
+    StringGrouperConfig, StringGrouper, \
+    StringGrouperNotFitException, StringGrouperNotAllStringsException, \
+    match_most_similar, group_similar_strings, match_strings,\
     compute_pairwise_similarities
 from unittest.mock import patch
 
@@ -145,12 +146,14 @@ class StringGrouperTest(unittest.TestCase):
         with self.assertRaises(Exception):
             _ = compute_pairwise_similarities(df1, df2[:-2])
 
-    @patch('string_grouper.string_grouper.StringGrouper')
+    @patch('string_grouper.string_grouper.StringGrouperPrime')
     def test_group_similar_strings(self, mock_StringGouper):
         """mocks StringGrouper to test if the high-level function group_similar_strings utilizes it as expected"""
         mock_StringGrouper_instance = mock_StringGouper.return_value
         mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
         mock_StringGrouper_instance.get_groups.return_value = 'whatever'
+        mock_StringGrouper_instance.non_strings_present = False
+        mock_StringGrouper_instance.error_msg.return_value = 'mock_error'
 
         test_series_1 = None
         test_series_id_1 = None
@@ -163,12 +166,14 @@ class StringGrouperTest(unittest.TestCase):
         mock_StringGrouper_instance.get_groups.assert_called_once()
         self.assertEqual(df, 'whatever')
 
-    @patch('string_grouper.string_grouper.StringGrouper')
+    @patch('string_grouper.string_grouper.StringGrouperPrime')
     def test_match_most_similar(self, mock_StringGouper):
         """mocks StringGrouper to test if the high-level function match_most_similar utilizes it as expected"""
         mock_StringGrouper_instance = mock_StringGouper.return_value
         mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
         mock_StringGrouper_instance.get_groups.return_value = 'whatever'
+        mock_StringGrouper_instance.non_strings_present = False
+        mock_StringGrouper_instance.error_msg.return_value = 'mock_error'
 
         test_series_1 = None
         test_series_2 = None
@@ -185,12 +190,14 @@ class StringGrouperTest(unittest.TestCase):
         mock_StringGrouper_instance.get_groups.assert_called_once()
         self.assertEqual(df, 'whatever')
 
-    @patch('string_grouper.string_grouper.StringGrouper')
+    @patch('string_grouper.string_grouper.StringGrouperPrime')
     def test_match_strings(self, mock_StringGouper):
         """mocks StringGrouper to test if the high-level function match_strings utilizes it as expected"""
         mock_StringGrouper_instance = mock_StringGouper.return_value
         mock_StringGrouper_instance.fit.return_value = mock_StringGrouper_instance
         mock_StringGrouper_instance.get_matches.return_value = 'whatever'
+        mock_StringGrouper_instance.non_strings_present = False
+        mock_StringGrouper_instance.error_msg.return_value = 'mock_error'
 
         test_series_1 = None
         test_series_id_1 = None
@@ -405,8 +412,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        left_index = [0, 0, 1, 2, 3, 3]
-        right_index = [0, 3, 1, 2, 0, 3]
+        left_index = [0, 3, 1, 2, 0, 3]
+        right_index = [0, 0, 1, 2, 3, 3]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
                                     'similarity': similarity,
@@ -420,11 +427,11 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(test_series_1, master_id=test_series_id_1)
         sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
-        left_index = [0, 0, 1, 2, 3, 3]
+        left_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
+        left_index = [0, 3, 1, 2, 0, 3]
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        right_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
-        right_index = [0, 3, 1, 2, 0, 3]
+        right_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
+        right_index = [0, 0, 1, 2, 3, 3]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
                                     'similarity': similarity,
@@ -798,10 +805,24 @@ class StringGrouperTest(unittest.TestCase):
         """StringGrouper should raise an typeerror master or duplicates are not a series of strings"""
         with self.assertRaises(TypeError):
             _ = StringGrouper('foo', 'bar')
-        with self.assertRaises(TypeError):
+        with self.assertRaises(StringGrouperNotAllStringsException):
             _ = StringGrouper(pd.Series(['foo', 'bar']), pd.Series(['foo', 1]))
-        with self.assertRaises(TypeError):
+        with self.assertRaises(StringGrouperNotAllStringsException):
             _ = StringGrouper(pd.Series(['foo', np.nan]), pd.Series(['foo', 'j']))
+        with self.assertRaises(StringGrouperNotAllStringsException):
+            _ = StringGrouper(pd.Series(['foo', 'j']), pd.Series(['foo', np.nan]))
+
+    def test_not_all_strings_exception_in_high_level_fucntions(self):
+        good_series = pd.Series(['foo', 'bar'])
+        bad_series = pd.Series([None, 'foo', 1, np.nan], name='dupes')
+        with self.assertRaises(TypeError):
+            _ = compute_pairwise_similarities(good_series, bad_series.rename_axis('dupes_id'))
+        with self.assertRaises(TypeError):
+            _ = group_similar_strings(bad_series.rename_axis('string_id'))
+        with self.assertRaises(TypeError):
+            _ = match_most_similar(bad_series.rename('master'), good_series)
+        with self.assertRaises(TypeError):
+            _ = match_strings(good_series, bad_series.rename('dupes').rename_axis('dupes_id'))
 
     def test_prior_matches_added(self):
         """When a new match is added, any pre-existing matches should also be updated"""
@@ -809,7 +830,7 @@ class StringGrouperTest(unittest.TestCase):
             'microsoftoffice 365 home',
             'microsoftoffice 365 pers',
             'microsoft office'
-            ]
+        ]
 
         df = pd.DataFrame(sample, columns=['name'])
 
