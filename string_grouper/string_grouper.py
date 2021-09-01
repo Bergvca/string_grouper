@@ -189,12 +189,16 @@ def validate_is_fit(f):
     return wrapper
 
 
-class StringGrouperNotFitException(Exception):
+class Error(Exception):
+    pass
+
+
+class StringGrouperNotFitException(Error):
     """Raised when one of the public functions is called which requires the StringGrouper to be fit first"""
     pass
 
 
-class StringLengthException(Exception):
+class StringLengthException(Error):
     """Raised when vectoriser is fit on strings that are not of length greater or equal to ngram size"""
     pass
 
