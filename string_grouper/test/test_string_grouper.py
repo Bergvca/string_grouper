@@ -825,7 +825,7 @@ class StringGrouperTest(unittest.TestCase):
     def test_group_similar_strings_stopwords(self):
         """StringGrouper shouldn't raise a ValueError if all strings are shorter than 3 characters"""
         with self.assertRaises(StringLengthException):
-            StringGrouper(pd.Series(['zz', 'yy', 'xx'])).fit()
+            StringGrouper(pd.Series(['zz', 'yy', 'xx,'])).fit()
 
 
 if __name__ == '__main__':

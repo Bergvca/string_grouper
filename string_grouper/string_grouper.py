@@ -265,9 +265,11 @@ class StringGrouper(object):
         """Builds the _matches list which contains string matches indices and similarity"""
 
         # Validate match strings length
-        if not StringGrouper._strings_are_of_sufficient_length(self._master,  self._config.ngram_size) or \
+        if not StringGrouper._strings_are_of_sufficient_length(self._master,  self._config.ngram_size,
+                                                               self._config.regex) or \
                 (self._duplicates is not None
-                 and not StringGrouper._strings_are_of_sufficient_length(self._duplicates, self._config.ngram_size)):
+                 and not StringGrouper._strings_are_of_sufficient_length(self._duplicates, self._config.ngram_size,
+                                                                         self._config.regex)):
             raise StringLengthException('None of input string lengths are greater than or equal to n_gram length')
 
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
@@ -710,11 +712,11 @@ class StringGrouper(object):
         return True
 
     @staticmethod
-    def _strings_are_of_sufficient_length(series_to_test: pd.Series, ngram_size: int) -> bool:
+    def _strings_are_of_sufficient_length(series_to_test: pd.Series, ngram_size: int, regex: str) -> bool:
         if not isinstance(series_to_test, pd.Series):
             return False
         elif series_to_test.to_frame().applymap(
-                    lambda x: not len(x) >= ngram_size
+                    lambda x: not len(re.sub(regex, r'', x)) >= ngram_size
                 ).squeeze(axis=1).all():
             return False
         return True
