@@ -194,6 +194,11 @@ class StringGrouperNotFitException(Exception):
     pass
 
 
+class StringLengthException(Exception):
+    """Raised when vectoriser is fit on strings that are not of length greater or equal to ngram size"""
+    pass
+
+
 class StringGrouper(object):
     def __init__(self, master: pd.Series,
                  duplicates: Optional[pd.Series] = None,
@@ -258,6 +263,13 @@ class StringGrouper(object):
 
     def fit(self) -> 'StringGrouper':
         """Builds the _matches list which contains string matches indices and similarity"""
+
+        # Validate match strings length
+        if not StringGrouper._strings_are_of_sufficient_length(self._master,  self._config.ngram_size) or \
+                (self._duplicates is not None
+                 and not StringGrouper._strings_are_of_sufficient_length(self._duplicates, self._config.ngram_size)):
+            raise StringLengthException('None of input string lengths are greater than or equal to n_gram length')
+
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
         # Calculate the matches using the cosine similarity
@@ -694,6 +706,16 @@ class StringGrouper(object):
         elif series_to_test.to_frame().applymap(
                     lambda x: not isinstance(x, str)
                 ).squeeze(axis=1).any():
+            return False
+        return True
+
+    @staticmethod
+    def _strings_are_of_sufficient_length(series_to_test: pd.Series, ngram_size: int) -> bool:
+        if not isinstance(series_to_test, pd.Series):
+            return False
+        elif series_to_test.to_frame().applymap(
+                    lambda x: not len(x) >= ngram_size
+                ).squeeze(axis=1).all():
             return False
         return True
 

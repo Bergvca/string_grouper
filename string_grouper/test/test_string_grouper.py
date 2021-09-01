@@ -6,7 +6,7 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
     match_most_similar, group_similar_strings, match_strings, \
-    compute_pairwise_similarities
+    compute_pairwise_similarities, StringLengthException
 from unittest.mock import patch
 
 
@@ -821,6 +821,11 @@ class StringGrouperTest(unittest.TestCase):
         df['deduped'] = sg.get_groups()
         # All strings should now match to the same "master" string
         self.assertEqual(1, len(df.deduped.unique()))
+
+    def test_group_similar_strings_stopwords(self):
+        """StringGrouper shouldn't raise a ValueError if all strings are shorter than 3 characters"""
+        with self.assertRaises(StringLengthException):
+            StringGrouper(pd.Series(['zz', 'yy', 'xx'])).fit()
 
 
 if __name__ == '__main__':
