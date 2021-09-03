@@ -189,8 +189,17 @@ def validate_is_fit(f):
     return wrapper
 
 
-class StringGrouperNotFitException(Exception):
+class Error(Exception):
+    pass
+
+
+class StringGrouperNotFitException(Error):
     """Raised when one of the public functions is called which requires the StringGrouper to be fit first"""
+    pass
+
+
+class StringLengthException(Error):
+    """Raised when vectoriser is fit on strings that are not of length greater or equal to ngram size"""
     pass
 
 
@@ -450,7 +459,10 @@ class StringGrouper(object):
             strings = pd.concat([self._master, self._duplicates])
         else:
             strings = self._master
-        self._vectorizer.fit(strings)
+        try:
+            self._vectorizer.fit(strings)
+        except ValueError:
+            raise StringLengthException('None of input string lengths are greater than or equal to n_gram length')
         return self._vectorizer
 
     def _build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
