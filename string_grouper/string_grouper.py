@@ -710,16 +710,6 @@ class StringGrouper(object):
         return True
 
     @staticmethod
-    def _strings_are_of_sufficient_length(series_to_test: pd.Series, ngram_size: int, regex: str) -> bool:
-        if not isinstance(series_to_test, pd.Series):
-            return False
-        elif series_to_test.to_frame().applymap(
-                    lambda x: not len(re.sub(regex, r'', x)) >= ngram_size
-                ).squeeze(axis=1).all():
-            return False
-        return True
-
-    @staticmethod
     def _is_input_data_combination_valid(duplicates, master_id, duplicates_id) -> bool:
         if duplicates is None and (duplicates_id is not None) \
                 or duplicates is not None and ((master_id is None) ^ (duplicates_id is None)):
