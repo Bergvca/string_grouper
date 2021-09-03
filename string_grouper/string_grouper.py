@@ -267,15 +267,6 @@ class StringGrouper(object):
 
     def fit(self) -> 'StringGrouper':
         """Builds the _matches list which contains string matches indices and similarity"""
-
-        # Validate match strings length
-        if not StringGrouper._strings_are_of_sufficient_length(self._master,  self._config.ngram_size,
-                                                               self._config.regex) or \
-                (self._duplicates is not None
-                 and not StringGrouper._strings_are_of_sufficient_length(self._duplicates, self._config.ngram_size,
-                                                                         self._config.regex)):
-            raise StringLengthException('None of input string lengths are greater than or equal to n_gram length')
-
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
         # Calculate the matches using the cosine similarity
@@ -468,7 +459,10 @@ class StringGrouper(object):
             strings = pd.concat([self._master, self._duplicates])
         else:
             strings = self._master
-        self._vectorizer.fit(strings)
+        try:
+            self._vectorizer.fit(strings)
+        except ValueError:
+            raise StringLengthException('None of input string lengths are greater than or equal to n_gram length')
         return self._vectorizer
 
     def _build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
