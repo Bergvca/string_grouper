@@ -7,8 +7,10 @@ from scipy.sparse.csr import csr_matrix
 from scipy.sparse.lil import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
-from sparse_dot_topn import awesome_cossim_topn
+from sparse_dot_topn_for_blocks import awesome_cossim_topn
+from topn import awesome_topn
 from functools import wraps
+
 
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float32   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
@@ -26,6 +28,10 @@ GROUP_REP_CENTROID: str = 'centroid'    # Option value to select the string in e
 # similarity aggregate as group-representative:
 GROUP_REP_FIRST: str = 'first'  # Option value to select the first string in each group as group-representative:
 DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID  # chooses group centroid as group-representative by default
+DEFAULT_FORCE_SYMMETRIES: bool = True  # Option value to specify whether corrections should be made to the results
+# to account for symmetry thus compensating for those numerical errors that violate symmetry due to loss of
+# significance
+DEFAULT_N_BLOCKS: Tuple[int, int] = None  # Option value to use to split dataset(s) into roughly equal-sized blocks
 
 # The following string constants are used by (but aren't [yet] options passed to) StringGrouper
 DEFAULT_COLUMN_NAME: str = 'side'   # used to name non-index columns of the output of StringGrouper.get_matches
@@ -38,102 +44,6 @@ DEFAULT_MASTER_NAME: str = 'master'  # used to name non-index column of the outp
 DEFAULT_MASTER_ID_NAME: str = f'{DEFAULT_MASTER_NAME}_{DEFAULT_ID_NAME}'    # used to name id-column of the output of
 # StringGrouper.get_nearest_matches
 GROUP_REP_PREFIX: str = 'group_rep_'    # used to prefix and name columns of the output of StringGrouper._deduplicate
-
-# High level functions
-
-
-def compute_pairwise_similarities(string_series_1: pd.Series,
-                                  string_series_2: pd.Series,
-                                  **kwargs) -> pd.Series:
-    """
-    Computes the similarity scores between two Series of strings row-wise.
-
-    :param string_series_1: pandas.Series. The input Series of strings to be grouped
-    :param string_series_2: pandas.Series. The input Series of the IDs of the strings to be grouped
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
-    """
-    return StringGrouper(string_series_1, string_series_2, **kwargs).dot()
-
-
-def group_similar_strings(strings_to_group: pd.Series,
-                          string_ids: Optional[pd.Series] = None,
-                          **kwargs) -> Union[pd.DataFrame, pd.Series]:
-    """
-    If 'string_ids' is not given, finds all similar strings in 'strings_to_group' and returns a Series of
-    strings of the same length as 'strings_to_group'. For each group of similar strings a single string
-    is chosen as the 'master' string and is returned for each member of the group.
-
-    For example the input Series: [foooo, foooob, bar] will return [foooo, foooo, bar].  Here 'foooo' and
-    'foooob' are grouped together into group 'foooo' because they are found to be very similar.
-
-    If string_ids is also given, a DataFrame of the strings and their corresponding IDs is instead returned.
-
-    :param strings_to_group: pandas.Series. The input Series of strings to be grouped.
-    :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped. (Optional)
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
-    :return: pandas.Series or pandas.DataFrame.
-    """
-    string_grouper = StringGrouper(strings_to_group, master_id=string_ids, **kwargs).fit()
-    return string_grouper.get_groups()
-
-
-def match_most_similar(master: pd.Series,
-                       duplicates: pd.Series,
-                       master_id: Optional[pd.Series] = None,
-                       duplicates_id: Optional[pd.Series] = None,
-                       **kwargs) -> Union[pd.DataFrame, pd.Series]:
-    """
-    If no IDs ('master_id' and 'duplicates_id') are given, returns a Series of strings of the same length
-    as 'duplicates' where for each string in duplicates the most similar string in 'master' is returned.
-    If there are no similar strings in master for a given string in duplicates
-    (there is no potential match where the cosine similarity is above the threshold [default: 0.8])
-    the original string in duplicates is returned.
-
-    For example the input Series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
-    [foooo, bar, new].
-
-    If IDs (both 'master_id' and 'duplicates_id') are also given, returns a DataFrame of the same strings
-    output in the above case with their corresponding IDs.
-
-    :param master: pandas.Series. Series of strings that the duplicates will be matched with.
-    :param duplicates: pandas.Series. Series of strings that will me matched with the master.
-    :param master_id: pandas.Series. Series of values that are IDs for master column rows. (Optional)
-    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows. (Optional)
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
-    :return: pandas.Series or pandas.DataFrame.
-    """
-    string_grouper = StringGrouper(master,
-                                   duplicates=duplicates,
-                                   master_id=master_id,
-                                   duplicates_id=duplicates_id,
-                                   **kwargs).fit()
-    return string_grouper.get_groups()
-
-
-def match_strings(master: pd.Series,
-                  duplicates: Optional[pd.Series] = None,
-                  master_id: Optional[pd.Series] = None,
-                  duplicates_id: Optional[pd.Series] = None,
-                  **kwargs) -> pd.DataFrame:
-    """
-    Returns all highly similar strings. If only 'master' is given, it will return highly similar strings within master.
-    This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
-    between master and duplicates. This can be seen as an inner-join.
-
-    :param master: pandas.Series. Series of strings against which matches are calculated.
-    :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional).
-    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional).
-    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional).
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
-    :return: pandas.Dataframe.
-    """
-    string_grouper = StringGrouper(master,
-                                   duplicates=duplicates,
-                                   master_id=master_id,
-                                   duplicates_id=duplicates_id,
-                                   **kwargs).fit()
-    return string_grouper.get_matches()
 
 
 class StringGrouperConfig(NamedTuple):
@@ -159,6 +69,13 @@ class StringGrouperConfig(NamedTuple):
     corresponding duplicates-index values. Defaults to False.
     :param group_rep: str.  The scheme to select the group-representative.  Default is 'centroid'.
     The other choice is 'first'.
+    :param force_symmetries: bool. In cases where duplicates is None, specifies whether corrections should be
+    made to the results to account for symmetry, thus compensating for those losses of numerical significance
+    which violate the symmetries. Defaults to True.
+    :param n_blocks: (int, int) This parameter is provided to help boost performance, if possible, of
+    processing large DataFrames, by splitting the DataFrames into n_blocks[0] blocks for the left
+    operand (of the underlying matrix multiplication) and into n_blocks[1] blocks for the right operand
+    before performing the string-comparisons block-wise.  Defaults to None.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -172,6 +89,8 @@ class StringGrouperConfig(NamedTuple):
     include_zeroes: bool = DEFAULT_INCLUDE_ZEROES
     replace_na: bool = DEFAULT_REPLACE_NA
     group_rep: str = DEFAULT_GROUP_REP
+    force_symmetries: bool = DEFAULT_FORCE_SYMMETRIES
+    n_blocks: Tuple[int, int] = DEFAULT_N_BLOCKS
 
 
 def validate_is_fit(f):
@@ -212,36 +131,135 @@ class StringGrouper(object):
         :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates Series.
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
-        # Validate match strings input
-        if not StringGrouper._is_series_of_strings(master) or \
-                (duplicates is not None and not StringGrouper._is_series_of_strings(duplicates)):
-            raise TypeError('Input does not consist of pandas.Series containing only Strings')
+        self._set_data(master, duplicates, master_id, duplicates_id)
+        self._set_options(**kwargs)
+        self._build_corpus()
+
+    def _set_data(self,
+                  master: pd.Series,
+                  duplicates: Optional[pd.Series] = None,
+                  master_id: Optional[pd.Series] = None,
+                  duplicates_id: Optional[pd.Series] = None):
+        self.master = master
+        self.duplicates = duplicates
+
+        self._right_DataFrame = self._master
+        if self._duplicates is None:
+            self._left_DataFrame = self._master
+        else:
+            self._left_DataFrame = self._duplicates
+
         # Validate optional IDs input
         if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
             raise Exception('List of data Series options is invalid')
         StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
+        self.master_id = master_id
+        self.duplicates_id = duplicates_id
+        self.is_build = False
 
-        self._master: pd.Series = master
-        self._duplicates: pd.Series = duplicates if duplicates is not None else None
-        self._master_id: pd.Series = master_id if master_id is not None else None
-        self._duplicates_id: pd.Series = duplicates_id if duplicates_id is not None else None
-
+    def _set_options(self, **kwargs):
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
+
         if self._config.max_n_matches is None:
-            self._max_n_matches = len(self._master) if self._duplicates is None else len(self._duplicates)
+            self.max_n_matches = len(self._master)
         else:
-            self._max_n_matches = self._config.max_n_matches
+            self.max_n_matches = self._config.max_n_matches
 
         self._validate_group_rep_specs()
         self._validate_tfidf_matrix_dtype()
         self._validate_replace_na_and_drop()
-        self.is_build = False  # indicates if the grouper was fit or not
+        StringGrouper._validate_n_blocks(self._config.n_blocks)
+        self.is_build = False
+
+    def _build_corpus(self):
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams, dtype=self._config.tfidf_matrix_dtype)
         # After the StringGrouper is built, _matches_list will contain the indices and similarities of the matches
         self._matches_list: pd.DataFrame = pd.DataFrame()
         # _true_max_n_matches will contain the true maximum number of matches over all strings in master if
         # self._config.min_similarity <= 0
         self._true_max_n_matches = None
+        self._vectorizer = self._fit_vectorizer()
+        self.is_build = False  # indicates if the grouper was fit or not
+
+    def reset_data(self,
+                   master: pd.Series,
+                   duplicates: Optional[pd.Series] = None,
+                   master_id: Optional[pd.Series] = None,
+                   duplicates_id: Optional[pd.Series] = None):
+        """
+        Sets the input Series of a StringGrouper instance without changing the underlying corpus.
+        :param master: pandas.Series. A Series of strings in which similar strings are searched, either against itself
+        or against the `duplicates` Series.
+        :param duplicates: pandas.Series. If set, for each string in duplicates a similar string is searched in Master.
+        :param master_id: pandas.Series. If set, contains ID values for each row in master Series.
+        :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates Series.
+        :param kwargs: All other keyword arguments are passed to StringGrouperConfig
+        """
+        self._set_data(master, duplicates, master_id, duplicates_id)
+
+    def clear_data(self):
+        self._master = None
+        self._duplicates = None
+        self._master_id = None
+        self._duplicates_id = None
+        self._matches_list = None
+        self._left_DataFrame = None
+        self._right_DataFrame = None
+        self.is_build = False
+
+    def update_options(self, **kwargs):
+        """
+        Updates the kwargs of a StringGrouper object
+        :param **kwargs: any StringGrouper keyword=value argument pairs
+        """
+        _ = StringGrouperConfig(**kwargs)
+        old_kwargs = self._config._asdict()
+        old_kwargs.update(kwargs)
+        self._set_options(**old_kwargs)
+
+    @property
+    def master(self):
+        return self._master
+
+    @master.setter
+    def master(self, master):
+        if not StringGrouper._is_series_of_strings(master):
+            raise TypeError('Master input does not consist of pandas.Series containing only Strings')
+        self._master = master
+
+    @property
+    def duplicates(self):
+        return self._duplicates
+
+    @duplicates.setter
+    def duplicates(self, duplicates):
+        if duplicates is not None and not StringGrouper._is_series_of_strings(duplicates):
+            raise TypeError('Duplicates input does not consist of pandas.Series containing only Strings')
+        self._duplicates = duplicates
+
+    @property
+    def master_id(self):
+        return self._master_id
+
+    @master_id.setter
+    def master_id(self, master_id):
+        self._master_id = master_id
+
+    @property
+    def duplicates_id(self):
+        return self._duplicates_id
+
+    @duplicates_id.setter
+    def duplicates_id(self, duplicates_id):
+        self._duplicates_id = duplicates_id
+
+    @property
+    def max_n_matches(self):
+        return self._max_n_matches
+
+    @max_n_matches.setter
+    def max_n_matches(self, max_n_matches):
+        self._max_n_matches = max_n_matches
 
     def n_grams(self, string: str) -> List[str]:
         """
@@ -256,26 +274,216 @@ class StringGrouper(object):
         n_grams = zip(*[string[i:] for i in range(ngram_size)])
         return [''.join(n_gram) for n_gram in n_grams]
 
-    def fit(self) -> 'StringGrouper':
-        """Builds the _matches list which contains string matches indices and similarity"""
-        master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
+    def _fit_blockwise_manual(self, n_blocks=(1, 1)):
+        # Function to compute matrix product by optionally first dividing
+        # the DataFrames(s) into equal-sized blocks as much as possible.
 
-        # Calculate the matches using the cosine similarity
-        matches, self._true_max_n_matches = self._build_matches(master_matrix, duplicate_matrix)
+        def divide_by(n, series):
+            # Returns an array of n rows and 2 columns.
+            # The columns denote the start and end of each of the n blocks.
+            # Note: zero-indexing is implied.
+            sz = len(series)//n
+            block_rem = np.full(n, 0, dtype=np.int64)
+            block_rem[:len(series) % n] = 1
+            if sz > 0:
+                equal_block_sz = np.full(n, sz, dtype=np.int64)
+                equal_block_sz += block_rem
+            else:
+                equal_block_sz = block_rem[:len(series) % n]
+            equal_block_sz = np.cumsum(equal_block_sz)
+            equal_block_sz = np.tile(equal_block_sz, (2, 1))
+            equal_block_sz[0, 0] = 0
+            equal_block_sz[0, 1:] = equal_block_sz[1, :-1]
+            return equal_block_sz.T
 
-        if self._duplicates is None:
-            # convert to lil format for best efficiency when setting matrix-elements
+        block_ranges_left = divide_by(n_blocks[0], self._left_DataFrame)
+        block_ranges_right = divide_by(n_blocks[1], self._right_DataFrame)
+        max_n_matches = self._max_n_matches
+
+        self._true_max_n_matches = 0
+        for left_block in block_ranges_left:
+            left_matrix = self._get_left_tf_idf_matrix(left_block)
+            nnz_rows = np.full(left_matrix.shape[0], 0, dtype=np.int32)
+            for right_block in block_ranges_right:
+                self._max_n_matches = min(
+                    right_block[1] - right_block[0],
+                    max_n_matches
+                )
+                right_matrix = self._get_right_tf_idf_matrix(right_block)
+
+                # Calculate the matches using the cosine similarity
+                matches, block_true_max_n_matches = self._build_matches(
+                    left_matrix, right_matrix, nnz_rows
+                )
+
+                # build match-lists from matrix
+                r, c = matches.nonzero()
+                d = matches.data
+                (self._r, self._c, self._d) = (
+                    np.append(self._r, r + left_block[0]),
+                    np.append(self._c, c + right_block[0]),
+                    np.append(self._d, d)
+                )
+                # end of inner loop
+
+            self._true_max_n_matches = \
+                max(block_true_max_n_matches, self._true_max_n_matches)
+            # end of outer loop
+
+        self._max_n_matches = max_n_matches
+        return max(n_blocks) > 1
+
+    def _fit_blockwise_auto(self,
+                            left_partition=(None, None),
+                            right_partition=(None, None),
+                            nnz_rows=None,
+                            whoami=0):
+        # This is a recursive function!
+        # fit() has been extended here to enable StringGrouper to handle large
+        # datasets which otherwise would lead to an OverflowError
+        # The handling is achieved using block matrix multiplication.
+        def begin(partition):
+            return partition[0] if partition[0] is not None else 0
+
+        def end(partition, left=True):
+            if partition[1] is not None:
+                return partition[1]
+
+            return len(self._left_DataFrame if left else self._right_DataFrame)
+
+        left_matrix = self._get_left_tf_idf_matrix(left_partition)
+        right_matrix = self._get_right_tf_idf_matrix(right_partition)
+
+        if whoami == 0:
+            # At the topmost level of recursion initialize nnz_rows
+            # which will be used to compute _true_max_n_matches
+            nnz_rows = np.full(left_matrix.shape[0], 0, dtype=np.int32)
+            self._true_max_n_matches = 0
+
+        try:
+            # Calculate the matches using the cosine similarity
+            matches, true_max_n_matches = self._build_matches(
+                left_matrix, right_matrix, nnz_rows[slice(*left_partition)])
+        except OverflowError:
+            # Matrices too big!  Try splitting:
+            left_matrix = None
+            right_matrix = None
+            max_n_matches = self._max_n_matches
+
+            def split_partition(partition, left=True):
+                data_begin = begin(partition)
+                data_end = end(partition, left=left)
+                data_mid = data_begin + (data_end - data_begin)//2
+                if data_mid > data_begin:
+                    return [(data_begin, data_mid), (data_mid, data_end)]
+                else:
+                    return [(data_begin, data_end)]
+
+            left_halves = split_partition(left_partition, left=True)
+            right_halves = split_partition(right_partition, left=False)
+            for lhalf in left_halves:
+                for rhalf in right_halves:
+                    self._max_n_matches = min(
+                        rhalf[1] - rhalf[0],
+                        max_n_matches
+                    )
+                    _ = self._fit_blockwise_auto(
+                        left_partition=lhalf, right_partition=rhalf,
+                        nnz_rows=nnz_rows,
+                        whoami=(whoami + 1)
+                    )
+                    # end of inner loop
+                if whoami == 0:
+                    self._true_max_n_matches = max(
+                        np.amax(nnz_rows[slice(*lhalf)]),
+                        self._true_max_n_matches
+                    )
+                # end of outer loop
+            self._max_n_matches = max_n_matches
+            return True
+
+        # build match-lists from matrix
+        r, c = matches.nonzero()
+        d = matches.data
+        (self._r, self._c, self._d) = (
+            np.append(self._r, r + begin(left_partition)),
+            np.append(self._c, c + begin(right_partition)),
+            np.append(self._d, d)
+        )
+        if whoami == 0:
+            self._true_max_n_matches = true_max_n_matches
+        return False
+
+    def fit(self, force_symmetries=None, n_blocks=None):
+        """
+        Builds the _matches list which contains string-matches' indices and similarity
+        Updates and returns the StringGrouper object that called it.
+        """
+        if force_symmetries is None:
+            force_symmetries = self._config.force_symmetries
+        StringGrouper._validate_n_blocks(n_blocks)
+        if n_blocks is None:
+            n_blocks = self._config.n_blocks
+
+        # initialize match-lists
+        self._r = np.array([], dtype=np.int64)
+        self._c = np.array([], dtype=np.int64)
+        self._d = np.array([], dtype=self._config.tfidf_matrix_dtype)
+        self._matches_list = pd.DataFrame()
+
+        # do the matching
+        if n_blocks is None:
+            split_occurred = self._fit_blockwise_auto()
+        else:
+            split_occurred = self._fit_blockwise_manual(n_blocks=n_blocks)
+
+        # enforce symmetries?
+        if force_symmetries and (self._duplicates is None):
+            matrix_sz = len(self._master)
+            if split_occurred:
+                # trim the matches to max_n_matches
+                self._r, self._c, self._d = awesome_topn(
+                    self._r, self._c, self._d,
+                    ntop=self._max_n_matches, n_rows=matrix_sz,
+                    n_jobs=self._config.number_of_processes
+                )
+                matches = csr_matrix(
+                    (self._d, self._c, self._r),
+                    shape=(matrix_sz, matrix_sz)
+                )
+            else:
+                matches = csr_matrix(
+                    (self._d, (self._r, self._c)),
+                    shape=(matrix_sz, matrix_sz)
+                )
+
+            # release memory
+            self._r = self._c = self._d = np.array([])
+
+            # convert to lil format for best efficiency when setting
+            # matrix-elements
             matches = matches.tolil()
-            # matrix diagonal elements must be exactly 1 (numerical precision errors introduced by
-            # floating-point computations in awesome_cossim_topn sometimes lead to unexpected results)
+            # matrix diagonal elements must be exactly 1 (numerical precision
+            # errors introduced by floating-point computations in
+            # awesome_cossim_topn sometimes lead to unexpected results)
             matches = StringGrouper._fix_diagonal(matches)
-            if self._max_n_matches < self._true_max_n_matches:
-                # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
-                matches = StringGrouper._symmetrize_matrix(matches)
+            # the list of matches must be symmetric!
+            # (i.e., if A != B and A matches B; then B matches A)
+            matches = StringGrouper._symmetrize_matrix(matches)
             matches = matches.tocsr()
+            self._matches_list = self._get_matches_list(matches)
+        else:
+            if split_occurred:
+                # trim the matches to max_n_matches
+                self._r, self._c, self._d = awesome_topn(
+                    self._r, self._c, self._d,
+                    ntop=self._max_n_matches,
+                    n_jobs=self._config.number_of_processes
+                )
+            self._matches_list = self._get_matches_list()
+            # release memory
+            self._r = self._c = self._d = np.array([])
 
-        # build list from matrix
-        self._matches_list = self._get_matches_list(matches)
         self.is_build = True
         return self
 
@@ -283,7 +491,7 @@ class StringGrouper(object):
         """Computes the row-wise similarity scores between strings in _master and _duplicates"""
         if len(self._master) != len(self._duplicates):
             raise Exception("To perform this function, both input Series must have the same length.")
-        master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
+        master_matrix, duplicate_matrix = self._get_left_tf_idf_matrix(), self._get_right_tf_idf_matrix()
         # Calculate pairwise cosine similarities:
         pairwise_similarities = np.asarray(master_matrix.multiply(duplicate_matrix).sum(axis=1)).squeeze(axis=1)
         return pd.Series(pairwise_similarities, name='similarity', index=self._master.index)
@@ -429,19 +637,19 @@ class StringGrouper(object):
             )]
         return self
 
-    def _get_tf_idf_matrices(self) -> Tuple[csr_matrix, csr_matrix]:
-        # Fit the tf-idf vectorizer
-        self._vectorizer = self._fit_vectorizer()
-        # Build the two matrices
-        master_matrix = self._vectorizer.transform(self._master)
+    def _get_left_tf_idf_matrix(self, partition=(None, None)):
+        # unlike _get_tf_idf_matrices(), _get_left_tf_idf_matrix
+        # does not set the corpus but rather
+        # builds a matrix using the existing corpus
+        return self._vectorizer.transform(
+            self._left_DataFrame.iloc[slice(*partition)])
 
-        if self._duplicates is not None:
-            duplicate_matrix = self._vectorizer.transform(self._duplicates)
-        # IF there is no duplicate matrix, we assume we want to match on the master matrix itself
-        else:
-            duplicate_matrix = master_matrix
-
-        return master_matrix, duplicate_matrix
+    def _get_right_tf_idf_matrix(self, partition=(None, None)):
+        # unlike _get_tf_idf_matrices(), _get_right_tf_idf_matrix
+        # does not set the corpus but rather
+        # builds a matrix using the existing corpus
+        return self._vectorizer.transform(
+            self._right_DataFrame.iloc[slice(*partition)])
 
     def _fit_vectorizer(self) -> TfidfVectorizer:
         # if both dupes and master string series are set - we concat them to fit the vectorizer on all
@@ -453,23 +661,40 @@ class StringGrouper(object):
         self._vectorizer.fit(strings)
         return self._vectorizer
 
-    def _build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
+    def _build_matches(self,
+                       left_matrix: csr_matrix, right_matrix: csr_matrix,
+                       nnz_rows: np.ndarray = None) -> csr_matrix:
         """Builds the cossine similarity matrix of two csr matrices"""
-        tf_idf_matrix_1 = master_matrix
-        tf_idf_matrix_2 = duplicate_matrix.transpose()
+        right_matrix = right_matrix.transpose()
+
+        if nnz_rows is None:
+            nnz_rows = np.full(left_matrix.shape[0], 0, dtype=np.int32)
 
         optional_kwargs = {
             'return_best_ntop': True,
             'use_threads': self._config.number_of_processes > 1,
-            'n_jobs': self._config.number_of_processes
-        }
+            'n_jobs': self._config.number_of_processes}
 
         return awesome_cossim_topn(
-            tf_idf_matrix_1, tf_idf_matrix_2,
+            left_matrix, right_matrix,
             self._max_n_matches,
+            nnz_rows,
             self._config.min_similarity,
-            **optional_kwargs
-        )
+            **optional_kwargs)
+
+    def _get_matches_list(self,
+                          matches: Optional[csr_matrix] = None
+                          ) -> pd.DataFrame:
+        """Returns a list of all the indices of matches"""
+        if matches is None:
+            r, c, d = self._r, self._c, self._d
+        else:
+            r, c = matches.nonzero()
+            d = matches.data
+
+        return pd.DataFrame({'master_side': c,
+                             'dupe_side': r,
+                             'similarity': d})
 
     def _get_non_matches_list(self) -> pd.DataFrame:
         """Returns a list of all the indices of non-matching pairs (with similarity set to 0)"""
@@ -646,6 +871,21 @@ class StringGrouper(object):
             )
 
     @staticmethod
+    def _validate_n_blocks(n_blocks):
+        errmsg = "Invalid option value for parameter n_blocks: "
+        "n_blocks must be None or a tuple of 2 integers greater than 0."
+        if n_blocks is None:
+            return
+        if not isinstance(n_blocks, tuple):
+            raise Exception(errmsg)
+        if len(n_blocks) != 2:
+            raise Exception(errmsg)
+        if not (isinstance(n_blocks[0], int) and isinstance(n_blocks[1], int)):
+            raise Exception(errmsg)
+        if (n_blocks[0] < 1) or (n_blocks[1] < 1):
+            raise Exception(errmsg)
+
+    @staticmethod
     def _fix_diagonal(m: lil_matrix) -> csr_matrix:
         r = np.arange(m.shape[0])
         m[r, r] = 1
@@ -656,15 +896,6 @@ class StringGrouper(object):
         r, c = m_symmetric.nonzero()
         m_symmetric[c, r] = m_symmetric[r, c]
         return m_symmetric
-
-    @staticmethod
-    def _get_matches_list(matches: csr_matrix) -> pd.DataFrame:
-        """Returns a list of all the indices of matches"""
-        r, c = matches.nonzero()
-        matches_list = pd.DataFrame({'master_side': r.astype(np.int64),
-                                     'dupe_side': c.astype(np.int64),
-                                     'similarity': matches.data})
-        return matches_list
 
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
@@ -711,3 +942,141 @@ class StringGrouper(object):
             raise Exception('Both master and master_id must be pandas.Series of the same length.')
         if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
             raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
+
+
+# High level functions
+
+
+def compute_pairwise_similarities(string_series_1: pd.Series,
+                                  string_series_2: pd.Series,
+                                  corpus: Optional[StringGrouper] = None,
+                                  **kwargs) -> pd.Series:
+    """
+    Computes the similarity scores between two Series of strings row-wise.
+
+    :param string_series_1: pandas.Series. The input Series of strings to be grouped
+    :param string_series_2: pandas.Series. The input Series of the IDs of the strings to be grouped
+    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
+    :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
+    """
+    if not corpus:
+        corpus = StringGrouper(string_series_1, string_series_2, **kwargs)
+    else:
+        corpus.reset_data(string_series_1, string_series_2)
+        corpus.update_options(**kwargs)
+    return corpus.dot()
+
+
+def group_similar_strings(strings_to_group: pd.Series,
+                          string_ids: Optional[pd.Series] = None,
+                          corpus: Optional[StringGrouper] = None,
+                          **kwargs) -> Union[pd.DataFrame, pd.Series]:
+    """
+    If 'string_ids' is not given, finds all similar strings in 'strings_to_group' and returns a Series of
+    strings of the same length as 'strings_to_group'. For each group of similar strings a single string
+    is chosen as the 'master' string and is returned for each member of the group.
+
+    For example the input Series: [foooo, foooob, bar] will return [foooo, foooo, bar].  Here 'foooo' and
+    'foooob' are grouped together into group 'foooo' because they are found to be very similar.
+
+    If string_ids is also given, a DataFrame of the strings and their corresponding IDs is instead returned.
+
+    :param strings_to_group: pandas.Series. The input Series of strings to be grouped.
+    :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped. (Optional)
+    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+    :return: pandas.Series or pandas.DataFrame.
+    """
+    if not corpus:
+        corpus = StringGrouper(strings_to_group,
+                               master_id=string_ids,
+                               **kwargs)
+    else:
+        corpus.reset_data(strings_to_group, master_id=string_ids)
+        corpus.update_options(**kwargs)
+    corpus = corpus.fit()
+    return corpus.get_groups()
+
+
+def match_most_similar(master: pd.Series,
+                       duplicates: pd.Series,
+                       master_id: Optional[pd.Series] = None,
+                       duplicates_id: Optional[pd.Series] = None,
+                       corpus: Optional[StringGrouper] = None,
+                       **kwargs) -> Union[pd.DataFrame, pd.Series]:
+    """
+    If no IDs ('master_id' and 'duplicates_id') are given, returns a Series of strings of the same length
+    as 'duplicates' where for each string in duplicates the most similar string in 'master' is returned.
+    If there are no similar strings in master for a given string in duplicates
+    (there is no potential match where the cosine similarity is above the threshold [default: 0.8])
+    the original string in duplicates is returned.
+
+    For example the input Series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
+    [foooo, bar, new].
+
+    If IDs (both 'master_id' and 'duplicates_id') are also given, returns a DataFrame of the same strings
+    output in the above case with their corresponding IDs.
+
+    :param master: pandas.Series. Series of strings that the duplicates will be matched with.
+    :param duplicates: pandas.Series. Series of strings that will me matched with the master.
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows. (Optional)
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows. (Optional)
+    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+    :return: pandas.Series or pandas.DataFrame.
+    """
+    new_max_n_matches = None
+    if 'max_n_matches' in kwargs:
+        new_max_n_matches = kwargs['max_n_matches']
+    kwargs['max_n_matches'] = 1
+
+    if not corpus:
+        corpus = StringGrouper(master,
+                               duplicates=duplicates,
+                               master_id=master_id,
+                               duplicates_id=duplicates_id,
+                               **kwargs)
+        corpus = corpus.fit()
+        output = corpus.get_groups()
+    else:
+        corpus.reset_data(master, duplicates, master_id, duplicates_id)
+        old_max_n_matches = corpus.max_n_matches
+        corpus.update_options(**kwargs)
+        corpus = corpus.fit()
+        output = corpus.get_groups()
+        kwargs['max_n_matches'] = old_max_n_matches if new_max_n_matches is None else new_max_n_matches
+        corpus.update_options(**kwargs)
+    return output
+
+
+def match_strings(master: pd.Series,
+                  duplicates: Optional[pd.Series] = None,
+                  master_id: Optional[pd.Series] = None,
+                  duplicates_id: Optional[pd.Series] = None,
+                  corpus: Optional[StringGrouper] = None,
+                  **kwargs) -> pd.DataFrame:
+    """
+    Returns all highly similar strings. If only 'master' is given, it will return highly similar strings within master.
+    This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
+    between master and duplicates. This can be seen as an inner-join.
+
+    :param master: pandas.Series. Series of strings against which matches are calculated.
+    :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional).
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional).
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional).
+    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
+    :return: pandas.Dataframe.
+    """
+    if not corpus:
+        corpus = StringGrouper(master,
+                               duplicates=duplicates,
+                               master_id=master_id,
+                               duplicates_id=duplicates_id,
+                               **kwargs)
+    else:
+        corpus.reset_data(master, duplicates, master_id, duplicates_id)
+        corpus.update_options(**kwargs)
+    corpus = corpus.fit()
+    return corpus.get_matches()

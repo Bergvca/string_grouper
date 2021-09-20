@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0?] - 2021-09-21
+
+### Added
+
+* matrix-blocking/splitting as a performance-enhancer (see README.md for details)
+* new keyword arguments `force_symmetries` and `n_blocks` (see README.md for details)
+* new dependency on packages `topn` and `sparse_dot_topn_for_blocks` to help with the matrix-blocking
+* capability to reuse a previously initialized StringGrouper (that is, the corpus can now persist across high-level function calls like `match_strings()`)
+
+
 ## [0.5.0] - 2021-06-11
 
 ### Added
