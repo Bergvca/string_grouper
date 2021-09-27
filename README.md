@@ -56,7 +56,7 @@ The permitted calling patterns of the four functions, and their return types, ar
 | `group_similar_strings`| `(strings_to_group, strings_id, **kwargs)`| `DataFrame` |
 | `compute_pairwise_similarities`| `(string_series_1, string_series_2, **kwargs)`| `Series` |
 
-***New in version 0.6.0***: a new *optional* parameter, namely `corpus`, can now be specified for all of the above high-level functions.  `corpus` is a `StringGrouper` instance that has already been initialized (and thus already contains a corpus).  The input Series (`master`, `duplicates`, and so on) will thus be tokenized, or transformed into tf-idf matrices, using this corpus.
+***New in version 0.6.0***<a name="corpus"></a>: a new *optional* parameter, namely `corpus`, can now be specified for all of the above high-level functions.  `corpus` is a `StringGrouper` instance that has already been initialized (and thus already contains a corpus).  The input Series (`master`, `duplicates`, and so on) will thus be tokenized, or transformed into tf-idf matrices, using this corpus.
 
 In the rest of this document the names, `Series` and `DataFrame`, refer to the familiar `pandas` object types.
 #### Parameters:
@@ -1000,8 +1000,8 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
 
 # Performance<a name="perf"></a>
 
-### Semilogx plots of run-times of `match_strings()` vs the number of blocks (`n_blocks[1]`) into which the right matrix-operand of the dataset (663 000 strings from sec__edgar_company_info.csv) was split before performing the string comparison.  As shown in the legend, each plot corresponds to the number `n_blocks[0]` of blocks into which the left matrix-operand was split.
-<img width="100%" src="https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockNumberSpaceExploration1.png">
+### <a name="Semilogx"></a>Semilogx plots of run-times of `match_strings()` vs the number of blocks (`n_blocks[1]`) into which the right matrix-operand of the dataset (663 000 strings from sec__edgar_company_info.csv) was split before performing the string comparison.  As shown in the legend, each plot corresponds to the number `n_blocks[0]` of blocks into which the left matrix-operand was split.
+![Semilogx](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockNumberSpaceExploration1.png)
 
 String comparison, as implemented by `string_grouper`, is essentially matrix 
 multiplication.  A DataFrame of strings is converted (tokenized) into a 
@@ -1010,11 +1010,11 @@ matrix.  Then that matrix is multiplied by itself (or another) transposed.
 Here is an illustration of multiplication of two matrices ***D*** and ***M***<sup>T</sup>:
 ![Block Matrix 1 1](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockMatrix_1_1.png)
 
-It turns out that when the matrix (or DataFrame) is very large, the computer 
+It turns out that when the matrix (or Series) is very large, the computer 
 proceeds quite slowly with the multiplication (apparently due to the RAM being 
 too full).  Some computers give up with an `OverflowError`.
 
-To circumvent this issue, `string_grouper` now allows the division of the DataFrame(s) 
+To circumvent this issue, `string_grouper` now allows the division of the Series 
 into smaller chunks (or blocks) and multiplies the chunks one pair at a time 
 instead to get the same result:
 
@@ -1022,7 +1022,7 @@ instead to get the same result:
 
 But surprise ... the run-time of the process is sometimes drastically reduced 
 as a result.  For example, the speed-up of the following call is about 500% 
-(here, the DataFrame is divided into 200 blocks on the right operand, that is, 
+(here, the Series is divided into 200 blocks on the right operand, that is, 
 1 block on the left &times; 200 on the right) compared to the same call with no
 splitting \[`n_blocks=(1, 1)`, the default, which is what previous versions 
 (0.5.0 and earlier) of `string_grouper` did\]:
@@ -1036,15 +1036,34 @@ companies = pd.read_csv('data/sec__edgar_company_info.csv')
 match_strings(companies['Company Name')], n_blocks=(1, 200))
 ```
 
-Further exploration of the block number space has revealed that for any fixed 
+Further exploration of the block number space ([see plot above](#Semilogx)) has revealed that for any fixed 
 number of right blocks, the run-time gets longer the larger the number of left 
 blocks specified.  For this reason, it is recommended *not* to split the left matrix.
 
 ![Block Matrix 1 2](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockMatrix_1_2.png)
 
-So what are the optimum block number values for any given DataFrame? That is 
-anyone's guess, and the answer may vary from computer to computer.  
+[Below is a log-log-log contour plot](#ContourPlot) of the 
+
+&nbsp;&nbsp;&nbsp;***runtime per string-pair comparison***
+= ***runtime*** / (***Left Operand Size*** &times; ***Right Operand Size***)
+
+scaled by its value
+at ***Left Operand Size*** = 5000 and ***Right Operand Size*** = 5000.  Note that ***Operand Size***
+is the number of strings in that operand, and ***runtime*** is the time taken for the following call to run:
+```python
+match_strings(right_Series, left_Series)  # take note of the parameter order!
+```
+where `left_Series` and `right_Series`, corresponding to ***Left Operand*** and ***Right Operand*** respectively, are random subsets of the Series `companies['Company Name')]` from the
+[sec__edgar_company_info.csv](https://www.kaggle.com/dattapiy/sec-edgar-companies-list/version/1) sample data file.
+
+<a name="ContourPlot"></a> ![ContourPlot](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/ScaledRuntimeContourPlot.png)
+
+It can be seen that when `right_Series` is roughly the size of 80&nbsp;000, the runtime per string-pair comparison is at 
+its lowest for any fixed `left_Series` size.  This knowledge could serve as a guide for choosing the optimum block numbers &mdash;
+namely those that divide the Series into blocks of size roughly equal to 80&nbsp;000 for the right operand (or `right_Series`).
+
+So what are the optimum block number values for any given Series? That is 
+anyone's guess, and may likely depend on the data itself.  Furthermore, the answer may vary from computer to computer.  
 
 We however encourage the user to make judicious use of the `n_blocks` 
 parameter to boost performance of `string_grouper`.
-
