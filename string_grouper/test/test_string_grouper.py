@@ -7,7 +7,7 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
     match_most_similar, group_similar_strings, match_strings, \
     compute_pairwise_similarities
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 
 def mock_symmetrize_matrix(x: csr_matrix) -> csr_matrix:
@@ -153,7 +153,8 @@ class StringGrouperTest(unittest.TestCase):
         self.assertEqual(sg._config.n_blocks, None)
 
         # Create a custom wrapper for this StringGrouper instance's
-        # _build_matches() which will later be used to mock _build_matches().
+        # _build_matches() method which will later be used to
+        # mock _build_matches().
         # Note that we have to define the mock function here because
         # _build_matches() is a non-static function of StringGrouper
         # and needs access to the specific StringGrouper instance sg
@@ -169,21 +170,25 @@ class StringGrouperTest(unittest.TestCase):
                 return real_build_matches(left_matrix, right_matrix, nnz_rows)
             return wrapper
 
-        # Now let the mock package "wrap the custom wrapper". (So
-        # after this we will have two wrappers with one nested within
-        # the other.)  The mock package's wrapper gives access to the
-        # mock object's methods like call_count(), and so on.
         def do_test_with(OverflowThreshold):
             nonlocal sg  # allows reference to sg, as sg will be modified below
-            with patch.object(
-                StringGrouper, '_build_matches',
-                wraps=mock_build_matches(OverflowThreshold)
-            ) as sg.mock_build_matches:
-                sg = sg.fit()
-                matches_auto = fix_row_order(sg.get_matches())
-                assert sg.mock_build_matches.call_count > 0
-                pd.testing.assert_frame_equal(matches, matches_auto)
+            # Now let us mock sg._build_matches:
+            sg._build_matches = Mock(side_effect=mock_build_matches(OverflowThreshold))
+            sg = sg.fit()
+            # Note that _build_matches is called more than once if and only if
+            # a split occurred (that is, there was more than one pair of
+            # matrix-blocks multiplied)
+            if len(sg._left_DataFrame) + len(sg._right_DataFrame) > \
+                    OverflowThreshold:
+                # Assert that split occurred:
+                self.assertGreater(sg._build_matches.call_count, 1)
+            else:
+                # Assert that split did not occur:
+                self.assertEqual(sg._build_matches.call_count, 1)
+            matches_auto = fix_row_order(sg.get_matches())
+            pd.testing.assert_frame_equal(matches, matches_auto)
 
+        do_test_with(OverflowThreshold=100)
         do_test_with(OverflowThreshold=10)
         do_test_with(OverflowThreshold=5)
         do_test_with(OverflowThreshold=3)

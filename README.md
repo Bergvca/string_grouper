@@ -1048,22 +1048,30 @@ blocks specified.  For this reason, it is recommended *not* to split the left ma
 = ***runtime*** / (***Left Operand Size*** &times; ***Right Operand Size***)
 
 scaled by its value
-at ***Left Operand Size*** = 5000 and ***Right Operand Size*** = 5000.  Note that ***Operand Size***
+at ***Left Operand Size*** = ***Right Operand Size*** = 5000.  Note that ***Operand Size***
 is the number of strings in that operand, and ***runtime*** is the time taken for the following call to run:
 ```python
-match_strings(right_Series, left_Series)  # take note of the parameter order!
+# note the parameter order!
+match_strings(right_Series, left_Series, n_blocks=(1, 1))
 ```
 where `left_Series` and `right_Series`, corresponding to ***Left Operand*** and ***Right Operand*** respectively, are random subsets of the Series `companies['Company Name')]` from the
 [sec__edgar_company_info.csv](https://www.kaggle.com/dattapiy/sec-edgar-companies-list/version/1) sample data file.
 
 <a name="ContourPlot"></a> ![ContourPlot](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/ScaledRuntimeContourPlot.png)
 
-It can be seen that when `right_Series` is roughly the size of 80&nbsp;000, the runtime per string-pair comparison is at 
-its lowest for any fixed `left_Series` size.  This knowledge could serve as a guide for choosing the optimum block numbers &mdash;
-namely those that divide the Series into blocks of size roughly equal to 80&nbsp;000 for the right operand (or `right_Series`).
+It can be seen that when `right_Series` is roughly the size of 80&nbsp;000 (denoted by the 
+white dashed line in the contour plot above), the runtime per string-pair comparison is at 
+its lowest for any fixed `left_Series` size.  Above ***Right Operand Size*** = 80&nbsp;000, the 
+matrix-multiplication routine begins to feel the limits of the computer's 
+available memory space and thus its performance deteriorates, as evidenced by the increase 
+in runtime per string-pair comparison there (above the white dashed line).  This knowledge 
+could serve as a guide for choosing the optimum block numbers &mdash;
+namely those that divide the Series into blocks of size roughly equal to 
+80&nbsp;000 for the right operand (or `right_Series`).
 
-So what are the optimum block number values for any given Series? That is 
-anyone's guess, and may likely depend on the data itself.  Furthermore, the answer may vary from computer to computer.  
+So what are the optimum block number values for *any* given Series? That is 
+anyone's guess, and may likely depend on the data itself.  Furthermore, as hinted above, 
+the answer may vary from computer to computer.  
 
 We however encourage the user to make judicious use of the `n_blocks` 
-parameter to boost performance of `string_grouper`.
+parameter to boost performance of `string_grouper` whenever possible.
