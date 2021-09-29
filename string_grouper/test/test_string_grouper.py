@@ -136,21 +136,9 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(df1, min_similarity=0.1)
         pd.testing.assert_series_equal(sg.master, df1)
         self.assertEqual(sg.duplicates, None)
-        self.assertEqual(sg.master_id, None)
-        self.assertEqual(sg.duplicates_id, None)
-        self.assertEqual(sg.max_n_matches, len(df1))
 
-        matches = fix_row_order(match_strings(df1, corpus=sg, n_blocks=(1, 1)))
+        matches = fix_row_order(sg.match_strings(df1, n_blocks=(1, 1)))
         self.assertEqual(sg._config.n_blocks, (1, 1))
-
-        # next test auto blocking by forcing an OverflowError when the
-        # combined Series' lengths is 3
-        sg.clear_data()
-        self.assertEqual(sg.master, None)
-        sg.reset_data(df1)
-        pd.testing.assert_series_equal(sg.master, df1)
-        sg.update_options(n_blocks=None)
-        self.assertEqual(sg._config.n_blocks, None)
 
         # Create a custom wrapper for this StringGrouper instance's
         # _build_matches() method which will later be used to
@@ -174,7 +162,11 @@ class StringGrouperTest(unittest.TestCase):
             nonlocal sg  # allows reference to sg, as sg will be modified below
             # Now let us mock sg._build_matches:
             sg._build_matches = Mock(side_effect=mock_build_matches(OverflowThreshold))
-            sg = sg.fit()
+            sg.clear_data()
+            matches_auto = fix_row_order(sg.match_strings(df1, n_blocks=None))
+            pd.testing.assert_series_equal(sg.master, df1)
+            pd.testing.assert_frame_equal(matches, matches_auto)
+            self.assertEqual(sg._config.n_blocks, None)
             # Note that _build_matches is called more than once if and only if
             # a split occurred (that is, there was more than one pair of
             # matrix-blocks multiplied)
@@ -185,10 +177,11 @@ class StringGrouperTest(unittest.TestCase):
             else:
                 # Assert that split did not occur:
                 self.assertEqual(sg._build_matches.call_count, 1)
-            matches_auto = fix_row_order(sg.get_matches())
-            pd.testing.assert_frame_equal(matches, matches_auto)
 
-        do_test_with(OverflowThreshold=100)
+        # now test auto blocking by forcing an OverflowError when the
+        # combined Series' lengths is greater than 10, 5, 3, 2
+
+        do_test_with(OverflowThreshold=100)  # does not trigger auto blocking
         do_test_with(OverflowThreshold=10)
         do_test_with(OverflowThreshold=5)
         do_test_with(OverflowThreshold=3)
@@ -345,7 +338,7 @@ class StringGrouperTest(unittest.TestCase):
         expected_result = expected_result.astype(np.float32)
         pd.testing.assert_series_equal(expected_result, similarities)
         sg = StringGrouper(df1, df2)
-        similarities = compute_pairwise_similarities(df1, df2, corpus=sg)
+        similarities = sg.compute_pairwise_similarities(df1, df2)
         pd.testing.assert_series_equal(expected_result, similarities)
 
     def test_compute_pairwise_similarities_data_integrity(self):
@@ -711,9 +704,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = StringGrouper(customers_df['Customer Name'])
         pd.testing.assert_series_equal(
             simple_example.expected_result_centroid,
-            group_similar_strings(
+            sg.group_similar_strings(
                 customers_df['Customer Name'],
-                corpus=sg,
                 min_similarity=0.6,
                 ignore_index=True
             )
@@ -837,7 +829,7 @@ class StringGrouperTest(unittest.TestCase):
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], name='most_similar_master')
         pd.testing.assert_series_equal(expected_result, result)
-        result = match_most_similar(test_series_1, test_series_2, corpus=sg)
+        result = sg.match_most_similar(test_series_1, test_series_2, max_n_matches=3)
         pd.testing.assert_series_equal(expected_result, result)
 
     def test_get_groups_2_string_series_2_id_series(self):

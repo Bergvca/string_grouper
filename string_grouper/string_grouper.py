@@ -46,6 +46,110 @@ DEFAULT_MASTER_ID_NAME: str = f'{DEFAULT_MASTER_NAME}_{DEFAULT_ID_NAME}'    # us
 GROUP_REP_PREFIX: str = 'group_rep_'    # used to prefix and name columns of the output of StringGrouper._deduplicate
 
 
+# High level functions
+
+
+def compute_pairwise_similarities(string_series_1: pd.Series,
+                                  string_series_2: pd.Series,
+                                  **kwargs) -> pd.Series:
+    """
+    Computes the similarity scores between two Series of strings row-wise.
+
+    :param string_series_1: pandas.Series. The input Series of strings to be grouped
+    :param string_series_2: pandas.Series. The input Series of the IDs of the strings to be grouped
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
+    :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
+    """
+    sg = StringGrouper(string_series_1, string_series_2, **kwargs)
+    return sg.dot()
+
+
+def group_similar_strings(strings_to_group: pd.Series,
+                          string_ids: Optional[pd.Series] = None,
+                          **kwargs) -> Union[pd.DataFrame, pd.Series]:
+    """
+    If 'string_ids' is not given, finds all similar strings in 'strings_to_group' and returns a Series of
+    strings of the same length as 'strings_to_group'. For each group of similar strings a single string
+    is chosen as the 'master' string and is returned for each member of the group.
+
+    For example the input Series: [foooo, foooob, bar] will return [foooo, foooo, bar].  Here 'foooo' and
+    'foooob' are grouped together into group 'foooo' because they are found to be very similar.
+
+    If string_ids is also given, a DataFrame of the strings and their corresponding IDs is instead returned.
+
+    :param strings_to_group: pandas.Series. The input Series of strings to be grouped.
+    :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped. (Optional)
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+    :return: pandas.Series or pandas.DataFrame.
+    """
+    sg = StringGrouper(strings_to_group,
+                       master_id=string_ids,
+                       **kwargs)
+    sg = sg.fit()
+    return sg.get_groups()
+
+
+def match_most_similar(master: pd.Series,
+                       duplicates: pd.Series,
+                       master_id: Optional[pd.Series] = None,
+                       duplicates_id: Optional[pd.Series] = None,
+                       **kwargs) -> Union[pd.DataFrame, pd.Series]:
+    """
+    If no IDs ('master_id' and 'duplicates_id') are given, returns a Series of strings of the same length
+    as 'duplicates' where for each string in duplicates the most similar string in 'master' is returned.
+    If there are no similar strings in master for a given string in duplicates
+    (there is no potential match where the cosine similarity is above the threshold [default: 0.8])
+    the original string in duplicates is returned.
+
+    For example the input Series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
+    [foooo, bar, new].
+
+    If IDs (both 'master_id' and 'duplicates_id') are also given, returns a DataFrame of the same strings
+    output in the above case with their corresponding IDs.
+
+    :param master: pandas.Series. Series of strings that the duplicates will be matched with.
+    :param duplicates: pandas.Series. Series of strings that will me matched with the master.
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows. (Optional)
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows. (Optional)
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+    :return: pandas.Series or pandas.DataFrame.
+    """
+    kwargs['max_n_matches'] = 1
+    sg = StringGrouper(master,
+                       duplicates=duplicates,
+                       master_id=master_id,
+                       duplicates_id=duplicates_id,
+                       **kwargs)
+    sg = sg.fit()
+    return sg.get_groups()
+
+
+def match_strings(master: pd.Series,
+                  duplicates: Optional[pd.Series] = None,
+                  master_id: Optional[pd.Series] = None,
+                  duplicates_id: Optional[pd.Series] = None,
+                  **kwargs) -> pd.DataFrame:
+    """
+    Returns all highly similar strings. If only 'master' is given, it will return highly similar strings within master.
+    This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
+    between master and duplicates. This can be seen as an inner-join.
+
+    :param master: pandas.Series. Series of strings against which matches are calculated.
+    :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional).
+    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional).
+    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional).
+    :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
+    :return: pandas.Dataframe.
+    """
+    sg = StringGrouper(master,
+                       duplicates=duplicates,
+                       master_id=master_id,
+                       duplicates_id=duplicates_id,
+                       **kwargs)
+    sg = sg.fit()
+    return sg.get_matches()
+
+
 class StringGrouperConfig(NamedTuple):
     r"""
     Class with configuration variables.
@@ -140,30 +244,33 @@ class StringGrouper(object):
                   duplicates: Optional[pd.Series] = None,
                   master_id: Optional[pd.Series] = None,
                   duplicates_id: Optional[pd.Series] = None):
+        # Validate input strings data
         self.master = master
         self.duplicates = duplicates
 
+        # Validate optional IDs input
+        if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
+            raise Exception('List of data Series options is invalid')
+        StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
+        self._master_id: Optional[pd.Series] = master_id
+        self._duplicates_id: Optional[pd.Series] = duplicates_id
+
+        # Set some private members
         self._right_DataFrame = self._master
         if self._duplicates is None:
             self._left_DataFrame = self._master
         else:
             self._left_DataFrame = self._duplicates
 
-        # Validate optional IDs input
-        if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
-            raise Exception('List of data Series options is invalid')
-        StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
-        self.master_id = master_id
-        self.duplicates_id = duplicates_id
         self.is_build = False
 
     def _set_options(self, **kwargs):
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
 
         if self._config.max_n_matches is None:
-            self.max_n_matches = len(self._master)
+            self._max_n_matches = len(self._master)
         else:
-            self.max_n_matches = self._config.max_n_matches
+            self._max_n_matches = self._config.max_n_matches
 
         self._validate_group_rep_specs()
         self._validate_tfidf_matrix_dtype()
@@ -225,7 +332,7 @@ class StringGrouper(object):
     def master(self, master):
         if not StringGrouper._is_series_of_strings(master):
             raise TypeError('Master input does not consist of pandas.Series containing only Strings')
-        self._master = master
+        self._master: pd.Series = master
 
     @property
     def duplicates(self):
@@ -235,31 +342,7 @@ class StringGrouper(object):
     def duplicates(self, duplicates):
         if duplicates is not None and not StringGrouper._is_series_of_strings(duplicates):
             raise TypeError('Duplicates input does not consist of pandas.Series containing only Strings')
-        self._duplicates = duplicates
-
-    @property
-    def master_id(self):
-        return self._master_id
-
-    @master_id.setter
-    def master_id(self, master_id):
-        self._master_id = master_id
-
-    @property
-    def duplicates_id(self):
-        return self._duplicates_id
-
-    @duplicates_id.setter
-    def duplicates_id(self, duplicates_id):
-        self._duplicates_id = duplicates_id
-
-    @property
-    def max_n_matches(self):
-        return self._max_n_matches
-
-    @max_n_matches.setter
-    def max_n_matches(self, max_n_matches):
-        self._max_n_matches = max_n_matches
+        self._duplicates: Optional[pd.Series] = duplicates
 
     def n_grams(self, string: str) -> List[str]:
         """
@@ -366,8 +449,7 @@ class StringGrouper(object):
                 left_matrix, right_matrix, nnz_rows[slice(*left_partition)])
         except OverflowError:
             # Matrices too big!  Try splitting:
-            left_matrix = None
-            right_matrix = None
+            del left_matrix, right_matrix
             max_n_matches = self._max_n_matches
 
             def split_partition(partition, left=True):
@@ -597,6 +679,114 @@ class StringGrouper(object):
             if replace_na is None:
                 replace_na = self._config.replace_na
             return self._get_nearest_matches(ignore_index=ignore_index, replace_na=replace_na)
+
+    def match_strings(self,
+                      master: pd.Series,
+                      duplicates: Optional[pd.Series] = None,
+                      master_id: Optional[pd.Series] = None,
+                      duplicates_id: Optional[pd.Series] = None,
+                      **kwargs) -> pd.DataFrame:
+        """
+        Returns all highly similar strings without rebuilding the corpus.
+        If only 'master' is given, it will return highly similar strings within master.
+        This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
+        between master and duplicates. This can be seen as an inner-join.
+
+        :param master: pandas.Series. Series of strings against which matches are calculated.
+        :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional).
+        :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional).
+        :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional).
+        :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
+        :return: pandas.Dataframe.
+        """
+        self.reset_data(master, duplicates, master_id, duplicates_id)
+        self.update_options(**kwargs)
+        self = self.fit()
+        return self.get_matches()
+
+    def match_most_similar(self,
+                           master: pd.Series,
+                           duplicates: pd.Series,
+                           master_id: Optional[pd.Series] = None,
+                           duplicates_id: Optional[pd.Series] = None,
+                           **kwargs) -> Union[pd.DataFrame, pd.Series]:
+        """
+        If no IDs ('master_id' and 'duplicates_id') are given, returns, without rebuilding the corpus, a
+        Series of strings of the same length as 'duplicates' where for each string in duplicates the most
+        similar string in 'master' is returned.
+        If there are no similar strings in master for a given string in duplicates
+        (there is no potential match where the cosine similarity is above the threshold [default: 0.8])
+        the original string in duplicates is returned.
+
+        For example the input Series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
+        [foooo, bar, new].
+
+        If IDs (both 'master_id' and 'duplicates_id') are also given, returns a DataFrame of the same strings
+        output in the above case with their corresponding IDs.
+
+        :param master: pandas.Series. Series of strings that the duplicates will be matched with.
+        :param duplicates: pandas.Series. Series of strings that will me matched with the master.
+        :param master_id: pandas.Series. Series of values that are IDs for master column rows. (Optional)
+        :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows. (Optional)
+        :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+        :return: pandas.Series or pandas.DataFrame.
+        """
+        self.reset_data(master, duplicates, master_id, duplicates_id)
+
+        old_max_n_matches = self._max_n_matches
+        new_max_n_matches = None
+        if 'max_n_matches' in kwargs:
+            new_max_n_matches = kwargs['max_n_matches']
+        kwargs['max_n_matches'] = 1
+        self.update_options(**kwargs)
+
+        self = self.fit()
+        output = self.get_groups()
+
+        kwargs['max_n_matches'] = old_max_n_matches if new_max_n_matches is None else new_max_n_matches
+        self.update_options(**kwargs)
+        return output
+
+    def group_similar_strings(self,
+                              strings_to_group: pd.Series,
+                              string_ids: Optional[pd.Series] = None,
+                              **kwargs) -> Union[pd.DataFrame, pd.Series]:
+        """
+        If 'string_ids' is not given, finds all similar strings in 'strings_to_group' without rebuilding the
+        corpus and returns a Series of strings of the same length as 'strings_to_group'. For each group of
+        similar strings a single string is chosen as the 'master' string and is returned for each member of
+        the group.
+
+        For example the input Series: [foooo, foooob, bar] will return [foooo, foooo, bar].  Here 'foooo' and
+        'foooob' are grouped together into group 'foooo' because they are found to be very similar.
+
+        If string_ids is also given, a DataFrame of the strings and their corresponding IDs is instead returned.
+
+        :param strings_to_group: pandas.Series. The input Series of strings to be grouped.
+        :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped. (Optional)
+        :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
+        :return: pandas.Series or pandas.DataFrame.
+        """
+        self.reset_data(strings_to_group, master_id=string_ids)
+        self.update_options(**kwargs)
+        self = self.fit()
+        return self.get_groups()
+
+    def compute_pairwise_similarities(self,
+                                      string_series_1: pd.Series,
+                                      string_series_2: pd.Series,
+                                      **kwargs) -> pd.Series:
+        """
+        Computes the similarity scores between two Series of strings row-wise without rebuilding the corpus.
+
+        :param string_series_1: pandas.Series. The input Series of strings to be grouped
+        :param string_series_2: pandas.Series. The input Series of the IDs of the strings to be grouped
+        :param kwargs: All other keyword arguments are passed to StringGrouperConfig
+        :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
+        """
+        self.reset_data(string_series_1, string_series_2)
+        self.update_options(**kwargs)
+        return self.dot()
 
     @validate_is_fit
     def add_match(self, master_side: str, dupe_side: str) -> 'StringGrouper':
@@ -942,141 +1132,3 @@ class StringGrouper(object):
             raise Exception('Both master and master_id must be pandas.Series of the same length.')
         if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
             raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
-
-
-# High level functions
-
-
-def compute_pairwise_similarities(string_series_1: pd.Series,
-                                  string_series_2: pd.Series,
-                                  corpus: Optional[StringGrouper] = None,
-                                  **kwargs) -> pd.Series:
-    """
-    Computes the similarity scores between two Series of strings row-wise.
-
-    :param string_series_1: pandas.Series. The input Series of strings to be grouped
-    :param string_series_2: pandas.Series. The input Series of the IDs of the strings to be grouped
-    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig
-    :return: pandas.Series of similarity scores, the same length as string_series_1 and string_series_2
-    """
-    if not corpus:
-        corpus = StringGrouper(string_series_1, string_series_2, **kwargs)
-    else:
-        corpus.reset_data(string_series_1, string_series_2)
-        corpus.update_options(**kwargs)
-    return corpus.dot()
-
-
-def group_similar_strings(strings_to_group: pd.Series,
-                          string_ids: Optional[pd.Series] = None,
-                          corpus: Optional[StringGrouper] = None,
-                          **kwargs) -> Union[pd.DataFrame, pd.Series]:
-    """
-    If 'string_ids' is not given, finds all similar strings in 'strings_to_group' and returns a Series of
-    strings of the same length as 'strings_to_group'. For each group of similar strings a single string
-    is chosen as the 'master' string and is returned for each member of the group.
-
-    For example the input Series: [foooo, foooob, bar] will return [foooo, foooo, bar].  Here 'foooo' and
-    'foooob' are grouped together into group 'foooo' because they are found to be very similar.
-
-    If string_ids is also given, a DataFrame of the strings and their corresponding IDs is instead returned.
-
-    :param strings_to_group: pandas.Series. The input Series of strings to be grouped.
-    :param string_ids: pandas.Series. The input Series of the IDs of the strings to be grouped. (Optional)
-    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
-    :return: pandas.Series or pandas.DataFrame.
-    """
-    if not corpus:
-        corpus = StringGrouper(strings_to_group,
-                               master_id=string_ids,
-                               **kwargs)
-    else:
-        corpus.reset_data(strings_to_group, master_id=string_ids)
-        corpus.update_options(**kwargs)
-    corpus = corpus.fit()
-    return corpus.get_groups()
-
-
-def match_most_similar(master: pd.Series,
-                       duplicates: pd.Series,
-                       master_id: Optional[pd.Series] = None,
-                       duplicates_id: Optional[pd.Series] = None,
-                       corpus: Optional[StringGrouper] = None,
-                       **kwargs) -> Union[pd.DataFrame, pd.Series]:
-    """
-    If no IDs ('master_id' and 'duplicates_id') are given, returns a Series of strings of the same length
-    as 'duplicates' where for each string in duplicates the most similar string in 'master' is returned.
-    If there are no similar strings in master for a given string in duplicates
-    (there is no potential match where the cosine similarity is above the threshold [default: 0.8])
-    the original string in duplicates is returned.
-
-    For example the input Series [foooo, bar, baz] (master) and [foooob, bar, new] will return:
-    [foooo, bar, new].
-
-    If IDs (both 'master_id' and 'duplicates_id') are also given, returns a DataFrame of the same strings
-    output in the above case with their corresponding IDs.
-
-    :param master: pandas.Series. Series of strings that the duplicates will be matched with.
-    :param duplicates: pandas.Series. Series of strings that will me matched with the master.
-    :param master_id: pandas.Series. Series of values that are IDs for master column rows. (Optional)
-    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows. (Optional)
-    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
-    :return: pandas.Series or pandas.DataFrame.
-    """
-    new_max_n_matches = None
-    if 'max_n_matches' in kwargs:
-        new_max_n_matches = kwargs['max_n_matches']
-    kwargs['max_n_matches'] = 1
-
-    if not corpus:
-        corpus = StringGrouper(master,
-                               duplicates=duplicates,
-                               master_id=master_id,
-                               duplicates_id=duplicates_id,
-                               **kwargs)
-        corpus = corpus.fit()
-        output = corpus.get_groups()
-    else:
-        corpus.reset_data(master, duplicates, master_id, duplicates_id)
-        old_max_n_matches = corpus.max_n_matches
-        corpus.update_options(**kwargs)
-        corpus = corpus.fit()
-        output = corpus.get_groups()
-        kwargs['max_n_matches'] = old_max_n_matches if new_max_n_matches is None else new_max_n_matches
-        corpus.update_options(**kwargs)
-    return output
-
-
-def match_strings(master: pd.Series,
-                  duplicates: Optional[pd.Series] = None,
-                  master_id: Optional[pd.Series] = None,
-                  duplicates_id: Optional[pd.Series] = None,
-                  corpus: Optional[StringGrouper] = None,
-                  **kwargs) -> pd.DataFrame:
-    """
-    Returns all highly similar strings. If only 'master' is given, it will return highly similar strings within master.
-    This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
-    between master and duplicates. This can be seen as an inner-join.
-
-    :param master: pandas.Series. Series of strings against which matches are calculated.
-    :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional).
-    :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional).
-    :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional).
-    :param corpus: An already initialized StringGrouper object (thus already containing a corpus).
-    :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
-    :return: pandas.Dataframe.
-    """
-    if not corpus:
-        corpus = StringGrouper(master,
-                               duplicates=duplicates,
-                               master_id=master_id,
-                               duplicates_id=duplicates_id,
-                               **kwargs)
-    else:
-        corpus.reset_data(master, duplicates, master_id, duplicates_id)
-        corpus.update_options(**kwargs)
-    corpus = corpus.fit()
-    return corpus.get_matches()
