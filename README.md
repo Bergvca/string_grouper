@@ -143,6 +143,7 @@ All functions are built using a class **`StringGrouper`**. This class can be use
     Defaults to `0.8`
    * **`number_of_processes`**: The number of processes used by the cosine similarity calculation. Defaults to
     `number of cores on a machine - 1.`
+   * **`ignore_case`**: Determines whether or not letter case in strings should be ignored. Defaults to `True`.
    * **`ignore_index`**: Determines whether indexes are ignored or not.  If `False` (the default), index-columns will appear in the output, otherwise not.  (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md) for a demonstration.)
    * **`replace_na`**: For function `match_most_similar`, determines whether `NaN` values in index-columns are replaced or not by index-labels from `duplicates`. Defaults to `False`.  (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md) for a demonstration.)
    * **`include_zeroes`**: When `min_similarity` &le; 0, determines whether zero-similarity matches appear in the output.  Defaults to `True`.  (See [tutorials/zero_similarity.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/zero_similarity.md).)  **Note:** If `include_zeroes` is `True` and the kwarg `max_n_matches` is set then it must be sufficiently high to capture ***all*** nonzero-similarity-matches, otherwise an error is raised and `string_grouper` suggests an alternative value for `max_n_matches`.  To allow `string_grouper` to automatically use the appropriate value for `max_n_matches` then do not set this kwarg at all.
@@ -1004,7 +1005,7 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
 ![Semilogx](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockNumberSpaceExploration1.png)
 
 String comparison, as implemented by `string_grouper`, is essentially matrix 
-multiplication.  A DataFrame of strings is converted (tokenized) into a 
+multiplication.  A pandas Series of strings is converted (tokenized) into a 
 matrix.  Then that matrix is multiplied by itself (or another) transposed.  
 
 Here is an illustration of multiplication of two matrices ***D*** and ***M***<sup>T</sup>:
@@ -1042,30 +1043,38 @@ blocks specified.  For this reason, it is recommended *not* to split the left ma
 
 ![Block Matrix 1 2](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockMatrix_1_2.png)
 
-[Below is a log-log-log contour plot](#ContourPlot) of the 
+In general,
 
-&nbsp;&nbsp;&nbsp;***runtime per string-pair comparison***
-= ***runtime*** / (***Left Operand Size*** &times; ***Right Operand Size***)
+&nbsp;&nbsp;&nbsp;***total runtime*** = `n_blocks[0]` &times; `n_blocks[1]` &times; ***mean runtime per block-pair***
 
-scaled by its value
-at ***Left Operand Size*** = ***Right Operand Size*** = 5000.  Note that ***Operand Size***
-is the number of strings in that operand, and ***runtime*** is the time taken for the following call to run:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = ***Left Operand Size*** &times; ***Right Operand Size*** &times; 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ***mean runtime per block-pair*** / (***Left Block Size*** &times; ***Right Block Size***)
+
+So for given left and right operands, minimizing the ***total runtime*** is the same as minimizing the
+
+&nbsp;&nbsp;&nbsp;***runtime per string-pair comparison*** &#8797; <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;***mean runtime per block-pair*** / (***Left Block Size*** &times; ***Right Block Size***)
+
+
+[Below is a log-log-log contour plot](#ContourPlot) of the ***runtime per string-pair comparison*** scaled by its value
+at ***Left Block Size*** = ***Right Block Size*** = 5000.  Here, ***Block Size***
+is the number of strings in that block, and ***mean runtime per block-pair*** is the time taken for the following call to run:
 ```python
 # note the parameter order!
 match_strings(right_Series, left_Series, n_blocks=(1, 1))
 ```
-where `left_Series` and `right_Series`, corresponding to ***Left Operand*** and ***Right Operand*** respectively, are random subsets of the Series `companies['Company Name')]` from the
+where `left_Series` and `right_Series`, corresponding to ***Left Block*** and ***Right Block*** respectively, are random subsets of the Series `companies['Company Name')]` from the
 [sec__edgar_company_info.csv](https://www.kaggle.com/dattapiy/sec-edgar-companies-list/version/1) sample data file.
 
 <a name="ContourPlot"></a> ![ContourPlot](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/ScaledRuntimeContourPlot.png)
 
 It can be seen that when `right_Series` is roughly the size of 80&nbsp;000 (denoted by the 
 white dashed line in the contour plot above), the runtime per string-pair comparison is at 
-its lowest for any fixed `left_Series` size.  Above ***Right Operand Size*** = 80&nbsp;000, the 
+its lowest for any fixed `left_Series` size.  Above ***Right Block Size*** = 80&nbsp;000, the 
 matrix-multiplication routine begins to feel the limits of the computer's 
 available memory space and thus its performance deteriorates, as evidenced by the increase 
 in runtime per string-pair comparison there (above the white dashed line).  This knowledge 
-could serve as a guide for choosing the optimum block numbers &mdash;
+could serve as a guide for estimating the optimum block numbers &mdash;
 namely those that divide the Series into blocks of size roughly equal to 
 80&nbsp;000 for the right operand (or `right_Series`).
 
