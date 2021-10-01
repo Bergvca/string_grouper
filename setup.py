@@ -26,6 +26,6 @@ setup(
                       , 'scikit-learn'
                       , 'numpy'
                       , 'sparse_dot_topn_for_blocks>=0.3.1'
-                      , 'topn>=0.0.4'
+                      , 'topn>=0.0.6'
                       ]
 )

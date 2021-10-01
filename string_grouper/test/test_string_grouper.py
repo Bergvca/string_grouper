@@ -151,11 +151,12 @@ class StringGrouperTest(unittest.TestCase):
                                real_build_matches=sg._build_matches):
             def wrapper(left_matrix,
                         right_matrix,
-                        nnz_rows=None):
+                        nnz_rows=None,
+                        sort=True):
                 if (left_matrix.shape[0] + right_matrix.shape[0]) > \
                         OverflowThreshold:
                     raise OverflowError
-                return real_build_matches(left_matrix, right_matrix, nnz_rows)
+                return real_build_matches(left_matrix, right_matrix, nnz_rows, sort)
             return wrapper
 
         def do_test_with(OverflowThreshold):

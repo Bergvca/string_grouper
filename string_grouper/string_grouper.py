@@ -3,12 +3,13 @@ import numpy as np
 import re
 import multiprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.sparse import vstack
 from scipy.sparse.csr import csr_matrix
 from scipy.sparse.lil import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn_for_blocks import awesome_cossim_topn
-from topn import awesome_topn
+from topn import awesome_hstack_topn
 from functools import wraps
 
 
@@ -381,45 +382,55 @@ class StringGrouper(object):
 
         block_ranges_left = divide_by(n_blocks[0], self._left_DataFrame)
         block_ranges_right = divide_by(n_blocks[1], self._right_DataFrame)
-        max_n_matches = self._max_n_matches
 
         self._true_max_n_matches = 0
+        vblocks = []
         for left_block in block_ranges_left:
             left_matrix = self._get_left_tf_idf_matrix(left_block)
             nnz_rows = np.full(left_matrix.shape[0], 0, dtype=np.int32)
+            hblocks = []
             for right_block in block_ranges_right:
-                self._max_n_matches = min(
-                    right_block[1] - right_block[0],
-                    max_n_matches
-                )
                 right_matrix = self._get_right_tf_idf_matrix(right_block)
 
                 # Calculate the matches using the cosine similarity
+                # Note: awesome_cossim_topn will sort each row only when
+                # _max_n_matches < size of right_block or sort=True
                 matches, block_true_max_n_matches = self._build_matches(
-                    left_matrix, right_matrix, nnz_rows
+                    left_matrix, right_matrix, nnz_rows, sort=(len(block_ranges_right) == 1)
                 )
-
-                # build match-lists from matrix
-                r, c = matches.nonzero()
-                d = matches.data
-                (self._r, self._c, self._d) = (
-                    np.append(self._r, r + left_block[0]),
-                    np.append(self._c, c + right_block[0]),
-                    np.append(self._d, d)
-                )
+                hblocks.append(matches)
                 # end of inner loop
 
             self._true_max_n_matches = \
                 max(block_true_max_n_matches, self._true_max_n_matches)
+            if len(block_ranges_right) > 1:
+                # Note: awesome_hstack_topn will sort each row only when
+                # _max_n_matches < length of _right_DataFrame or sort=True
+                vblocks.append(
+                    awesome_hstack_topn(
+                        hblocks,
+                        self._max_n_matches,
+                        sort=True,
+                        use_threads=self._config.number_of_processes > 1,
+                        n_jobs=self._config.number_of_processes
+                    )
+                )
+            else:
+                vblocks.append(hblocks[0])
+            del hblocks
+            del matches
             # end of outer loop
 
-        self._max_n_matches = max_n_matches
-        return max(n_blocks) > 1
+        if len(block_ranges_left) > 1:
+            return vstack(vblocks)
+        else:
+            return vblocks[0]
 
     def _fit_blockwise_auto(self,
                             left_partition=(None, None),
                             right_partition=(None, None),
                             nnz_rows=None,
+                            sort=True,
                             whoami=0):
         # This is a recursive function!
         # fit() has been extended here to enable StringGrouper to handle large
@@ -446,11 +457,11 @@ class StringGrouper(object):
         try:
             # Calculate the matches using the cosine similarity
             matches, true_max_n_matches = self._build_matches(
-                left_matrix, right_matrix, nnz_rows[slice(*left_partition)])
+                left_matrix, right_matrix, nnz_rows[slice(*left_partition)],
+                sort=sort)
         except OverflowError:
             # Matrices too big!  Try splitting:
             del left_matrix, right_matrix
-            max_n_matches = self._max_n_matches
 
             def split_partition(partition, left=True):
                 data_begin = begin(partition)
@@ -463,38 +474,49 @@ class StringGrouper(object):
 
             left_halves = split_partition(left_partition, left=True)
             right_halves = split_partition(right_partition, left=False)
+            vblocks = []
             for lhalf in left_halves:
+                hblocks = []
                 for rhalf in right_halves:
-                    self._max_n_matches = min(
-                        rhalf[1] - rhalf[0],
-                        max_n_matches
-                    )
-                    _ = self._fit_blockwise_auto(
+                    # Note: awesome_cossim_topn will sort each row only when
+                    # _max_n_matches < size of right_partition or sort=True
+                    matches = self._fit_blockwise_auto(
                         left_partition=lhalf, right_partition=rhalf,
                         nnz_rows=nnz_rows,
+                        sort=((whoami == 0) and (len(right_halves) == 1)),
                         whoami=(whoami + 1)
                     )
+                    hblocks.append(matches)
                     # end of inner loop
                 if whoami == 0:
                     self._true_max_n_matches = max(
                         np.amax(nnz_rows[slice(*lhalf)]),
                         self._true_max_n_matches
                     )
+                if len(right_halves) > 1:
+                    # Note: awesome_hstack_topn will sort each row only when
+                    # _max_n_matches < length of _right_DataFrame or sort=True
+                    vblocks.append(
+                        awesome_hstack_topn(
+                            hblocks,
+                            self._max_n_matches,
+                            sort=(whoami == 0),
+                            use_threads=self._config.number_of_processes > 1,
+                            n_jobs=self._config.number_of_processes
+                        )
+                    )
+                else:
+                    vblocks.append(hblocks[0])
+                del hblocks
                 # end of outer loop
-            self._max_n_matches = max_n_matches
-            return True
+            if len(left_halves) > 1:
+                return vstack(vblocks)
+            else:
+                return vblocks[0]
 
-        # build match-lists from matrix
-        r, c = matches.nonzero()
-        d = matches.data
-        (self._r, self._c, self._d) = (
-            np.append(self._r, r + begin(left_partition)),
-            np.append(self._c, c + begin(right_partition)),
-            np.append(self._d, d)
-        )
         if whoami == 0:
             self._true_max_n_matches = true_max_n_matches
-        return False
+        return matches
 
     def fit(self, force_symmetries=None, n_blocks=None):
         """
@@ -507,41 +529,14 @@ class StringGrouper(object):
         if n_blocks is None:
             n_blocks = self._config.n_blocks
 
-        # initialize match-lists
-        self._r = np.array([], dtype=np.int64)
-        self._c = np.array([], dtype=np.int64)
-        self._d = np.array([], dtype=self._config.tfidf_matrix_dtype)
-        self._matches_list = pd.DataFrame()
-
         # do the matching
         if n_blocks is None:
-            split_occurred = self._fit_blockwise_auto()
+            matches = self._fit_blockwise_auto()
         else:
-            split_occurred = self._fit_blockwise_manual(n_blocks=n_blocks)
+            matches = self._fit_blockwise_manual(n_blocks=n_blocks)
 
         # enforce symmetries?
         if force_symmetries and (self._duplicates is None):
-            matrix_sz = len(self._master)
-            if split_occurred:
-                # trim the matches to max_n_matches
-                self._r, self._c, self._d = awesome_topn(
-                    self._r, self._c, self._d,
-                    ntop=self._max_n_matches, n_rows=matrix_sz,
-                    n_jobs=self._config.number_of_processes
-                )
-                matches = csr_matrix(
-                    (self._d, self._c, self._r),
-                    shape=(matrix_sz, matrix_sz)
-                )
-            else:
-                matches = csr_matrix(
-                    (self._d, (self._r, self._c)),
-                    shape=(matrix_sz, matrix_sz)
-                )
-
-            # release memory
-            self._r = self._c = self._d = np.array([])
-
             # convert to lil format for best efficiency when setting
             # matrix-elements
             matches = matches.tolil()
@@ -553,19 +548,7 @@ class StringGrouper(object):
             # (i.e., if A != B and A matches B; then B matches A)
             matches = StringGrouper._symmetrize_matrix(matches)
             matches = matches.tocsr()
-            self._matches_list = self._get_matches_list(matches)
-        else:
-            if split_occurred:
-                # trim the matches to max_n_matches
-                self._r, self._c, self._d = awesome_topn(
-                    self._r, self._c, self._d,
-                    ntop=self._max_n_matches,
-                    n_jobs=self._config.number_of_processes
-                )
-            self._matches_list = self._get_matches_list()
-            # release memory
-            self._r = self._c = self._d = np.array([])
-
+        self._matches_list = self._get_matches_list(matches)
         self.is_build = True
         return self
 
@@ -853,7 +836,8 @@ class StringGrouper(object):
 
     def _build_matches(self,
                        left_matrix: csr_matrix, right_matrix: csr_matrix,
-                       nnz_rows: np.ndarray = None) -> csr_matrix:
+                       nnz_rows: np.ndarray = None,
+                       sort: bool = True) -> csr_matrix:
         """Builds the cossine similarity matrix of two csr matrices"""
         right_matrix = right_matrix.transpose()
 
@@ -862,6 +846,7 @@ class StringGrouper(object):
 
         optional_kwargs = {
             'return_best_ntop': True,
+            'sort': sort,
             'use_threads': self._config.number_of_processes > 1,
             'n_jobs': self._config.number_of_processes}
 
@@ -873,17 +858,13 @@ class StringGrouper(object):
             **optional_kwargs)
 
     def _get_matches_list(self,
-                          matches: Optional[csr_matrix] = None
+                          matches: csr_matrix
                           ) -> pd.DataFrame:
         """Returns a list of all the indices of matches"""
-        if matches is None:
-            r, c, d = self._r, self._c, self._d
-        else:
-            r, c = matches.nonzero()
-            d = matches.data
-
-        return pd.DataFrame({'master_side': c,
-                             'dupe_side': r,
+        r, c = matches.nonzero()
+        d = matches.data
+        return pd.DataFrame({'master_side': c.astype(np.int64),
+                             'dupe_side': r.astype(np.int64),
                              'similarity': d})
 
     def _get_non_matches_list(self) -> pd.DataFrame:

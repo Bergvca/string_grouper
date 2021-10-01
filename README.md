@@ -56,8 +56,6 @@ The permitted calling patterns of the four functions, and their return types, ar
 | `group_similar_strings`| `(strings_to_group, strings_id, **kwargs)`| `DataFrame` |
 | `compute_pairwise_similarities`| `(string_series_1, string_series_2, **kwargs)`| `Series` |
 
-***New in version 0.6.0***<a name="corpus"></a>: a new *optional* parameter, namely `corpus`, can now be specified for all of the above high-level functions.  `corpus` is a `StringGrouper` instance that has already been initialized (and thus already contains a corpus).  The input Series (`master`, `duplicates`, and so on) will thus be tokenized, or transformed into tf-idf matrices, using this corpus.
-
 In the rest of this document the names, `Series` and `DataFrame`, refer to the familiar `pandas` object types.
 #### Parameters:
 
@@ -71,6 +69,18 @@ In the rest of this document the names, `Series` and `DataFrame`, refer to the f
 |**`strings_id`** | A `Series` of IDs corresponding to the strings in `strings_to_group`. |
 |**`string_series_1(_2)`** | A `Series` of strings each of which is to be compared with its corresponding string in `string_series_2(_1)`. |
 |**`**kwargs`** | Keyword arguments (see [below](#kwargs)).|
+
+***New in version 0.6.0***<a name="corpus"></a>: each of the high-level functions listed above also has a `StringGrouper` method counterpart of the same name and parameters.  Calling such a method of any instance of `StringGrouper` will not rebuild the instance's underlying corpus to make string-comparisons but rather use it to perform the string-comparisons.  The input Series to the method (`master`, `duplicates`, and so on) will thus be encoded, or transformed, into tf-idf matrices, using this corpus.  For example:
+```python
+# Build a corpus using strings in the pandas Series master:
+sg = StringGrouper(master)
+# The following method-calls will compare strings first in
+# pandas Series new_master_1 and next in new_master_2
+# using the corpus already built above without rebuilding or
+# changing it in any way:
+matches1 = sg.match_strings(new_master_1)
+matches2 = sg.match_strings(new_master_2)
+```
 
 #### Functions:
 
