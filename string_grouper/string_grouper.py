@@ -161,7 +161,8 @@ class StringGrouperConfig(NamedTuple):
     (Note: np.float32 often leads to faster processing and a smaller memory footprint albeit less precision
     than np.float64.)
     :param regex: str. The regex string used to cleanup the input string. Default is '[,-./]|\s'.
-    :param max_n_matches: int. The maximum number of matches allowed per string. Default is 20.
+    :param max_n_matches: int. The maximum number of matching strings in master allowed per string in duplicates.
+    Default is the total number of strings in master.
     :param min_similarity: float. The minimum cosine similarity for two strings to be considered a match.
     Defaults to 0.8.
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
@@ -236,6 +237,27 @@ class StringGrouper(object):
         :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates Series.
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
+        # private members:
+        self.is_build = False
+
+        self._master: pd.DataFrame = pd.DataFrame()
+        self._duplicates: Optional[pd.Series] = None
+        self._master_id: Optional[pd.Series] = None
+        self._duplicates_id: Optional[pd.Series] = None
+
+        self._right_Series: pd.DataFrame = pd.DataFrame()
+        self._left_Series: pd.DataFrame = pd.DataFrame()
+
+        # After the StringGrouper is fit, _matches_list will contain the indices and similarities of the matches
+        self._matches_list: pd.DataFrame = pd.DataFrame()
+        # _true_max_n_matches will contain the true maximum number of matches over all strings in master if
+        # self._config.min_similarity <= 0
+        self._true_max_n_matches: int = 0
+        self._max_n_matches: int = 0
+
+        self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
+
+        # initialize the members:
         self._set_data(master, duplicates, master_id, duplicates_id)
         self._set_options(**kwargs)
         self._build_corpus()
@@ -253,20 +275,20 @@ class StringGrouper(object):
         if not StringGrouper._is_input_data_combination_valid(duplicates, master_id, duplicates_id):
             raise Exception('List of data Series options is invalid')
         StringGrouper._validate_id_data(master, duplicates, master_id, duplicates_id)
-        self._master_id: Optional[pd.Series] = master_id
-        self._duplicates_id: Optional[pd.Series] = duplicates_id
+        self._master_id = master_id
+        self._duplicates_id = duplicates_id
 
         # Set some private members
-        self._right_DataFrame = self._master
+        self._right_Series = self._master
         if self._duplicates is None:
-            self._left_DataFrame = self._master
+            self._left_Series = self._master
         else:
-            self._left_DataFrame = self._duplicates
+            self._left_Series = self._duplicates
 
         self.is_build = False
 
     def _set_options(self, **kwargs):
-        self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
+        self._config = StringGrouperConfig(**kwargs)
 
         if self._config.max_n_matches is None:
             self._max_n_matches = len(self._master)
@@ -281,11 +303,6 @@ class StringGrouper(object):
 
     def _build_corpus(self):
         self._vectorizer = TfidfVectorizer(min_df=1, analyzer=self.n_grams, dtype=self._config.tfidf_matrix_dtype)
-        # After the StringGrouper is built, _matches_list will contain the indices and similarities of the matches
-        self._matches_list: pd.DataFrame = pd.DataFrame()
-        # _true_max_n_matches will contain the true maximum number of matches over all strings in master if
-        # self._config.min_similarity <= 0
-        self._true_max_n_matches = None
         self._vectorizer = self._fit_vectorizer()
         self.is_build = False  # indicates if the grouper was fit or not
 
@@ -311,8 +328,8 @@ class StringGrouper(object):
         self._master_id = None
         self._duplicates_id = None
         self._matches_list = None
-        self._left_DataFrame = None
-        self._right_DataFrame = None
+        self._left_Series = None
+        self._right_Series = None
         self.is_build = False
 
     def update_options(self, **kwargs):
@@ -333,7 +350,7 @@ class StringGrouper(object):
     def master(self, master):
         if not StringGrouper._is_series_of_strings(master):
             raise TypeError('Master input does not consist of pandas.Series containing only Strings')
-        self._master: pd.Series = master
+        self._master = master
 
     @property
     def duplicates(self):
@@ -343,7 +360,7 @@ class StringGrouper(object):
     def duplicates(self, duplicates):
         if duplicates is not None and not StringGrouper._is_series_of_strings(duplicates):
             raise TypeError('Duplicates input does not consist of pandas.Series containing only Strings')
-        self._duplicates: Optional[pd.Series] = duplicates
+        self._duplicates = duplicates
 
     def n_grams(self, string: str) -> List[str]:
         """
@@ -380,10 +397,11 @@ class StringGrouper(object):
             equal_block_sz[0, 1:] = equal_block_sz[1, :-1]
             return equal_block_sz.T
 
-        block_ranges_left = divide_by(n_blocks[0], self._left_DataFrame)
-        block_ranges_right = divide_by(n_blocks[1], self._right_DataFrame)
+        block_ranges_left = divide_by(n_blocks[0], self._left_Series)
+        block_ranges_right = divide_by(n_blocks[1], self._right_Series)
 
         self._true_max_n_matches = 0
+        block_true_max_n_matches = 0
         vblocks = []
         for left_block in block_ranges_left:
             left_matrix = self._get_left_tf_idf_matrix(left_block)
@@ -405,7 +423,7 @@ class StringGrouper(object):
                 max(block_true_max_n_matches, self._true_max_n_matches)
             if len(block_ranges_right) > 1:
                 # Note: awesome_hstack_topn will sort each row only when
-                # _max_n_matches < length of _right_DataFrame or sort=True
+                # _max_n_matches < length of _right_Series or sort=True
                 vblocks.append(
                     awesome_hstack_topn(
                         hblocks,
@@ -443,7 +461,7 @@ class StringGrouper(object):
             if partition[1] is not None:
                 return partition[1]
 
-            return len(self._left_DataFrame if left else self._right_DataFrame)
+            return len(self._left_Series if left else self._right_Series)
 
         left_matrix = self._get_left_tf_idf_matrix(left_partition)
         right_matrix = self._get_right_tf_idf_matrix(right_partition)
@@ -495,7 +513,7 @@ class StringGrouper(object):
                     )
                 if len(right_halves) > 1:
                     # Note: awesome_hstack_topn will sort each row only when
-                    # _max_n_matches < length of _right_DataFrame or sort=True
+                    # _max_n_matches < length of _right_Series or sort=True
                     vblocks.append(
                         awesome_hstack_topn(
                             hblocks,
@@ -815,14 +833,14 @@ class StringGrouper(object):
         # does not set the corpus but rather
         # builds a matrix using the existing corpus
         return self._vectorizer.transform(
-            self._left_DataFrame.iloc[slice(*partition)])
+            self._left_Series.iloc[slice(*partition)])
 
     def _get_right_tf_idf_matrix(self, partition=(None, None)):
         # unlike _get_tf_idf_matrices(), _get_right_tf_idf_matrix
         # does not set the corpus but rather
         # builds a matrix using the existing corpus
         return self._vectorizer.transform(
-            self._right_DataFrame.iloc[slice(*partition)])
+            self._right_Series.iloc[slice(*partition)])
 
     def _fit_vectorizer(self) -> TfidfVectorizer:
         # if both dupes and master string series are set - we concat them to fit the vectorizer on all
@@ -1057,13 +1075,13 @@ class StringGrouper(object):
             raise Exception(errmsg)
 
     @staticmethod
-    def _fix_diagonal(m: lil_matrix) -> csr_matrix:
+    def _fix_diagonal(m: lil_matrix) -> lil_matrix:
         r = np.arange(m.shape[0])
         m[r, r] = 1
         return m
 
     @staticmethod
-    def _symmetrize_matrix(m_symmetric: lil_matrix) -> csr_matrix:
+    def _symmetrize_matrix(m_symmetric: lil_matrix) -> lil_matrix:
         r, c = m_symmetric.nonzero()
         m_symmetric[c, r] = m_symmetric[r, c]
         return m_symmetric

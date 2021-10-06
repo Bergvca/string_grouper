@@ -171,7 +171,7 @@ class StringGrouperTest(unittest.TestCase):
             # Note that _build_matches is called more than once if and only if
             # a split occurred (that is, there was more than one pair of
             # matrix-blocks multiplied)
-            if len(sg._left_DataFrame) + len(sg._right_DataFrame) > \
+            if len(sg._left_Series) + len(sg._right_Series) > \
                     OverflowThreshold:
                 # Assert that split occurred:
                 self.assertGreater(sg._build_matches.call_count, 1)
