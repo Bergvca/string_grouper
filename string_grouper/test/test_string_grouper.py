@@ -122,7 +122,7 @@ class StringGrouperTest(unittest.TestCase):
         # This function will force an OverflowError to occur when
         # the input Series have a combined length above a given number:
         # OverflowThreshold.  This will in turn trigger automatic splitting
-        # of the Series/matrices into smaller blocks
+        # of the Series/matrices into smaller blocks when n_blocks = None
 
         sort_cols = ['right_index', 'left_index']
 
@@ -143,7 +143,7 @@ class StringGrouperTest(unittest.TestCase):
         # Create a custom wrapper for this StringGrouper instance's
         # _build_matches() method which will later be used to
         # mock _build_matches().
-        # Note that we have to define the mock function here because
+        # Note that we have  to  define  the  wrapper  here  because
         # _build_matches() is a non-static function of StringGrouper
         # and needs access to the specific StringGrouper instance sg
         # created here.
@@ -239,6 +239,48 @@ class StringGrouperTest(unittest.TestCase):
         matches32 = fix_row_order(
             match_strings(df1, n_blocks=(3, 2), min_similarity=0.1))
         pd.testing.assert_frame_equal(matches11, matches32)
+
+        # Create a custom wrapper for this StringGrouper instance's
+        # _build_matches() method which will later be used to
+        # mock _build_matches().
+        # Note that we have  to  define  the  wrapper  here  because
+        # _build_matches() is a non-static function of StringGrouper
+        # and needs access to the specific StringGrouper instance sg
+        # created here.
+        sg = StringGrouper(df1, min_similarity=0.1)
+
+        def mock_build_matches(OverflowThreshold,
+                               real_build_matches=sg._build_matches):
+            def wrapper(left_matrix,
+                        right_matrix,
+                        nnz_rows=None,
+                        sort=True):
+                if (left_matrix.shape[0] + right_matrix.shape[0]) > \
+                        OverflowThreshold:
+                    raise OverflowError
+                return real_build_matches(left_matrix, right_matrix, nnz_rows, sort)
+            return wrapper
+
+        def test_overflow_error_with(OverflowThreshold, n_blocks):
+            nonlocal sg
+            sg._build_matches = Mock(side_effect=mock_build_matches(OverflowThreshold))
+            sg.clear_data()
+            max_left_block_size = (len(df1)//n_blocks[0]
+                                   + (1 if len(df1) % n_blocks[0] > 0 else 0))
+            max_right_block_size = (len(df1)//n_blocks[1]
+                                    + (1 if len(df1) % n_blocks[1] > 0 else 0))
+            if (max_left_block_size + max_right_block_size) > OverflowThreshold:
+                with self.assertRaises(Exception):
+                    _ = sg.match_strings(df1, n_blocks=n_blocks)
+            else:
+                matches_manual = fix_row_order(sg.match_strings(df1, n_blocks=n_blocks))
+                pd.testing.assert_frame_equal(matches11, matches_manual)
+
+        test_overflow_error_with(OverflowThreshold=100, n_blocks=(1, 1))
+        test_overflow_error_with(OverflowThreshold=10, n_blocks=(1, 1))
+        test_overflow_error_with(OverflowThreshold=10, n_blocks=(2, 1))
+        test_overflow_error_with(OverflowThreshold=10, n_blocks=(1, 2))
+        test_overflow_error_with(OverflowThreshold=10, n_blocks=(4, 4))
 
     def test_n_blocks_both_DataFrames(self):
         """tests whether manual blocking yields consistent results"""

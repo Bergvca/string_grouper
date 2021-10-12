@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import re
 import multiprocessing
+import warnings
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import vstack
 from scipy.sparse.csr import csr_matrix
@@ -409,13 +410,19 @@ class StringGrouper(object):
             hblocks = []
             for right_block in block_ranges_right:
                 right_matrix = self._get_right_tf_idf_matrix(right_block)
-
-                # Calculate the matches using the cosine similarity
-                # Note: awesome_cossim_topn will sort each row only when
-                # _max_n_matches < size of right_block or sort=True
-                matches, block_true_max_n_matches = self._build_matches(
-                    left_matrix, right_matrix, nnz_rows, sort=(len(block_ranges_right) == 1)
-                )
+                try:
+                    # Calculate the matches using the cosine similarity
+                    # Note: awesome_cossim_topn will sort each row only when
+                    # _max_n_matches < size of right_block or sort=True
+                    matches, block_true_max_n_matches = self._build_matches(
+                        left_matrix, right_matrix, nnz_rows, sort=(len(block_ranges_right) == 1)
+                    )
+                except OverflowError as oe:
+                    import sys
+                    raise (type(oe)(f"{str(oe)} Use the n_blocks parameter to split-up "
+                                    f"the data into smaller chunks.  The current values"
+                                    f"(n_blocks = {n_blocks}) are too small.")
+                           .with_traceback(sys.exc_info()[2]))
                 hblocks.append(matches)
                 # end of inner loop
 
@@ -478,6 +485,12 @@ class StringGrouper(object):
                 left_matrix, right_matrix, nnz_rows[slice(*left_partition)],
                 sort=sort)
         except OverflowError:
+            warnings.warn("An OverflowError occurred but is being "
+                          "handled.  The input data will be automatically "
+                          "split-up into smaller chunks which will then be "
+                          "processed one chunk at a time.  To prevent "
+                          "OverflowError, use the n_blocks parameter to split-up "
+                          "the data manually into small enough chunks.")
             # Matrices too big!  Try splitting:
             del left_matrix, right_matrix
 
