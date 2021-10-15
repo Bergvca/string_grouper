@@ -70,6 +70,18 @@ In the rest of this document the names, `Series` and `DataFrame`, refer to the f
 |**`string_series_1(_2)`** | A `Series` of strings each of which is to be compared with its corresponding string in `string_series_2(_1)`. |
 |**`**kwargs`** | Keyword arguments (see [below](#kwargs)).|
 
+***New in version 0.6.0***<a name="corpus"></a>: each of the high-level functions listed above also has a `StringGrouper` method counterpart of the same name and parameters.  Calling such a method of any instance of `StringGrouper` will not rebuild the instance's underlying corpus to make string-comparisons but rather use it to perform the string-comparisons.  The input Series to the method (`master`, `duplicates`, and so on) will thus be encoded, or transformed, into tf-idf matrices, using this corpus.  For example:
+```python
+# Build a corpus using strings in the pandas Series master:
+sg = StringGrouper(master)
+# The following method-calls will compare strings first in
+# pandas Series new_master_1 and next in new_master_2
+# using the corpus already built above without rebuilding or
+# changing it in any way:
+matches1 = sg.match_strings(new_master_1)
+matches2 = sg.match_strings(new_master_2)
+```
+
 #### Functions:
 
 * #### `match_strings` 
@@ -134,9 +146,10 @@ All functions are built using a class **`StringGrouper`**. This class can be use
    All keyword arguments not mentioned in the function definitions above are used to update the default settings. The following optional arguments can be used:
 
    * **`ngram_size`**: The amount of characters in each n-gram. Default is `3`.
+   * **`regex`**: The regex string used to clean-up the input string. Default is `r"[,-./]|\s"`.
+   * **`ignore_case`**: Determines whether or not letter case in strings should be ignored. Defaults to `True`.
    * **`tfidf_matrix_dtype`**: The datatype for the tf-idf values of the matrix components. Allowed values are `numpy.float32` and `numpy.float64`.  Default is `numpy.float32`.  (Note: `numpy.float32` often leads to faster processing and a smaller memory footprint albeit less numerical precision than `numpy.float64`.)
-   * **`regex`**: The regex string used to clean-up the input string. Default is `"[,-./]|\s"`.
-   * **`max_n_matches`**: The maximum number of matches allowed per string in `master`. Default is the number of strings in `duplicates` (or `master`, if `duplicates` is not given).
+   * **`max_n_matches`**: The maximum number of matching strings in `master` allowed per string in `duplicates`. Default is the total number of strings in `master`.
    * **`min_similarity`**: The minimum cosine similarity for two strings to be considered a match.
     Defaults to `0.8`
    * **`number_of_processes`**: The number of processes used by the cosine similarity calculation. Defaults to
@@ -145,6 +158,8 @@ All functions are built using a class **`StringGrouper`**. This class can be use
    * **`replace_na`**: For function `match_most_similar`, determines whether `NaN` values in index-columns are replaced or not by index-labels from `duplicates`. Defaults to `False`.  (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md) for a demonstration.)
    * **`include_zeroes`**: When `min_similarity` &le; 0, determines whether zero-similarity matches appear in the output.  Defaults to `True`.  (See [tutorials/zero_similarity.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/zero_similarity.md).)  **Note:** If `include_zeroes` is `True` and the kwarg `max_n_matches` is set then it must be sufficiently high to capture ***all*** nonzero-similarity-matches, otherwise an error is raised and `string_grouper` suggests an alternative value for `max_n_matches`.  To allow `string_grouper` to automatically use the appropriate value for `max_n_matches` then do not set this kwarg at all.
    * **`group_rep`**: For function `group_similar_strings`, determines how group-representatives are chosen.  Allowed values are `'centroid'` (the default) and `'first'`.  See [tutorials/group_representatives.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/group_representatives.md) for an explanation.
+   * **`force_symmetries`**: In cases where `duplicates` is `None`, specifies whether corrections should be made to the results to account for symmetry, thus compensating for those losses of numerical significance which violate the symmetries. Defaults to `True`.
+   * **`n_blocks`**: This parameter is a tuple of two `int`s provided to help boost performance, if possible, of processing large DataFrames (see [Subsection Performance](#perf)), by splitting the DataFrames into `n_blocks[0]` blocks for the left operand (of the underlying matrix multiplication) and into `n_blocks[1]` blocks for the right operand before performing the string-comparisons block-wise.  Defaults to `None`, in which case automatic splitting occurs if an `OverflowError` would otherwise occur.
 
 ## Examples
 
@@ -993,3 +1008,89 @@ companies[companies.deduplicated_name.str.contains('PRICEWATERHOUSECOOPERS LLP')
   </tbody>
 </table>
 </div>
+
+# Performance<a name="perf"></a>
+
+### <a name="Semilogx"></a>Semilogx plots of run-times of `match_strings()` vs the number of blocks (`n_blocks[1]`) into which the right matrix-operand of the dataset (663 000 strings from sec__edgar_company_info.csv) was split before performing the string comparison.  As shown in the legend, each plot corresponds to the number `n_blocks[0]` of blocks into which the left matrix-operand was split.
+![Semilogx](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockNumberSpaceExploration1.png)
+
+String comparison, as implemented by `string_grouper`, is essentially matrix 
+multiplication.  A pandas Series of strings is converted (tokenized) into a 
+matrix.  Then that matrix is multiplied by itself (or another) transposed.  
+
+Here is an illustration of multiplication of two matrices ***D*** and ***M***<sup>T</sup>:
+![Block Matrix 1 1](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockMatrix_1_1.png)
+
+It turns out that when the matrix (or Series) is very large, the computer 
+proceeds quite slowly with the multiplication (apparently due to the RAM being 
+too full).  Some computers give up with an `OverflowError`.
+
+To circumvent this issue, `string_grouper` now allows the division of the Series 
+into smaller chunks (or blocks) and multiplies the chunks one pair at a time 
+instead to get the same result:
+
+![Block Matrix 2 2](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockMatrix_2_2.png)
+
+But surprise ... the run-time of the process is sometimes drastically reduced 
+as a result.  For example, the speed-up of the following call is about 500% 
+(here, the Series is divided into 200 blocks on the right operand, that is, 
+1 block on the left &times; 200 on the right) compared to the same call with no
+splitting \[`n_blocks=(1, 1)`, the default, which is what previous versions 
+(0.5.0 and earlier) of `string_grouper` did\]:
+
+```python
+# A DataFrame of 668 000 records:
+companies = pd.read_csv('data/sec__edgar_company_info.csv')
+
+# The following call is more than 6 times faster than earlier versions of 
+# match_strings() (that is, when n_blocks=(1, 1))!
+match_strings(companies['Company Name')], n_blocks=(1, 200))
+```
+
+Further exploration of the block number space ([see plot above](#Semilogx)) has revealed that for any fixed 
+number of right blocks, the run-time gets longer the larger the number of left 
+blocks specified.  For this reason, it is recommended *not* to split the left matrix.
+
+![Block Matrix 1 2](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/BlockMatrix_1_2.png)
+
+In general,
+
+&nbsp;&nbsp;&nbsp;***total runtime*** = `n_blocks[0]` &times; `n_blocks[1]` &times; ***mean runtime per block-pair***
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = ***Left Operand Size*** &times; ***Right Operand Size*** &times; 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ***mean runtime per block-pair*** / (***Left Block Size*** &times; ***Right Block Size***)
+
+So for given left and right operands, minimizing the ***total runtime*** is the same as minimizing the
+
+&nbsp;&nbsp;&nbsp;***runtime per string-pair comparison*** &#8797; <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;***mean runtime per block-pair*** / (***Left Block Size*** &times; ***Right Block Size***)
+
+
+[Below is a log-log-log contour plot](#ContourPlot) of the ***runtime per string-pair comparison*** scaled by its value
+at ***Left Block Size*** = ***Right Block Size*** = 5000.  Here, ***Block Size***
+is the number of strings in that block, and ***mean runtime per block-pair*** is the time taken for the following call to run:
+```python
+# note the parameter order!
+match_strings(right_Series, left_Series, n_blocks=(1, 1))
+```
+where `left_Series` and `right_Series`, corresponding to ***Left Block*** and ***Right Block*** respectively, are random subsets of the Series `companies['Company Name')]` from the
+[sec__edgar_company_info.csv](https://www.kaggle.com/dattapiy/sec-edgar-companies-list/version/1) sample data file.
+
+<a name="ContourPlot"></a> ![ContourPlot](https://raw.githubusercontent.com/ParticularMiner/string_grouper/block/images/ScaledRuntimeContourPlot.png)
+
+It can be seen that when `right_Series` is roughly the size of 80&nbsp;000 (denoted by the 
+white dashed line in the contour plot above), the runtime per string-pair comparison is at 
+its lowest for any fixed `left_Series` size.  Above ***Right Block Size*** = 80&nbsp;000, the 
+matrix-multiplication routine begins to feel the limits of the computer's 
+available memory space and thus its performance deteriorates, as evidenced by the increase 
+in runtime per string-pair comparison there (above the white dashed line).  This knowledge 
+could serve as a guide for estimating the optimum block numbers &mdash;
+namely those that divide the Series into blocks of size roughly equal to 
+80&nbsp;000 for the right operand (or `right_Series`).
+
+So what are the optimum block number values for *any* given Series? That is 
+anyone's guess, and may likely depend on the data itself.  Furthermore, as hinted above, 
+the answer may vary from computer to computer.  
+
+We however encourage the user to make judicious use of the `n_blocks` 
+parameter to boost performance of `string_grouper` whenever possible.
