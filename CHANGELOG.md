@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.0?] - 2021-09-21
+## [0.6.0] - 2021-09-21
 
 ### Added
 
-* matrix-blocking/splitting as a performance-enhancer (see [README.md](https://github.com/ParticularMiner/string_grouper/tree/block#performance) for details)
-* new keyword arguments `force_symmetries` and `n_blocks` (see [README.md](https://github.com/ParticularMiner/string_grouper/tree/block#kwargs) for details)
+* matrix-blocking/splitting as a performance-enhancer (see [README.md](https://github.com/Bergvca/string_grouper/tree/master/#performance) for details)
+* new keyword arguments `force_symmetries` and `n_blocks` (see [README.md](https://github.com/Bergvca/string_grouper/tree/master/#kwargs) for details)
 * new dependency on packages `topn` and `sparse_dot_topn_for_blocks` to help with the matrix-blocking
-* capability to reuse a previously initialized StringGrouper (that is, the corpus can now persist across high-level function calls like `match_strings()`.  See [README.md](https://github.com/ParticularMiner/string_grouper/tree/block#corpus) for details.)
+* capability to reuse a previously initialized StringGrouper (that is, the corpus can now persist across high-level function calls like `match_strings()`.  See [README.md](https://github.com/Bergvca/string_grouper/tree/master/#corpus) for details.)
 
 
 ## [0.5.0] - 2021-06-11
