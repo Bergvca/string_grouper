@@ -33,8 +33,8 @@ DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID  # chooses group centroid as group-r
 DEFAULT_FORCE_SYMMETRIES: bool = True  # Option value to specify whether corrections should be made to the results
 # to account for symmetry thus compensating for those numerical errors that violate symmetry due to loss of
 # significance
-DEFAULT_N_BLOCKS: Tuple[int, int] = None  # Option value to use to split dataset(s) into roughly equal-sized blocks
-
+DEFAULT_N_BLOCKS: str = 'guess'  # Option value to use to split dataset(s) into roughly equal-sized blocks
+N_BLOCKS_ALLOWED_STR_VALUES = ('auto', DEFAULT_N_BLOCKS)
 # The following string constants are used by (but aren't [yet] options passed to) StringGrouper
 DEFAULT_COLUMN_NAME: str = 'side'   # used to name non-index columns of the output of StringGrouper.get_matches
 DEFAULT_ID_NAME: str = 'id'  # used to name id-columns in the output of StringGrouper.get_matches
@@ -180,9 +180,11 @@ class StringGrouperConfig(NamedTuple):
     made to the results to account for symmetry, thus compensating for those losses of numerical significance
     which violate the symmetries. Defaults to True.
     :param n_blocks: (int, int) This parameter is provided to help boost performance, if possible, of
-    processing large DataFrames, by splitting the DataFrames into n_blocks[0] blocks for the left
+    processing large DataFrames, by splitting the string Series into n_blocks[0] blocks for the left
     operand (of the underlying matrix multiplication) and into n_blocks[1] blocks for the right operand
-    before performing the string-comparisons block-wise.  Defaults to None.
+    before performing the string-comparisons block-wise.  Defaults to 'guess', in which case the numbers of
+    blocks are estimated based on previous empirical results.  If n_blocks = 'auto', then splitting is done
+    automatically in the event of an OverflowError.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -421,7 +423,8 @@ class StringGrouper(object):
                     import sys
                     raise (type(oe)(f"{str(oe)} Use the n_blocks parameter to split-up "
                                     f"the data into smaller chunks.  The current values"
-                                    f"(n_blocks = {n_blocks}) are too small.")
+                                    f"(n_blocks = {n_blocks}) are too small.  "
+                                    f"Or set n_blocks = '{N_BLOCKS_ALLOWED_STR_VALUES[0]}'.")
                            .with_traceback(sys.exc_info()[2]))
                 hblocks.append(matches)
                 # end of inner loop
@@ -485,12 +488,13 @@ class StringGrouper(object):
                 left_matrix, right_matrix, nnz_rows[slice(*left_partition)],
                 sort=sort)
         except OverflowError:
-            warnings.warn("An OverflowError occurred but is being "
-                          "handled.  The input data will be automatically "
-                          "split-up into smaller chunks which will then be "
-                          "processed one chunk at a time.  To prevent "
-                          "OverflowError, use the n_blocks parameter to split-up "
-                          "the data manually into small enough chunks.")
+            if whoami == 0:
+                warnings.warn("An OverflowError occurred but is being "
+                              "handled.  The input data will be automatically "
+                              "split-up into smaller chunks which will then be "
+                              "processed one chunk at a time.  To prevent "
+                              "OverflowError, use the n_blocks parameter to split-up "
+                              "the data manually into small enough chunks.")
             # Matrices too big!  Try splitting:
             del left_matrix, right_matrix
 
@@ -556,13 +560,18 @@ class StringGrouper(object):
         """
         if force_symmetries is None:
             force_symmetries = self._config.force_symmetries
-        StringGrouper._validate_n_blocks(n_blocks)
         if n_blocks is None:
             n_blocks = self._config.n_blocks
+        else:
+            StringGrouper._validate_n_blocks(n_blocks)
 
         # do the matching
-        if n_blocks is None:
+        if n_blocks == 'auto':
             matches = self._fit_blockwise_auto()
+        elif n_blocks == 'guess':
+            left = max(1, len(self._left_Series)//int(1e6))     # arbitrary
+            right = max(1, len(self._right_Series)//int(8e4))   # empirically established guesstimate
+            matches = self._fit_blockwise_manual(n_blocks=(left, right))
         else:
             matches = self._fit_blockwise_manual(n_blocks=n_blocks)
 
@@ -1075,10 +1084,11 @@ class StringGrouper(object):
     @staticmethod
     def _validate_n_blocks(n_blocks):
         errmsg = "Invalid option value for parameter n_blocks: "
-        "n_blocks must be None or a tuple of 2 integers greater than 0."
-        if n_blocks is None:
+        "n_blocks must be 'auto', 'guess', or a tuple of 2 integers greater than 0."
+        if isinstance(n_blocks, str) and (n_blocks in N_BLOCKS_ALLOWED_STR_VALUES):
             return
         if not isinstance(n_blocks, tuple):
+            print(f'{n_blocks=}', flush=True)
             raise Exception(errmsg)
         if len(n_blocks) != 2:
             raise Exception(errmsg)
