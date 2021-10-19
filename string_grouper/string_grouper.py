@@ -557,6 +557,20 @@ class StringGrouper(object):
         """
         Builds the _matches list which contains string-matches' indices and similarity
         Updates and returns the StringGrouper object that called it.
+
+        :param force_symmetries: bool. In cases where duplicates is None, specifies
+        whether corrections should be made to the results to account for symmetry, thus
+        compensating for those losses of numerical significance which violate the
+        symmetries. Defaults to value specified during the creation of the StringGrouper
+        instance.
+        :param n_blocks: (int, int) This parameter is provided to help boost performance,
+        if possible, of processing large Series, by splitting the string Series into
+        n_blocks[0] blocks for the left operand (of the underlying matrix multiplication)
+        and into n_blocks[1] blocks for the right operand before performing the
+        string-comparisons block-wise.  If n_blocks = 'guess', then the numbers of
+        blocks are estimated based on previous empirical results.  If n_blocks = 'auto',
+        then splitting is done automatically in the event of an OverflowError.  Defaults
+        to value specified during the creation of the StringGrouper instance.
         """
         if force_symmetries is None:
             force_symmetries = self._config.force_symmetries
@@ -569,8 +583,8 @@ class StringGrouper(object):
         if n_blocks == 'auto':
             matches = self._fit_blockwise_auto()
         elif n_blocks == 'guess':
-            left = max(1, len(self._left_Series)//int(1e6))     # arbitrary
-            right = max(1, len(self._right_Series)//int(8e4))   # empirically established guesstimate
+            left = max(1, round(len(self._left_Series)/1e6))     # arbitrary
+            right = max(1, round(len(self._right_Series)/8e4))   # empirically established guesstimate
             matches = self._fit_blockwise_manual(n_blocks=(left, right))
         else:
             matches = self._fit_blockwise_manual(n_blocks=n_blocks)
@@ -1088,7 +1102,6 @@ class StringGrouper(object):
         if isinstance(n_blocks, str) and (n_blocks in N_BLOCKS_ALLOWED_STR_VALUES):
             return
         if not isinstance(n_blocks, tuple):
-            print(f'{n_blocks=}', flush=True)
             raise Exception(errmsg)
         if len(n_blocks) != 2:
             raise Exception(errmsg)
