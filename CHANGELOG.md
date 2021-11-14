@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.1] - 2021-10-19
 
-* `n_blocks` best "guesstimate" based on empirical observation.
+* `n_blocks` Added "guesstimate" as default value for `n_blocks`. This will guess an optimal number of blocks
+based on empirical observation.
 
 ### Added
 
