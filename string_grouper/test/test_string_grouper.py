@@ -117,7 +117,7 @@ class StringGrouperConfigTest(unittest.TestCase):
 
 class StringGrouperTest(unittest.TestCase):
 
-    def test_auto_blocking_single_DataFrame(self):
+    def test_auto_blocking_single_Series(self):
         """tests whether automatic blocking yields consistent results"""
         # This function will force an OverflowError to occur when
         # the input Series have a combined length above a given number:
@@ -137,8 +137,7 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_series_equal(sg.master, df1)
         self.assertEqual(sg.duplicates, None)
 
-        matches = fix_row_order(sg.match_strings(df1, n_blocks=(1, 1)))
-        self.assertEqual(sg._config.n_blocks, (1, 1))
+        matches = fix_row_order(sg.match_strings(df1, n_blocks='guess'))
 
         # Create a custom wrapper for this StringGrouper instance's
         # _build_matches() method which will later be used to
@@ -164,10 +163,9 @@ class StringGrouperTest(unittest.TestCase):
             # Now let us mock sg._build_matches:
             sg._build_matches = Mock(side_effect=mock_build_matches(OverflowThreshold))
             sg.clear_data()
-            matches_auto = fix_row_order(sg.match_strings(df1, n_blocks=None))
+            matches_auto = fix_row_order(sg.match_strings(df1, n_blocks='auto'))
             pd.testing.assert_series_equal(sg.master, df1)
             pd.testing.assert_frame_equal(matches, matches_auto)
-            self.assertEqual(sg._config.n_blocks, None)
             # Note that _build_matches is called more than once if and only if
             # a split occurred (that is, there was more than one pair of
             # matrix-blocks multiplied)
@@ -188,7 +186,7 @@ class StringGrouperTest(unittest.TestCase):
         do_test_with(OverflowThreshold=3)
         do_test_with(OverflowThreshold=2)
 
-    def test_n_blocks_single_DataFrame(self):
+    def test_n_blocks_single_Series(self):
         """tests whether manual blocking yields consistent results"""
         sort_cols = ['right_index', 'left_index']
 
@@ -845,7 +843,7 @@ class StringGrouperTest(unittest.TestCase):
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         sg = StringGrouper(test_series_1, ignore_index=True)
-        sg = sg.fit()
+        sg = sg.fit(n_blocks=(1, 1))
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], name='group_rep')
         pd.testing.assert_series_equal(expected_result, result)
