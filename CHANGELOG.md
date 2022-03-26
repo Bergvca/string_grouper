@@ -23,6 +23,12 @@ based on empirical observation.
 * new dependency on packages `topn` and `sparse_dot_topn_for_blocks` to help with the matrix-blocking
 * capability to reuse a previously initialized StringGrouper (that is, the corpus can now persist across high-level function calls like `match_strings()`.  See [README.md](https://github.com/Bergvca/string_grouper/tree/master/#corpus) for details.)
 
+### Changed
+
+* Improved the performance of the function `match_most_similar`.
+* The `Series` `duplicates` is now the left operand, while `master` is the right operand in the underlying left-join operation that does the string-matching.
+* Changed the default value of the keyword argument `max_n_matches` to the total number of strings in `master`.  (`max_n_matches` is now defined as the maximum number of matches allowed per string in `duplicates` \[or `master` if `duplicates` is not given\]).
+
 
 ## [0.5.0] - 2021-06-11
 
