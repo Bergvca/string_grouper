@@ -4,6 +4,7 @@ import numpy as np
 from scipy.sparse.csr import csr_matrix
 from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
+    DEFAULT_ENABLE_CACHE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
     match_most_similar, group_similar_strings, match_strings, \
     compute_pairwise_similarities
@@ -100,6 +101,7 @@ class StringGrouperConfigTest(unittest.TestCase):
         self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
         self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
         self.assertEqual(config.ignore_case, DEFAULT_IGNORE_CASE)
+        self.assertEqual(config.enable_cache, DEFAULT_ENABLE_CACHE)
 
     def test_config_immutable(self):
         """Configurations should be immutable"""
@@ -116,6 +118,29 @@ class StringGrouperConfigTest(unittest.TestCase):
 
 
 class StringGrouperTest(unittest.TestCase):
+
+    def test_cache(self):
+        """tests caching when the option is enabled"""
+
+        sort_cols = ['right_index', 'left_index']
+
+        def fix_row_order(df):
+            return df.sort_values(sort_cols).reset_index(drop=True)
+
+        simple_example = SimpleExample()
+        df1 = simple_example.customers_df2['Customer Name']
+
+        sg = StringGrouper(df1, min_similarity=0.1, enable_cache=True)
+        assert sg._cache == dict()
+        matches = fix_row_order(sg.match_strings(None, duplicates=df1))  # no cache
+        assert len(sg._cache) > 0
+        for _, value in sg._cache.items():
+            assert isinstance(value, csr_matrix)
+        matches_ = fix_row_order(sg.match_strings(None, duplicates=df1))
+        assert len(sg._cache) > 0
+        pd.testing.assert_frame_equal(matches_, matches)
+        with self.assertRaises(Exception):
+            _ = sg.match_strings(None, duplicates=df1, duplicates_id=simple_example.customers_df2['Customer ID'])
 
     def test_auto_blocking_single_Series(self):
         """tests whether automatic blocking yields consistent results"""
@@ -870,8 +895,10 @@ class StringGrouperTest(unittest.TestCase):
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], name='most_similar_master')
         pd.testing.assert_series_equal(expected_result, result)
-        result = sg.match_most_similar(test_series_1, test_series_2, max_n_matches=3)
+        result = sg.match_most_similar(test_series_1, test_series_2, max_n_matches=3, enable_cache=True)
         pd.testing.assert_series_equal(expected_result, result)
+        result2 = sg.match_most_similar(None, test_series_2, max_n_matches=3)
+        pd.testing.assert_series_equal(expected_result, result2)
 
     def test_get_groups_2_string_series_2_id_series(self):
         """Should return a pd.DataFrame object with the length of the dupes. The series will contain the master string

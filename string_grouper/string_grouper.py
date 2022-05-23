@@ -26,6 +26,7 @@ DEFAULT_REPLACE_NA: bool = False    # when finding the most similar strings, doe
 # similar string index-columns with corresponding duplicates-index values
 DEFAULT_INCLUDE_ZEROES: bool = True  # when the minimum cosine similarity <=0, determines whether zero-similarity
 # matches appear in the output
+DEFAULT_ENABLE_CACHE: bool = False  # does not cache the master tf-idf matrix between queries which preserve master
 GROUP_REP_CENTROID: str = 'centroid'    # Option value to select the string in each group with the largest
 # similarity aggregate as group-representative:
 GROUP_REP_FIRST: str = 'first'  # Option value to select the first string in each group as group-representative:
@@ -185,6 +186,9 @@ class StringGrouperConfig(NamedTuple):
     before performing the string-comparisons block-wise.  Defaults to 'guess', in which case the numbers of
     blocks are estimated based on previous empirical results.  If n_blocks = 'auto', then splitting is done
     automatically in the event of an OverflowError.
+    :param enable_cache: bool. Whether or not to cache the tf-idf matrix for ``master`` between queries which
+    preserve ``master``.  Defaults to False.  Use with caution: setting this option to True may degrade
+    performance when ``master`` is too large to fit into RAM.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -200,6 +204,7 @@ class StringGrouperConfig(NamedTuple):
     group_rep: str = DEFAULT_GROUP_REP
     force_symmetries: bool = DEFAULT_FORCE_SYMMETRIES
     n_blocks: Tuple[int, int] = DEFAULT_N_BLOCKS
+    enable_cache: bool = DEFAULT_ENABLE_CACHE
 
 
 def validate_is_fit(f):
@@ -242,6 +247,7 @@ class StringGrouper(object):
         """
         # private members:
         self.is_build = False
+        self._cache = dict()
 
         self._master: pd.DataFrame = pd.DataFrame()
         self._duplicates: Optional[pd.Series] = None
@@ -323,7 +329,23 @@ class StringGrouper(object):
         :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates Series.
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
+        self._cache.clear()
         self._set_data(master, duplicates, master_id, duplicates_id)
+
+    def _reset_duplicates_only(self, duplicates: pd.Series = None, duplicates_id: Optional[pd.Series] = None):
+        # Validate input strings data
+        self.duplicates = duplicates
+
+        # Validate optional IDs input
+        if not StringGrouper._is_input_data_combination_valid(duplicates, self._master_id, duplicates_id):
+            raise Exception('List of data Series options is invalid')
+        StringGrouper._validate_id_data(self._master, duplicates, self._master_id, duplicates_id)
+        self._duplicates_id = duplicates_id
+
+        # Set some private members
+        self._left_Series = self._duplicates
+
+        self.is_build = False
 
     def clear_data(self):
         self._master = None
@@ -333,6 +355,7 @@ class StringGrouper(object):
         self._matches_list = None
         self._left_Series = None
         self._right_Series = None
+        self._cache.clear()
         self.is_build = False
 
     def update_options(self, **kwargs):
@@ -729,14 +752,19 @@ class StringGrouper(object):
         This can be seen as an self-join. If both master and duplicates is given, it will return highly similar strings
         between master and duplicates. This can be seen as an inner-join.
 
-        :param master: pandas.Series. Series of strings against which matches are calculated.
+        :param master: pandas.Series. Series of strings against which matches are calculated.  If set to ``None``, then
+        the currently stored ``master`` Series will be reused.
         :param duplicates: pandas.Series. Series of strings that will be matched with master if given (Optional).
         :param master_id: pandas.Series. Series of values that are IDs for master column rows (Optional).
         :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows (Optional).
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig.
         :return: pandas.Dataframe.
         """
-        self.reset_data(master, duplicates, master_id, duplicates_id)
+        if master is None:
+            self._reset_duplicates_only(duplicates, duplicates_id)
+        else:
+            self.reset_data(master, duplicates, master_id, duplicates_id)
+
         self.update_options(**kwargs)
         self = self.fit()
         return self.get_matches()
@@ -761,14 +789,18 @@ class StringGrouper(object):
         If IDs (both 'master_id' and 'duplicates_id') are also given, returns a DataFrame of the same strings
         output in the above case with their corresponding IDs.
 
-        :param master: pandas.Series. Series of strings that the duplicates will be matched with.
+        :param master: pandas.Series. Series of strings that the duplicates will be matched with. If it is
+        set to ``None``, then the currently stored ``master`` Series will be reused.
         :param duplicates: pandas.Series. Series of strings that will me matched with the master.
         :param master_id: pandas.Series. Series of values that are IDs for master column rows. (Optional)
         :param duplicates_id: pandas.Series. Series of values that are IDs for duplicates column rows. (Optional)
         :param kwargs: All other keyword arguments are passed to StringGrouperConfig. (Optional)
         :return: pandas.Series or pandas.DataFrame.
         """
-        self.reset_data(master, duplicates, master_id, duplicates_id)
+        if master is None:
+            self._reset_duplicates_only(duplicates, duplicates_id)
+        else:
+            self.reset_data(master, duplicates, master_id, duplicates_id)
 
         old_max_n_matches = self._max_n_matches
         new_max_n_matches = None
@@ -875,8 +907,17 @@ class StringGrouper(object):
         # unlike _get_tf_idf_matrices(), _get_right_tf_idf_matrix
         # does not set the corpus but rather
         # builds a matrix using the existing corpus
-        return self._vectorizer.transform(
-            self._right_Series.iloc[slice(*partition)])
+        key = tuple(partition)
+        if self._config.enable_cache and key in self._cache:
+            matrix = self._cache[key]
+        else:
+            matrix = self._vectorizer.transform(
+                self._right_Series.iloc[slice(*partition)])
+
+            if self._config.enable_cache:
+                self._cache[key] = matrix
+
+        return matrix
 
     def _fit_vectorizer(self) -> TfidfVectorizer:
         # if both dupes and master string series are set - we concat them to fit the vectorizer on all
