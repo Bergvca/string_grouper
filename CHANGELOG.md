@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] - 2022-05-23
+
+### Added
+
+* Ability to execute multiple separate queries on the same `master` dataset while the `duplicates` dataset changes;
+* Ability to take advantage of caching to boost the performance of such queries (if `master` is small enough).
 
 ## [0.6.1] - 2021-10-19
 
