@@ -305,9 +305,10 @@ class StringGrouper(object):
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
         # Calculate the matches using the cosine similarity
-        matches, self._true_max_n_matches = self._build_matches(
+        matches = self._build_matches(
             master_matrix, duplicate_matrix
         )
+        self._true_max_n_matches  = np.diff(matches.indptr).max()
 
         if self._duplicates is None:
             # convert to lil format for best efficiency when setting matrix-elements
