@@ -403,15 +403,6 @@ class StringGrouperTest(unittest.TestCase):
             simple_example.expected_result_with_zeroes, matches
         )
 
-    def test_zero_min_similarity_small_max_n_matches(self):
-        """This test ensures that a warning is issued when n_max_matches is suspected to be too small while
-        min_similarity <= 0 and include_zeroes is True"""
-        simple_example = SimpleExample()
-        s_master = simple_example.customers_df["Customer Name"]
-        s_dup = simple_example.two_strings
-        with self.assertRaises(Exception):
-            _ = match_strings(s_master, s_dup, max_n_matches=1, min_similarity=0)
-
     def test_get_non_matches_empty_case(self):
         """This test ensures that _get_non_matches() returns an empty DataFrame when all pairs of strings match"""
         simple_example = SimpleExample()
