@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "string-grouper"
+dynamic = ["version"]
+description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity. Based on https://bergvca.github.io/2017/10/14/super-fast-string-matching.html"
+readme = "README.md"
+license = "LISCENCE.txt"
+requires-python = ">3.7"
+authors = [
+    { name = "Chris van den Berg", email = "fake_email@gmail.com" },
+    { name = "Ruben Menke", email = "rum@bankingcircle.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+    "numpy",
+    "pandas>=0.25.3",
+    "scikit-learn",
+    "scipy",
+    "sparse_dot_topn==0.3.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/Bergvca/string_grouper"
+Documentation = "https://github.com/unknown/string-grouper#readme"
+Issues = "https://github.com/unknown/string-grouper/issues"
+Source = "https://github.com/unknown/string-grouper"
+
+[tool.hatch.version]
+path = "string_grouper/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/string_grouper",
+]
+
+
+[tool.hatch.envs.test]
+dependencies = ["pytest", "pdbpp"]
+
+[tool.hatch.envs.test.scripts]
+tests = "pytest {args}"
+base =  "pytest {args}"
+cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=diss --cov=api --cov=llm {args}"
+htmlcov = "pytest --cov-report=html --cov-config=pyproject.toml --cov=diss --cov=api --cov=llm {args}"
+xmlcov = "pytest --cov-report=xml --cov-config=pyproject.toml --cov=diss --cov=api --cov=llm {args}"
+code_check = "pre-commit run --all-files"
+
+[[tool.hatch.envs.test.matrix]]
+python = ["3.10", "3.11"]
+
+
+
+[tool.black]
+line-length = 120
+include = '\.pyi?$'
+exclude = '''
+/(
+        \.git
+| \.hg
+| \.mypy_cache
+| \.tox
+| \.venv
+| _build
+| buck-out
+| build
+)/
+'''
+
+[tool.isort]
+profile = "black"

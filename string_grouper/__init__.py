@@ -6,3 +6,4 @@ from .string_grouper import (
     StringGrouperConfig,
     StringGrouper,
 )
+__version__ = "0.5.0"
