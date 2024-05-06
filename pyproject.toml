@@ -50,7 +50,7 @@ include = [
 dependencies = ["pytest", "pdbpp"]
 
 [tool.hatch.envs.test.scripts]
-tests = "pytest {args}"
+tests = "python -m unittest {args}"
 base =  "pytest {args}"
 cov = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=diss --cov=api --cov=llm {args}"
 htmlcov = "pytest --cov-report=html --cov-config=pyproject.toml --cov=diss --cov=api --cov=llm {args}"
