@@ -7,7 +7,7 @@ from scipy.sparse import csr_matrix
 from scipy.sparse import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
-from sparse_dot_topn import awesome_cossim_topn
+from sparse_dot_topn import sp_matmul_topn
 from functools import wraps
 
 DEFAULT_NGRAM_SIZE: int = 3
@@ -313,7 +313,7 @@ class StringGrouper(object):
             # convert to lil format for best efficiency when setting matrix-elements
             matches = matches.tolil()
             # matrix diagonal elements must be exactly 1 (numerical precision errors introduced by
-            # floating-point computations in awesome_cossim_topn sometimes lead to unexpected results)
+            # floating-point computations in sp_matmul_topn sometimes lead to unexpected results)
             matches = StringGrouper._fix_diagonal(matches)
             if self._max_n_matches < self._true_max_n_matches:
                 # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
@@ -533,18 +533,13 @@ class StringGrouper(object):
         tf_idf_matrix_1 = master_matrix
         tf_idf_matrix_2 = duplicate_matrix.transpose()
 
-        optional_kwargs = {
-            "return_best_ntop": True,
-            "use_threads": self._config.number_of_processes > 1,
-            "n_jobs": self._config.number_of_processes,
-        }
 
-        return awesome_cossim_topn(
+        return sp_matmul_topn(
             tf_idf_matrix_1,
             tf_idf_matrix_2,
-            self._max_n_matches,
-            self._config.min_similarity,
-            **optional_kwargs,
+            top_n=self._max_n_matches,
+            threshold=self._config.min_similarity,
+            sort=True,
         )
 
     def _get_non_matches_list(self) -> pd.DataFrame:
