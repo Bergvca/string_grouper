@@ -360,6 +360,7 @@ class StringGrouperTest(unittest.TestCase):
         # If the intersection is not empty this means at least some matches are repeated.
         # To make sure all (and not just some) matches are repeated, the lengths of
         # upper, upper_prime and their intersection should be identical.
+        # breakpoint()
         self.assertTrue(
             intersection.empty or len(upper) == len(upper_prime) == len(intersection)
         )

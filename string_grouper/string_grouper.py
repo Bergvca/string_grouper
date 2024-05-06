@@ -316,9 +316,7 @@ class StringGrouper(object):
             # matrix diagonal elements must be exactly 1 (numerical precision errors introduced by
             # floating-point computations in sp_matmul_topn sometimes lead to unexpected results)
             matches = StringGrouper._fix_diagonal(matches)
-            if self._max_n_matches < self._true_max_n_matches:
-                # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
-                matches = StringGrouper._symmetrize_matrix(matches)
+            matches = StringGrouper._symmetrize_matrix(matches)
             matches = matches.tocsr()
 
         # build list from matrix
