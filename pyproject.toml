@@ -28,7 +28,7 @@ dependencies = [
     "pandas>=0.25.3",
     "scikit-learn",
     "scipy",
-    "sparse_dot_topn==0.3.6",
+    "sparse_dot_topn>=1.1.1",
 ]
 
 [project.urls]
