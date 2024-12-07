@@ -9,7 +9,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name='string_grouper',
-    version='0.6.0',
+    version='0.6.2',
     packages=['string_grouper', 'string_grouper_utils'],
     license='MIT License',
     description='String grouper contains functions to do string matching using TF-IDF and the cossine similarity. '
@@ -25,7 +25,8 @@ setup(
                       , 'scipy'
                       , 'scikit-learn'
                       , 'numpy'
-                      , 'sparse_dot_topn_for_blocks>=0.3.1'
+                      , 'sparse_dot_topn_for_blocks @ git+https://github.com/GuillaumePressiat/sparse_dot_topn_for_blocks@0.3.1.post4'
                       , 'topn>=0.0.7'
                       ]
 )
+
