@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "string_grouper"
-version = "0.6.2"
+version = "0.7.0.5"
 description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity."
 authors = ["Chris van den Berg"]
 license = "MIT License"
@@ -16,9 +16,9 @@ python = "^3.8"
 pandas = "^2.0"
 scipy = ">=1.4.1"
 scikit-learn = "^1.4.0"
-numpy = ">=1.18.0"
-sparse_dot_topn_for_blocks = { git = "https://github.com/GuillaumePressiat/sparse_dot_topn_for_blocks"}
-topn = "^0.0.7"
+numpy = "^1.26.0"
+sparse_dot_topn = ">=1.1.0"
+
 
 [build-system]
 requires = ["poetry-core"]
