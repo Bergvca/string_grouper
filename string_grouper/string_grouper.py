@@ -187,7 +187,7 @@ class StringGrouperConfig(NamedTuple):
     ngram_size: int = DEFAULT_NGRAM_SIZE
     tfidf_matrix_dtype: int = DEFAULT_TFIDF_MATRIX_DTYPE
     regex: str = DEFAULT_REGEX
-    max_n_matches: Optional[int] = None
+    max_n_matches: Optional[int] = DEFAULT_MAX_N_MATCHES #None
     min_similarity: float = DEFAULT_MIN_SIMILARITY
     number_of_processes: int = DEFAULT_N_PROCESSES
     ignore_case: bool = DEFAULT_IGNORE_CASE
@@ -256,6 +256,8 @@ class StringGrouper(object):
         self._max_n_matches: int = 0
 
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
+
+        self._n_blocks = self._config.n_blocks
 
         # initialize the members:
         self._set_data(master, duplicates, master_id, duplicates_id)
@@ -375,209 +377,30 @@ class StringGrouper(object):
         n_grams = zip(*[string[i:] for i in range(ngram_size)])
         return [''.join(n_gram) for n_gram in n_grams]
 
-    def _fit_blockwise_manual(self, n_blocks=(1, 1)):
-        # Function to compute matrix product by optionally first dividing
-        # the DataFrames(s) into equal-sized blocks as much as possible.
-
-        def divide_by(n, series):
-            # Returns an array of n rows and 2 columns.
-            # The columns denote the start and end of each of the n blocks.
-            # Note: zero-indexing is implied.
-            sz = len(series)//n
-            block_rem = np.full(n, 0, dtype=np.int64)
-            block_rem[:len(series) % n] = 1
-            if sz > 0:
-                equal_block_sz = np.full(n, sz, dtype=np.int64)
-                equal_block_sz += block_rem
-            else:
-                equal_block_sz = block_rem[:len(series) % n]
-            equal_block_sz = np.cumsum(equal_block_sz)
-            equal_block_sz = np.tile(equal_block_sz, (2, 1))
-            equal_block_sz[0, 0] = 0
-            equal_block_sz[0, 1:] = equal_block_sz[1, :-1]
-            return equal_block_sz.T
-
-        block_ranges_left = divide_by(n_blocks[0], self._left_Series)
-        block_ranges_right = divide_by(n_blocks[1], self._right_Series)
-
-        self._true_max_n_matches = 0
-        block_true_max_n_matches = 0
-        vblocks = []
-        for left_block in block_ranges_left:
-            left_matrix = self._get_left_tf_idf_matrix(left_block)
-            nnz_rows = np.full(left_matrix.shape[0], 0, dtype=np.int32)
-            hblocks = []
-            for right_block in block_ranges_right:
-                right_matrix = self._get_right_tf_idf_matrix(right_block)
-                try:
-                    # Calculate the matches using the cosine similarity
-                    # Note: awesome_cossim_topn will sort each row only when
-                    # _max_n_matches < size of right_block or sort=True
-                    matches, block_true_max_n_matches = self._build_matches(
-                        left_matrix, right_matrix, nnz_rows, sort=(len(block_ranges_right) == 1)
-                    )
-                except OverflowError as oe:
-                    import sys
-                    raise (type(oe)(f"{str(oe)} Use the n_blocks parameter to split-up "
-                                    f"the data into smaller chunks.  The current values"
-                                    f"(n_blocks = {n_blocks}) are too small.")
-                           .with_traceback(sys.exc_info()[2]))
-                hblocks.append(matches)
-                # end of inner loop
-
-            self._true_max_n_matches = \
-                max(block_true_max_n_matches, self._true_max_n_matches)
-            if len(block_ranges_right) > 1:
-                # Note: awesome_hstack_topn will sort each row only when
-                # _max_n_matches < length of _right_Series or sort=True
-                vblocks.append(
-                    awesome_hstack_topn(
-                        hblocks,
-                        self._max_n_matches,
-                        sort=True,
-                        use_threads=self._config.number_of_processes > 1,
-                        n_jobs=self._config.number_of_processes
-                    )
-                )
-            else:
-                vblocks.append(hblocks[0])
-            del hblocks
-            del matches
-            # end of outer loop
-
-        if len(block_ranges_left) > 1:
-            return vstack(vblocks)
-        else:
-            return vblocks[0]
-
-    def _fit_blockwise_auto(self,
-                            left_partition=(None, None),
-                            right_partition=(None, None),
-                            nnz_rows=None,
-                            sort=True,
-                            whoami=0):
-        # This is a recursive function!
-        # fit() has been extended here to enable StringGrouper to handle large
-        # datasets which otherwise would lead to an OverflowError
-        # The handling is achieved using block matrix multiplication.
-        def begin(partition):
-            return partition[0] if partition[0] is not None else 0
-
-        def end(partition, left=True):
-            if partition[1] is not None:
-                return partition[1]
-
-            return len(self._left_Series if left else self._right_Series)
-
-        left_matrix = self._get_left_tf_idf_matrix(left_partition)
-        right_matrix = self._get_right_tf_idf_matrix(right_partition)
-
-        if whoami == 0:
-            # At the topmost level of recursion initialize nnz_rows
-            # which will be used to compute _true_max_n_matches
-            nnz_rows = np.full(left_matrix.shape[0], 0, dtype=np.int32)
-            self._true_max_n_matches = 0
-
-        try:
-            # Calculate the matches using the cosine similarity
-            matches, true_max_n_matches = self._build_matches(
-                left_matrix, right_matrix, nnz_rows[slice(*left_partition)],
-                sort=sort)
-        except OverflowError:
-            warnings.warn("An OverflowError occurred but is being "
-                          "handled.  The input data will be automatically "
-                          "split-up into smaller chunks which will then be "
-                          "processed one chunk at a time.  To prevent "
-                          "OverflowError, use the n_blocks parameter to split-up "
-                          "the data manually into small enough chunks.")
-            # Matrices too big!  Try splitting:
-            del left_matrix, right_matrix
-
-            def split_partition(partition, left=True):
-                data_begin = begin(partition)
-                data_end = end(partition, left=left)
-                data_mid = data_begin + (data_end - data_begin)//2
-                if data_mid > data_begin:
-                    return [(data_begin, data_mid), (data_mid, data_end)]
-                else:
-                    return [(data_begin, data_end)]
-
-            left_halves = split_partition(left_partition, left=True)
-            right_halves = split_partition(right_partition, left=False)
-            vblocks = []
-            for lhalf in left_halves:
-                hblocks = []
-                for rhalf in right_halves:
-                    # Note: awesome_cossim_topn will sort each row only when
-                    # _max_n_matches < size of right_partition or sort=True
-                    matches = self._fit_blockwise_auto(
-                        left_partition=lhalf, right_partition=rhalf,
-                        nnz_rows=nnz_rows,
-                        sort=((whoami == 0) and (len(right_halves) == 1)),
-                        whoami=(whoami + 1)
-                    )
-                    hblocks.append(matches)
-                    # end of inner loop
-                if whoami == 0:
-                    self._true_max_n_matches = max(
-                        np.amax(nnz_rows[slice(*lhalf)]),
-                        self._true_max_n_matches
-                    )
-                if len(right_halves) > 1:
-                    # Note: awesome_hstack_topn will sort each row only when
-                    # _max_n_matches < length of _right_Series or sort=True
-                    vblocks.append(
-                        awesome_hstack_topn(
-                            hblocks,
-                            self._max_n_matches,
-                            sort=(whoami == 0),
-                            use_threads=self._config.number_of_processes > 1,
-                            n_jobs=self._config.number_of_processes
-                        )
-                    )
-                else:
-                    vblocks.append(hblocks[0])
-                del hblocks
-                # end of outer loop
-            if len(left_halves) > 1:
-                return vstack(vblocks)
-            else:
-                return vblocks[0]
-
-        if whoami == 0:
-            self._true_max_n_matches = true_max_n_matches
-        return matches
-
-    def fit(self, force_symmetries=None, n_blocks=None):
+    def fit(self):
         """
         Builds the _matches list which contains string-matches' indices and similarity
         Updates and returns the StringGrouper object that called it.
         """
-        if force_symmetries is None:
-            force_symmetries = self._config.force_symmetries
-        StringGrouper._validate_n_blocks(n_blocks)
-        if n_blocks is None:
-            n_blocks = self._config.n_blocks
+        master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
         # do the matching
-        if n_blocks is None:
-            matches = self._fit_blockwise_auto()
+        if self._n_blocks is None:
+            try:
+                matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
+            except OverflowError:
+                warnings.warn("An OverflowError occurred but is being "
+                              "handled.  The input data will be automatically "
+                              "split-up into smaller chunks which will then be "
+                              "processed one chunk at a time.  To prevent "
+                              "OverflowError, use the n_blocks parameter to split-up "
+                              "the data manually into small enough chunks.")
+                matches = self._build_matches(master_matrix, duplicate_matrix, (1,180))
         else:
-            matches = self._fit_blockwise_manual(n_blocks=n_blocks)
+            matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
 
-        # enforce symmetries?
-        if force_symmetries and (self._duplicates is None):
-            # convert to lil format for best efficiency when setting
-            # matrix-elements
-            matches = matches.tolil()
-            # matrix diagonal elements must be exactly 1 (numerical precision
-            # errors introduced by floating-point computations in
-            # awesome_cossim_topn sometimes lead to unexpected results)
-            matches = StringGrouper._fix_diagonal(matches)
-            # the list of matches must be symmetric!
-            # (i.e., if A != B and A matches B; then B matches A)
-            matches = StringGrouper._symmetrize_matrix(matches)
-            matches = matches.tocsr()
+        self._true_max_n_matches = np.diff(matches.indptr).max()
+
         self._matches_list = self._get_matches_list(matches)
         self.is_build = True
         return self
@@ -840,19 +663,19 @@ class StringGrouper(object):
             )]
         return self
 
-    def _get_left_tf_idf_matrix(self, partition=(None, None)):
-        # unlike _get_tf_idf_matrices(), _get_left_tf_idf_matrix
-        # does not set the corpus but rather
-        # builds a matrix using the existing corpus
-        return self._vectorizer.transform(
-            self._left_Series.iloc[slice(*partition)])
+    def _get_tf_idf_matrices(self) -> Tuple[csr_matrix, csr_matrix]:
+        # Fit the tf-idf vectorizer
+        self._vectorizer = self._fit_vectorizer()
+        # Build the two matrices
+        master_matrix = self._vectorizer.transform(self._master)
 
-    def _get_right_tf_idf_matrix(self, partition=(None, None)):
-        # unlike _get_tf_idf_matrices(), _get_right_tf_idf_matrix
-        # does not set the corpus but rather
-        # builds a matrix using the existing corpus
-        return self._vectorizer.transform(
-            self._right_Series.iloc[slice(*partition)])
+        if self._duplicates is not None:
+            duplicate_matrix = self._vectorizer.transform(self._duplicates)
+        # IF there is no duplicate matrix, we assume we want to match on the master matrix itself
+        else:
+            duplicate_matrix = master_matrix
+
+        return master_matrix, duplicate_matrix
 
     def _fit_vectorizer(self) -> TfidfVectorizer:
         # if both dupes and master string series are set - we concat them to fit the vectorizer on all
@@ -865,27 +688,50 @@ class StringGrouper(object):
         return self._vectorizer
 
     def _build_matches(self,
-                       left_matrix: csr_matrix, right_matrix: csr_matrix,
-                       nnz_rows: np.ndarray = None,
-                       sort: bool = True) -> csr_matrix:
+                       master_matrix: csr_matrix, duplicate_matrix: csr_matrix,
+                       n_blocks: Tuple[int, int]) -> csr_matrix:
         """Builds the cossine similarity matrix of two csr matrices"""
-        right_matrix = right_matrix.transpose()
+        
+        def define_chunks(length_to_split, n_chunks):
 
-        if nnz_rows is None:
-            nnz_rows = np.full(left_matrix.shape[0], 0, dtype=np.int32)
+            def chunk_list(lst, n):
+                """Yield successive n-sized chunks from lst."""
+                for i in range(0, len(lst), n):
+                    yield lst[i:i + n]
 
-        optional_kwargs = {
-            'return_best_ntop': True,
-            'sort': sort,
-            'use_threads': self._config.number_of_processes > 1,
-            'n_jobs': self._config.number_of_processes}
+            chunk_len = np.ceil(length_to_split / n_chunks).astype('int')
+            return list(chunk_list(range(length_to_split), chunk_len))
 
-        return awesome_cossim_topn(
-            left_matrix, right_matrix,
-            self._max_n_matches,
-            nnz_rows,
-            self._config.min_similarity,
-            **optional_kwargs)
+        if n_blocks is None:
+            return sp_matmul_topn(
+                master_matrix, 
+                duplicate_matrix.transpose(),
+                top_n = self._max_n_matches,
+                threshold = self._config.min_similarity,
+                sort = True,
+                n_threads = self._config.number_of_processes
+            )
+        else:
+            As = [master_matrix[i] for i in define_chunks(master_matrix.get_shape()[0], n_blocks[0])]
+            Bs = [duplicate_matrix[i] for i in define_chunks(duplicate_matrix.get_shape()[0], n_blocks[1])]
+
+            Cs = [[sp_matmul_topn(Aj, 
+                                  Bi.T, 
+                                  top_n = self._max_n_matches, 
+                                  threshold = self._config.min_similarity, 
+                                  sort = True, 
+                                  n_threads = self._config.number_of_processes) 
+                    for Bi in Bs] for Aj in As]
+
+            # 2c. top-n zipping of the C-matrices, done over the index of the B sub-matrices.
+            Czip = [zip_sp_matmul_topn(top_n=self._max_n_matches, C_mats=Cis) for Cis in Cs]
+
+            # 2d. stacking over zipped C-matrices, done over the index of the A sub-matrices
+            # The resulting matrix C equals C_ref.
+            C = vstack(Czip, dtype=np.float32)
+            
+            return C
+
 
     def _get_matches_list(self,
                           matches: csr_matrix
