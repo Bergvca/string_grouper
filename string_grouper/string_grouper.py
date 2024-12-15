@@ -9,8 +9,7 @@ from scipy.sparse.csr import csr_matrix
 from scipy.sparse.lil import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
-from sparse_dot_topn_for_blocks import awesome_cossim_topn
-from topn import awesome_hstack_topn
+from sparse_dot_topn import sp_matmul_topn, zip_sp_matmul_topn
 from functools import wraps
 
 
