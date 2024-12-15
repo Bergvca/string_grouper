@@ -401,6 +401,17 @@ class StringGrouper(object):
 
         self._true_max_n_matches = np.diff(matches.indptr).max()
 
+        if self._config.force_symmetries and (self._duplicates is None):
+            # convert to lil format for best efficiency when setting matrix-elements
+            matches = matches.tolil()
+            # matrix diagonal elements must be exactly 1 (numerical precision errors introduced by
+            # floating-point computations in awesome_cossim_topn sometimes lead to unexpected results)
+            matches = StringGrouper._fix_diagonal(matches)
+            if self._max_n_matches < self._true_max_n_matches:
+                # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
+                matches = StringGrouper._symmetrize_matrix(matches)
+            matches = matches.tocsr()
+
         self._matches_list = self._get_matches_list(matches)
         self.is_build = True
         return self
@@ -409,7 +420,7 @@ class StringGrouper(object):
         """Computes the row-wise similarity scores between strings in _master and _duplicates"""
         if len(self._master) != len(self._duplicates):
             raise Exception("To perform this function, both input Series must have the same length.")
-        master_matrix, duplicate_matrix = self._get_left_tf_idf_matrix(), self._get_right_tf_idf_matrix()
+        master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
         # Calculate pairwise cosine similarities:
         pairwise_similarities = np.asarray(master_matrix.multiply(duplicate_matrix).sum(axis=1)).squeeze(axis=1)
         return pd.Series(pairwise_similarities, name='similarity', index=self._master.index)
