@@ -14,7 +14,7 @@ from functools import wraps
 
 
 DEFAULT_NGRAM_SIZE: int = 3
-DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float32   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
+DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float64   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
 DEFAULT_REGEX: str = r'[,-./]|\s'
 DEFAULT_MAX_N_MATCHES: int = 20
 DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
@@ -741,7 +741,7 @@ class StringGrouper(object):
 
             # 2d. stacking over zipped C-matrices, done over the index of the A sub-matrices
             # The resulting matrix C equals C_ref.
-            C = vstack(Czip, dtype=np.float32)
+            C = vstack(Czip, dtype=np.float64)
             
             return C
 

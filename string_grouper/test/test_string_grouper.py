@@ -571,7 +571,7 @@ class StringGrouperTest(unittest.TestCase):
         """Should create a csr matrix only master"""
         test_series = pd.Series(['foo', 'bar', 'baz'])
         sg = StringGrouper(test_series)
-        master, dupe = sg._get_right_tf_idf_matrix(), sg._get_left_tf_idf_matrix()
+        master, dupe = sg._get_tf_idf_matrices()
         c = csr_matrix([[0., 0., 1.],
                         [1., 0., 0.],
                         [0., 1., 0.]])
@@ -583,7 +583,7 @@ class StringGrouperTest(unittest.TestCase):
         test_series_1 = pd.Series(['foo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
         sg = StringGrouper(test_series_1, test_series_2)
-        master, dupe = sg._get_right_tf_idf_matrix(), sg._get_left_tf_idf_matrix()
+        master, dupe = sg._get_tf_idf_matrices()
         master_expected = csr_matrix([[0., 0., 0., 1.],
                                      [1., 0., 0., 0.],
                                      [0., 1., 0., 0.]])
@@ -599,12 +599,12 @@ class StringGrouperTest(unittest.TestCase):
         test_series_1 = pd.Series(['foo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
         sg = StringGrouper(test_series_1, test_series_2)
-        master, dupe = sg._get_right_tf_idf_matrix(), sg._get_left_tf_idf_matrix()
+        master, dupe = sg._get_tf_idf_matrices()
 
         expected_matches = np.array([[1., 0., 0.],
                                      [0., 1., 0.],
                                      [0., 0., 0.]])
-        np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe)[0].toarray())
+        np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe, None).toarray())
 
     def test_build_matches_list(self):
         """Should create the cosine similarity matrix of two series"""
@@ -653,8 +653,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        left_index = [0, 3, 1, 2, 0, 3]
-        right_index = [0, 0, 1, 2, 3, 3]
+        right_index = [0, 3, 1, 2, 0, 3]
+        left_index = [0, 0, 1, 2, 3, 3]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
                                     'similarity': similarity,
