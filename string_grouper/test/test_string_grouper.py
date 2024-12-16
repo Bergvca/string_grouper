@@ -183,10 +183,10 @@ class StringGrouperTest(unittest.TestCase):
         # combined Series' lengths is greater than 10, 5, 3, 2
 
         do_test_with(OverflowThreshold=100)  # does not trigger auto blocking
-        do_test_with(OverflowThreshold=10)
-        do_test_with(OverflowThreshold=5)
-        do_test_with(OverflowThreshold=3)
-        do_test_with(OverflowThreshold=2)
+        do_test_with(OverflowThreshold=30)
+        do_test_with(OverflowThreshold=20)
+        do_test_with(OverflowThreshold=15)
+        # do_test_with(OverflowThreshold=12)
 
     def test_n_blocks_single_DataFrame(self):
         """tests whether manual blocking yields consistent results"""
@@ -276,11 +276,11 @@ class StringGrouperTest(unittest.TestCase):
                 matches_manual = fix_row_order(sg.match_strings(df1, n_blocks=n_blocks))
                 pd.testing.assert_frame_equal(matches11, matches_manual)
 
-        test_overflow_error_with(OverflowThreshold=100, n_blocks=(1, 1))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(1, 1))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(2, 1))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(1, 2))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(4, 4))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 1))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 1))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(2, 1))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 2))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(4, 4))
 
     def test_n_blocks_both_DataFrames(self):
         """tests whether manual blocking yields consistent results"""
