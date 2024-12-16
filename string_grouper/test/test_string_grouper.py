@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 import numpy as np
-from scipy.sparse.csr import csr_matrix
+from scipy.sparse import csr_matrix
 from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
@@ -95,7 +95,7 @@ class StringGrouperConfigTest(unittest.TestCase):
         """Empty initialisation should set default values"""
         config = StringGrouperConfig()
         self.assertEqual(config.min_similarity, DEFAULT_MIN_SIMILARITY)
-        self.assertEqual(config.max_n_matches, None)
+        self.assertEqual(config.max_n_matches, 20)
         self.assertEqual(config.regex, DEFAULT_REGEX)
         self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
         self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
@@ -156,7 +156,7 @@ class StringGrouperTest(unittest.TestCase):
                 if (left_matrix.shape[0] + right_matrix.shape[0]) > \
                         OverflowThreshold:
                     raise OverflowError
-                return real_build_matches(left_matrix, right_matrix, nnz_rows, sort)
+                return real_build_matches(left_matrix, right_matrix, None)
             return wrapper
 
         def do_test_with(OverflowThreshold):
@@ -258,7 +258,7 @@ class StringGrouperTest(unittest.TestCase):
                 if (left_matrix.shape[0] + right_matrix.shape[0]) > \
                         OverflowThreshold:
                     raise OverflowError
-                return real_build_matches(left_matrix, right_matrix, nnz_rows, sort)
+                return real_build_matches(left_matrix, right_matrix, None)
             return wrapper
 
         def test_overflow_error_with(OverflowThreshold, n_blocks):
