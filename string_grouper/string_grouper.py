@@ -5,8 +5,8 @@ import multiprocessing
 import warnings
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import vstack
-from scipy.sparse.csr import csr_matrix
-from scipy.sparse.lil import lil_matrix
+from scipy.sparse import csr_matrix
+from scipy.sparse import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn import sp_matmul_topn, zip_sp_matmul_topn
@@ -644,7 +644,7 @@ class StringGrouper(object):
 
         # add prior matches to new match
         prior_matches = self._matches_list.master_side[self._matches_list.dupe_side.isin(dupe_indices)]
-        dupe_indices = dupe_indices.append(prior_matches)
+        dupe_indices = dupe_indices._append(prior_matches)
         dupe_indices.drop_duplicates(inplace=True)
 
         similarities = [1]
