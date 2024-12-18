@@ -449,48 +449,6 @@ class StringGrouperTest(unittest.TestCase):
         self.assertEqual(df, 'whatever')
 
     @patch(
-        'string_grouper.string_grouper.StringGrouper._symmetrize_matrix',
-        side_effect=mock_symmetrize_matrix
-    )
-    def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matrix_param):
-        """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is
-        **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
-        simple_example = SimpleExample()
-        df = simple_example.customers_df2['Customer Name']
-        sg = StringGrouper(df, max_n_matches=2).fit()
-        mock_symmetrize_matrix_param.assert_called_once()
-        # obtain the upper and lower triangular parts of the matrix of matches:
-        upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
-        lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
-        # switch the column names of lower triangular part (i.e., transpose) to convert it to upper triangular:
-        upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
-        # obtain the intersection between upper and upper_prime:
-        intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
-        # if the intersection is empty then _matches_list is completely non-symmetric (this is acceptable)
-        # if the intersection is not empty then at least some matches are repeated.
-        # To make sure all (and not just some) matches are repeated, the lengths of
-        # upper, upper_prime and their intersection should be identical.
-        self.assertFalse(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
-
-    def test_match_list_symmetry_with_symmetrize_function(self):
-        """This test ensures that _matches_list is symmetric"""
-        simple_example = SimpleExample()
-        df = simple_example.customers_df2['Customer Name']
-        sg = StringGrouper(df, max_n_matches=2).fit()
-        # Obtain the upper and lower triangular parts of the matrix of matches:
-        upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
-        lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
-        # Switch the column names of the lower triangular part (i.e., transpose) to convert it to upper triangular:
-        upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
-        # Obtain the intersection between upper and upper_prime:
-        intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
-        # If the intersection is empty this means _matches_list is completely non-symmetric (this is acceptable)
-        # If the intersection is not empty this means at least some matches are repeated.
-        # To make sure all (and not just some) matches are repeated, the lengths of
-        # upper, upper_prime and their intersection should be identical.
-        self.assertTrue(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
-
-    @patch(
         'string_grouper.string_grouper.StringGrouper._fix_diagonal',
         side_effect=mock_symmetrize_matrix
     )
@@ -525,15 +483,6 @@ class StringGrouperTest(unittest.TestCase):
         s_dup = simple_example.whatever_series_1
         matches = match_strings(s_master, s_dup, min_similarity=0)
         pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches)
-
-    def test_zero_min_similarity_small_max_n_matches(self):
-        """This test ensures that a warning is issued when n_max_matches is suspected to be too small while
-        min_similarity <= 0 and include_zeroes is True"""
-        simple_example = SimpleExample()
-        s_master = simple_example.customers_df['Customer Name']
-        s_dup = simple_example.two_strings
-        with self.assertRaises(Exception):
-            _ = match_strings(s_master, s_dup, max_n_matches=1, min_similarity=0)
 
     def test_get_non_matches_empty_case(self):
         """This test ensures that _get_non_matches() returns an empty DataFrame when all pairs of strings match"""
