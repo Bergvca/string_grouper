@@ -4,6 +4,7 @@ import re
 import multiprocessing
 import warnings
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.utils.validation import check_symmetric
 from scipy.sparse import vstack
 from scipy.sparse import csr_matrix
 from scipy.sparse import lil_matrix
@@ -16,7 +17,7 @@ from functools import wraps
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float64   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
 DEFAULT_REGEX: str = r'[,-./]|\s'
-DEFAULT_MAX_N_MATCHES: int = 20
+DEFAULT_MAX_N_MATCHES: int = 20 # not optional with sparse_dot_topn
 DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
@@ -292,10 +293,7 @@ class StringGrouper(object):
     def _set_options(self, **kwargs):
         self._config = StringGrouperConfig(**kwargs)
 
-        if self._config.max_n_matches is None:
-            self._max_n_matches = len(self._master)
-        else:
-            self._max_n_matches = self._config.max_n_matches
+        self._max_n_matches = self._config.max_n_matches
 
         self._validate_group_rep_specs()
         self._validate_tfidf_matrix_dtype()
@@ -407,10 +405,9 @@ class StringGrouper(object):
             # matrix diagonal elements must be exactly 1 (numerical precision errors introduced by
             # floating-point computations in awesome_cossim_topn sometimes lead to unexpected results)
             matches = StringGrouper._fix_diagonal(matches)
-            if self._max_n_matches < self._true_max_n_matches:
-                # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
-                matches = StringGrouper._symmetrize_matrix(matches)
+            # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
             matches = matches.tocsr()
+            matches = check_symmetric(matches, raise_warning = False)
 
         self._matches_list = self._get_matches_list(matches)
         self.is_build = True
@@ -582,18 +579,10 @@ class StringGrouper(object):
         """
         self.reset_data(master, duplicates, master_id, duplicates_id)
 
-        old_max_n_matches = self._max_n_matches
-        new_max_n_matches = None
-        if 'max_n_matches' in kwargs:
-            new_max_n_matches = kwargs['max_n_matches']
-        kwargs['max_n_matches'] = 1
         self.update_options(**kwargs)
-
         self = self.fit()
         output = self.get_groups()
 
-        kwargs['max_n_matches'] = old_max_n_matches if new_max_n_matches is None else new_max_n_matches
-        self.update_options(**kwargs)
         return output
 
     def group_similar_strings(self,
@@ -951,11 +940,6 @@ class StringGrouper(object):
         m[r, r] = 1
         return m
 
-    @staticmethod
-    def _symmetrize_matrix(m_symmetric: lil_matrix) -> lil_matrix:
-        r, c = m_symmetric.nonzero()
-        m_symmetric[c, r] = m_symmetric[r, c]
-        return m_symmetric
 
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
