@@ -13,13 +13,17 @@ nav:
   - Home:
     - index.md
   - References:
-    - references.md
+    - references/match_strings.md
+    - references/match_most_similar.md
+    - references/group_similar_strings.md
+    - references/compute_pairwise_similarities.md
+    - references/options_kwargs.md
+    - references/sg_class.md
   - Examples:
     - examples.md
   - Performance:
     - performance.md
-  - String Grouper class:
-    - sg_class.md
+
 
 markdown_extensions:
   - toc:

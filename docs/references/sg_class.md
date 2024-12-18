@@ -2,8 +2,14 @@
 title: String Grouper Class
 ---
 
+## Concept 
+
+All functions are built using a class **`StringGrouper`**. This class can be used through pre-defined functions, for example the four high level functions above, as well as using a more interactive approach where matches can be added or removed if needed by calling the **`StringGrouper`** class directly.
+   
 
 The four functions mentioned above all create a `StringGrouper` object behind the scenes and call different functions on it. The `StringGrouper` class keeps track of all tuples of similar strings and creates the groups out of these. Since matches are often not perfect, a common workflow is to:
+
+## Example
 
 1. Create matches
 2. Manually inspect the results

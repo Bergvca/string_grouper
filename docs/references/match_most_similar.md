@@ -3,6 +3,18 @@ title: match_most_similar
 ---
 
 
+## Arguments
+
+```python
+match_most_similar(master: pd.Series,
+              	   duplicates: Optional[pd.Series],
+              	   master_id: Optional[pd.Series],
+              	   duplicates_id: Optional[pd.Series],
+              	   **kwargs) -> Union[pd.DataFrame, pd.Series]
+```
+
+## Result 
+
 If `ignore_index=True`, returns a `Series` of strings, where for each string in `duplicates` the most similar string in `master` is returned.  If there are no similar strings in `master` for a given string in `duplicates` (because there is no potential match where the cosine similarity is above the threshold \[default: 0.8\]) then the original string in `duplicates` is returned.  The output `Series` thus has the same length and index as `duplicates`.  
 
 For example, if an input `Series` with the values `\['foooo', 'bar', 'baz'\]` is passed as the argument `master`, and `\['foooob', 'bar', 'new'\]` as the values of the argument `duplicates`, the function will return a `Series` with values: `\['foooo', 'bar', 'new'\]`.

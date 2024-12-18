@@ -3,17 +3,31 @@ title: match_strings
 ---
 
 
+## Arguments
+
+```python
+match_strings(master: pd.Series,
+              duplicates: Optional[pd.Series],
+              master_id: Optional[pd.Series],
+              duplicates_id: Optional[pd.Series],
+              **kwargs) -> pd.DataFrame
+```
+
+## Result
+
 Returns a `DataFrame` containing similarity-scores of all matching pairs of highly similar strings from `master` (and `duplicates` if given).  Each matching pair in the output appears in its own row/record consisting of
    
-- 1. its "left" part: a string (with/without its index-label) from `master`, 
-- 2. its similarity score, and  
-- 3. its "right" part: a string (with/without its index-label) from `duplicates` (or `master` if `duplicates` is not given), 
+
+1. its "left" part: a string (with/without its index-label) from `master`, 
+2. its similarity score, and  
+3. its "right" part: a string (with/without its index-label) from `duplicates` (or `master` if `duplicates` is not given), 
    
 in that order.  Thus the column-names of the output are a collection of three groups:
    
-- 1. The name of `master` and the name(s) of its index (or index-levels) all prefixed by the - string `'left_'`,
-- 2. `'similarity'` whose column has the similarity-scores as values, and 
-- 3. The name of `duplicates` (or `master` if `duplicates` is not given) and the name(s) of its index (or index-levels) prefixed by the string `'right_'`.
+1. The name of `master` and the name(s) of its index (or index-levels) all prefixed by the - string `'left_'`,
+2. `'similarity'` whose column has the similarity-scores as values, and 
+3. The name of `duplicates` (or `master` if `duplicates` is not given) and the name(s) of its index (or index-levels) prefixed by the string `'right_'`.
+
 
 Indexes (or their levels) only appear when the keyword argument `ignore_index=False` (the default). (See [tutorials/ignore_index_and_replace_na.md](https://github.com/Bergvca/string_grouper/blob/master/tutorials/ignore_index_and_replace_na.md) for a demonstration.)
 
