@@ -12,6 +12,7 @@ from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn import sp_matmul_topn, zip_sp_matmul_topn
 from functools import wraps
+from unicodedata import normalize
 
 
 DEFAULT_NGRAM_SIZE: int = 3
@@ -34,6 +35,7 @@ DEFAULT_FORCE_SYMMETRIES: bool = True  # Option value to specify whether correct
 # to account for symmetry thus compensating for those numerical errors that violate symmetry due to loss of
 # significance
 DEFAULT_N_BLOCKS: Tuple[int, int] = None  # Option value to use to split dataset(s) into roughly equal-sized blocks
+DEFAULT_NORMALIZE_TO_ASCII: bool = True; 
 
 # The following string constants are used by (but aren't [yet] options passed to) StringGrouper
 DEFAULT_COLUMN_NAME: str = 'side'   # used to name non-index columns of the output of StringGrouper.get_matches
@@ -198,7 +200,7 @@ class StringGrouperConfig(NamedTuple):
     group_rep: str = DEFAULT_GROUP_REP
     force_symmetries: bool = DEFAULT_FORCE_SYMMETRIES
     n_blocks: Tuple[int, int] = DEFAULT_N_BLOCKS
-
+    normalize_to_ascii: bool = DEFAULT_NORMALIZE_TO_ASCII
 
 def validate_is_fit(f):
     """Validates if the StringBuilder was fit before calling certain public functions"""
@@ -371,6 +373,8 @@ class StringGrouper(object):
         regex_pattern = self._config.regex
         if self._config.ignore_case and string is not None:
             string = string.lower()  # lowercase to ignore all case
+        if self._config.normalize_to_ascii:
+            string = normalize('NFKD', string).encode('ASCII', 'ignore').decode()
         string = re.sub(regex_pattern, r'', string)
         n_grams = zip(*[string[i:] for i in range(ngram_size)])
         return [''.join(n_gram) for n_gram in n_grams]
