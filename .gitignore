@@ -9,7 +9,12 @@ __pycache__
 *.ipynb
 
 dist/
+build/
+*.egg-info/
 
 .DS_Store
 
 site/
+
+
+tests.txt
