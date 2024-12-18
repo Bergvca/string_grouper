@@ -14,7 +14,7 @@ from string_grouper import match_strings, match_most_similar, \
 
 
 ```python
-company_names = '/media/chris/data/dev/name_matching/data/sec_edgar_company_info.csv'
+company_names = './data/sec_edgar_company_info.csv'
 # We only look at the first 50k as an example:
 companies = pd.read_csv(company_names)[0:50000]
 # Create all matches:

@@ -14,7 +14,7 @@ The `StringGrouper` class allows for this without having to re-calculate the cos
 
 
 ```python
-company_names = '/media/chris/data/dev/name_matching/data/sec_edgar_company_info.csv'
+company_names = './data/sec_edgar_company_info.csv'
 companies = pd.read_csv(company_names)
 ```
 
@@ -30,6 +30,11 @@ string_grouper.n_grams('McDonalds')
 
     ['McD', 'cDo', 'Don', 'ona', 'nal', 'ald', 'lds']
 
+```python
+string_grouper.n_grams('ÀbracâDABRÀ')
+```
+  
+    ['abr', 'bra', 'rac', 'aca', 'cad', 'ada', 'dab', 'abr', 'bra']
 
 ```python
 # Now fit the StringGrouper - this will take a while since we are calculating cosine similarities on 600k strings
