@@ -378,7 +378,7 @@ class StringGrouperTest(unittest.TestCase):
             ],
             name='similarity'
         )
-        expected_result = expected_result.astype(np.float32)
+        expected_result = expected_result.astype(np.float64)
         pd.testing.assert_series_equal(expected_result, similarities)
         sg = StringGrouper(df1, df2)
         similarities = sg.compute_pairwise_similarities(df1, df2)
@@ -899,8 +899,8 @@ class StringGrouperTest(unittest.TestCase):
         that matches the dupe with the highest similarity"""
         test_series_1 = pd.Series(['foooo', 'bar', 'foooo'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
-        test_series_id_1 = pd.Series([0, 1, 2])
-        test_series_id_2 = pd.Series([100, 101, 102, 103])
+        test_series_id_1 = pd.Series([0, 1, 2], dtype = "Int64")
+        test_series_id_2 = pd.Series([100, 101, 102, 103], dtype = "Int64")
         sg = StringGrouper(test_series_1,
                            test_series_2,
                            master_id=test_series_id_1,
@@ -909,20 +909,23 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip([0, 1, 102, 0], ['foooo', 'bar', 'baz', 'foooo'])),
-                                       columns=['most_similar_master_id', 'most_similar_master'])
+                                       columns=['most_similar_master_id', 'most_similar_master']
+                                       ).astype(dtype= {"most_similar_master_id":"Int64",
+        "most_similar_master":"str"})
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_2_string_series_with_numeric_indexes_and_missing_master_value(self):
         """Should return a pd.DataFrame object with the length of the dupes. The series will contain the master string
         that matches the dupe with the highest similarity"""
-        test_series_1 = pd.Series(['foooo', 'bar', 'foooo'], index=[0, 1, 2])
-        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'], index=[100, 101, 102, 103])
+        test_series_1 = pd.Series(['foooo', 'bar', 'foooo'], index = pd.Index([0, 1, 2], dtype = "Int64"))
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'], index = pd.Index([100, 101, 102, 103], dtype = "Int64"))
         sg = StringGrouper(test_series_1, test_series_2, replace_na=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip([0, 1, 102, 0], ['foooo', 'bar', 'baz', 'foooo'])),
                                        columns=['most_similar_index', 'most_similar_master'],
-                                       index=test_series_2.index)
+                                       index=test_series_2.index).astype(dtype= {"most_similar_index":"Int64",
+        "most_similar_master":"str"})
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df_same_similarity(self):
