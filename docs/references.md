@@ -67,8 +67,8 @@ All functions are built using a class **`StringGrouper`**. This class can be use
    * **`ngram_size`**: The amount of characters in each n-gram. Default is `3`.
    * **`regex`**: The regex string used to clean-up the input string. Default is `r"[,-./]|\s"`.
    * **`ignore_case`**: Determines whether or not letter case in strings should be ignored. Defaults to `True`.
-   * **`tfidf_matrix_dtype`**: The datatype for the tf-idf values of the matrix components. Allowed values are `numpy.float32` and `numpy.float64`.  Default is `numpy.float32`.  (Note: `numpy.float32` often leads to faster processing and a smaller memory footprint albeit less numerical precision than `numpy.float64`.)
-   * **`max_n_matches`**: The maximum number of matching strings in `master` allowed per string in `duplicates`. Default is the total number of strings in `master`.
+   * **`tfidf_matrix_dtype`**: The datatype for the tf-idf values of the matrix components. Allowed values are `numpy.float32` and `numpy.float64`.  Default is `numpy.float64`.  (Note: `numpy.float32` often leads to faster processing and a smaller memory footprint albeit less numerical precision than `numpy.float64`.)
+   * **`max_n_matches`**: The maximum number of matching strings in `master` allowed per string in `duplicates`. Default is 20.
    * **`min_similarity`**: The minimum cosine similarity for two strings to be considered a match.
     Defaults to `0.8`
    * **`number_of_processes`**: The number of processes used by the cosine similarity calculation. Defaults to
