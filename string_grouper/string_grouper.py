@@ -410,8 +410,8 @@ class StringGrouper(object):
             # floating-point computations in awesome_cossim_topn sometimes lead to unexpected results)
             matches = StringGrouper._fix_diagonal(matches)
             # the list of matches must be symmetric! (i.e., if A != B and A matches B; then B matches A)
+            matches = StringGrouper._symmetrize_matrix(matches)
             matches = matches.tocsr()
-            matches = check_symmetric(matches, raise_warning = False)
 
         self._matches_list = self._get_matches_list(matches)
         self.is_build = True
@@ -944,6 +944,11 @@ class StringGrouper(object):
         m[r, r] = 1
         return m
 
+    @staticmethod
+    def _symmetrize_matrix(m_symmetric: lil_matrix) -> lil_matrix:
+        r, c = m_symmetric.nonzero()
+        m_symmetric[c, r] = m_symmetric[r, c]
+        return m_symmetric
 
     @staticmethod
     def _make_symmetric(new_matches: pd.DataFrame) -> pd.DataFrame:
