@@ -388,7 +388,7 @@ class StringGrouper(object):
 
         if self._n_blocks is None:
             left = max(1, round(len(self._left_Series)/1e6))     # arbitrary
-            right = 180
+            right = max(1, round(len(self._left_Series)/3.5e3))
             self._n_blocks = (left, right)
 
         # do the matching
