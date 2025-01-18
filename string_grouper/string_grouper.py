@@ -4,7 +4,6 @@ import re
 import multiprocessing
 import warnings
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.utils.validation import check_symmetric
 from scipy.sparse import vstack
 from scipy.sparse import csr_matrix
 from scipy.sparse import lil_matrix
