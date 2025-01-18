@@ -386,8 +386,13 @@ class StringGrouper(object):
         """
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
-        # do the matching
         if self._n_blocks is None:
+            left = max(1, round(len(self._left_Series)/1e6))     # arbitrary
+            right = 180
+            self._n_blocks = (left, right)
+
+        # do the matching
+        if self._n_blocks == (1,1):
             try:
                 matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
             except OverflowError:
