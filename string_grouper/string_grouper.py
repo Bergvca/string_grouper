@@ -386,10 +386,12 @@ class StringGrouper(object):
         """
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
+        b_left = max(1, round(len(self._left_Series)/1e6))     # arbitrary, big enough not to split both left and right often
+        b_right = max(1, round(len(self._right_Series)/4e3)) # based on tests and observations
+        size_guess_block = (b_left, b_right)
+
         if self._n_blocks is None:
-            left = max(1, round(len(self._left_Series)/1e6))     # arbitrary
-            right = max(1, round(len(self._right_Series)/3.5e3))
-            self._n_blocks = (left, right)
+            self._n_blocks = size_guess_block
 
         # do the matching
         if self._n_blocks == (1,1):
@@ -402,7 +404,7 @@ class StringGrouper(object):
                               "processed one chunk at a time.  To prevent "
                               "OverflowError, use the n_blocks parameter to split-up "
                               "the data manually into small enough chunks.")
-                matches = self._build_matches(master_matrix, duplicate_matrix, (1,180))
+                matches = self._build_matches(master_matrix, duplicate_matrix, size_guess_block)
         else:
             matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
 
