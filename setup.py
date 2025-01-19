@@ -26,6 +26,7 @@ setup(
                       , 'scikit-learn>=1.4.0'
                       , 'numpy>=1.26.0, < 2.0'
                       , 'sparse_dot_topn>=1.1.0'
+                      , 'loguru>=0.7'
                       ]
 )
 

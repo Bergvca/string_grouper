@@ -12,7 +12,7 @@ from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn import sp_matmul_topn, zip_sp_matmul_topn
 from functools import wraps
 from unicodedata import normalize
-
+from loguru import logger
 
 DEFAULT_NGRAM_SIZE: int = 3
 DEFAULT_TFIDF_MATRIX_DTYPE: type = np.float64   # (only types np.float32 and np.float64 are allowed by sparse_dot_topn)
@@ -283,11 +283,11 @@ class StringGrouper(object):
         self._duplicates_id = duplicates_id
 
         # Set some private members
-        self._right_Series = self._master
+        self._left_Series = self._master
         if self._duplicates is None:
-            self._left_Series = self._master
+            self._right_Series = self._master
         else:
-            self._left_Series = self._duplicates
+            self._right_Series = self._duplicates
 
         self.is_build = False
 
@@ -385,11 +385,13 @@ class StringGrouper(object):
         """
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
-        b_left = max(1, round(len(self._right_Series)/1e6))     # arbitrary, big enough not to split both left and right often
-        b_right = max(1, round(len(self._left_Series)/4e3)) # based on tests and observations
+        b_left = max(1, round(len(self._left_Series)/1e6))     # arbitrary, big enough not to split both left and right often
+        b_right = max(1, round(len(self._right_Series)/4e3)) # based on tests and observations
         size_guess_block = (b_left, b_right) # inversion of left and right series was introduced in 0.6 ?
       
         if self._n_blocks is None:
+            if size_guess_block != (1,1):
+                logger.info("n_blocks parameter is not set so data will be split into smaller chunks, n_blocks = (" + str(size_guess_block[0]) +","+ str(size_guess_block[1])+")")
             self._n_blocks = size_guess_block
 
         # do the matching
@@ -397,12 +399,18 @@ class StringGrouper(object):
             try:
                 matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
             except OverflowError:
-                warnings.warn("An OverflowError occurred but is being "
-                              "handled.  The input data will be automatically "
-                              "split-up into smaller chunks which will then be "
-                              "processed one chunk at a time.  To prevent "
-                              "OverflowError, use the n_blocks parameter to split-up "
-                              "the data manually into small enough chunks.")
+                logger.warning(
+                              "An OverflowError occurred but is being " +
+                              "handled.  The input data will be automatically " +
+                              "split-up into smaller chunks which will then be " +
+                              "processed one chunk at a time.  To prevent " +
+                              "OverflowError, use the n_blocks parameter to split-up " +
+                              "the data manually into small enough chunks" +
+                              ", n_blocks = (" +
+                              str(size_guess_block[0]),
+                              ",",
+                              str(size_guess_block[1])+")"
+                             )
                 matches = self._build_matches(master_matrix, duplicate_matrix, size_guess_block)
         else:
             matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
