@@ -385,10 +385,10 @@ class StringGrouper(object):
         """
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
-        b_left = max(1, round(len(self._left_Series)/1e6))     # arbitrary, big enough not to split both left and right often
-        b_right = max(1, round(len(self._right_Series)/4e3)) # based on tests and observations
-        size_guess_block = (b_left, b_right)
-
+        b_left = max(1, round(len(self._right_Series)/1e6))     # arbitrary, big enough not to split both left and right often
+        b_right = max(1, round(len(self._left_Series)/4e3)) # based on tests and observations
+        size_guess_block = (b_left, b_right) # inversion of left and right series was introduced in 0.6 ?
+      
         if self._n_blocks is None:
             self._n_blocks = size_guess_block
 
