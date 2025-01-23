@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+
+## [0.7.0] - 2025-01-23
+
+### Changed
+
+* sparse_dot_topn_for_blocks and topn dependencies are removed and replaced by sparse_dot_topn official library from ING Bank, this is a big change: it may have impacts from old code using string_grouper 
+* `n_blocks` None is now the default value for `n_blocks` and optimal numbers of blocks will be guessed based on empirical observation to split data into smaller chunks (based on input data size)
+* sparse_dot_topn now integrates a [block/chunk strategy](https://github.com/ing-bank/sparse_dot_topn?tab=readme-ov-file#distributing-the-top-n-multiplication-of-two-large-o10m-sparse-matrices-over-a-cluster). This strategy is used in string_grouper. 
+
+
+### Added
+
+* a new parameter normalize_to_ascii to normalize unicode character to ascii ones 
+* loguru dependency is introduced to print messages to user
+
+
+## [0.6.1] - 2021-10-19
+
+* `n_blocks` Added "guesstimate" as default value for `n_blocks`. This will guess an optimal number of blocks
+based on empirical observation.
+
 
 ## [0.6.0] - 2021-09-21
 
