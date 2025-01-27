@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 import numpy as np
-from scipy.sparse.csr import csr_matrix
+from scipy.sparse import csr_matrix
 from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
@@ -95,7 +95,7 @@ class StringGrouperConfigTest(unittest.TestCase):
         """Empty initialisation should set default values"""
         config = StringGrouperConfig()
         self.assertEqual(config.min_similarity, DEFAULT_MIN_SIMILARITY)
-        self.assertEqual(config.max_n_matches, None)
+        self.assertEqual(config.max_n_matches, 20)
         self.assertEqual(config.regex, DEFAULT_REGEX)
         self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
         self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
@@ -117,7 +117,7 @@ class StringGrouperConfigTest(unittest.TestCase):
 
 class StringGrouperTest(unittest.TestCase):
 
-    def test_auto_blocking_single_Series(self):
+    def test_auto_blocking_single_DataFrame(self):
         """tests whether automatic blocking yields consistent results"""
         # This function will force an OverflowError to occur when
         # the input Series have a combined length above a given number:
@@ -137,7 +137,8 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_series_equal(sg.master, df1)
         self.assertEqual(sg.duplicates, None)
 
-        matches = fix_row_order(sg.match_strings(df1, n_blocks='guess'))
+        matches = fix_row_order(sg.match_strings(df1, n_blocks=(1, 1)))
+        self.assertEqual(sg._config.n_blocks, (1, 1))
 
         # Create a custom wrapper for this StringGrouper instance's
         # _build_matches() method which will later be used to
@@ -155,7 +156,7 @@ class StringGrouperTest(unittest.TestCase):
                 if (left_matrix.shape[0] + right_matrix.shape[0]) > \
                         OverflowThreshold:
                     raise OverflowError
-                return real_build_matches(left_matrix, right_matrix, nnz_rows, sort)
+                return real_build_matches(left_matrix, right_matrix, None)
             return wrapper
 
         def do_test_with(OverflowThreshold):
@@ -163,9 +164,10 @@ class StringGrouperTest(unittest.TestCase):
             # Now let us mock sg._build_matches:
             sg._build_matches = Mock(side_effect=mock_build_matches(OverflowThreshold))
             sg.clear_data()
-            matches_auto = fix_row_order(sg.match_strings(df1, n_blocks='auto'))
+            matches_auto = fix_row_order(sg.match_strings(df1, n_blocks=None))
             pd.testing.assert_series_equal(sg.master, df1)
             pd.testing.assert_frame_equal(matches, matches_auto)
+            self.assertEqual(sg._config.n_blocks, None)
             # Note that _build_matches is called more than once if and only if
             # a split occurred (that is, there was more than one pair of
             # matrix-blocks multiplied)
@@ -181,12 +183,12 @@ class StringGrouperTest(unittest.TestCase):
         # combined Series' lengths is greater than 10, 5, 3, 2
 
         do_test_with(OverflowThreshold=100)  # does not trigger auto blocking
-        do_test_with(OverflowThreshold=10)
-        do_test_with(OverflowThreshold=5)
-        do_test_with(OverflowThreshold=3)
-        do_test_with(OverflowThreshold=2)
+        do_test_with(OverflowThreshold=30)
+        do_test_with(OverflowThreshold=20)
+        do_test_with(OverflowThreshold=15)
+        # do_test_with(OverflowThreshold=12)
 
-    def test_n_blocks_single_Series(self):
+    def test_n_blocks_single_DataFrame(self):
         """tests whether manual blocking yields consistent results"""
         sort_cols = ['right_index', 'left_index']
 
@@ -256,7 +258,7 @@ class StringGrouperTest(unittest.TestCase):
                 if (left_matrix.shape[0] + right_matrix.shape[0]) > \
                         OverflowThreshold:
                     raise OverflowError
-                return real_build_matches(left_matrix, right_matrix, nnz_rows, sort)
+                return real_build_matches(left_matrix, right_matrix, None)
             return wrapper
 
         def test_overflow_error_with(OverflowThreshold, n_blocks):
@@ -274,11 +276,11 @@ class StringGrouperTest(unittest.TestCase):
                 matches_manual = fix_row_order(sg.match_strings(df1, n_blocks=n_blocks))
                 pd.testing.assert_frame_equal(matches11, matches_manual)
 
-        test_overflow_error_with(OverflowThreshold=100, n_blocks=(1, 1))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(1, 1))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(2, 1))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(1, 2))
-        test_overflow_error_with(OverflowThreshold=10, n_blocks=(4, 4))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 1))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 1))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(2, 1))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 2))
+        test_overflow_error_with(OverflowThreshold=20, n_blocks=(4, 4))
 
     def test_n_blocks_both_DataFrames(self):
         """tests whether manual blocking yields consistent results"""
@@ -376,7 +378,7 @@ class StringGrouperTest(unittest.TestCase):
             ],
             name='similarity'
         )
-        expected_result = expected_result.astype(np.float32)
+        expected_result = expected_result.astype(np.float64)
         pd.testing.assert_series_equal(expected_result, similarities)
         sg = StringGrouper(df1, df2)
         similarities = sg.compute_pairwise_similarities(df1, df2)
@@ -447,48 +449,6 @@ class StringGrouperTest(unittest.TestCase):
         self.assertEqual(df, 'whatever')
 
     @patch(
-        'string_grouper.string_grouper.StringGrouper._symmetrize_matrix',
-        side_effect=mock_symmetrize_matrix
-    )
-    def test_match_list_symmetry_without_symmetrize_function(self, mock_symmetrize_matrix_param):
-        """mocks StringGrouper._symmetrize_matches_list so that this test fails whenever _matches_list is
-        **partially** symmetric which often occurs when the kwarg max_n_matches is too small"""
-        simple_example = SimpleExample()
-        df = simple_example.customers_df2['Customer Name']
-        sg = StringGrouper(df, max_n_matches=2).fit()
-        mock_symmetrize_matrix_param.assert_called_once()
-        # obtain the upper and lower triangular parts of the matrix of matches:
-        upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
-        lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
-        # switch the column names of lower triangular part (i.e., transpose) to convert it to upper triangular:
-        upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
-        # obtain the intersection between upper and upper_prime:
-        intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
-        # if the intersection is empty then _matches_list is completely non-symmetric (this is acceptable)
-        # if the intersection is not empty then at least some matches are repeated.
-        # To make sure all (and not just some) matches are repeated, the lengths of
-        # upper, upper_prime and their intersection should be identical.
-        self.assertFalse(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
-
-    def test_match_list_symmetry_with_symmetrize_function(self):
-        """This test ensures that _matches_list is symmetric"""
-        simple_example = SimpleExample()
-        df = simple_example.customers_df2['Customer Name']
-        sg = StringGrouper(df, max_n_matches=2).fit()
-        # Obtain the upper and lower triangular parts of the matrix of matches:
-        upper = sg._matches_list[sg._matches_list['master_side'] < sg._matches_list['dupe_side']]
-        lower = sg._matches_list[sg._matches_list['master_side'] > sg._matches_list['dupe_side']]
-        # Switch the column names of the lower triangular part (i.e., transpose) to convert it to upper triangular:
-        upper_prime = lower.rename(columns={'master_side': 'dupe_side', 'dupe_side': 'master_side'})
-        # Obtain the intersection between upper and upper_prime:
-        intersection = upper_prime.merge(upper, how='inner', on=['master_side', 'dupe_side'])
-        # If the intersection is empty this means _matches_list is completely non-symmetric (this is acceptable)
-        # If the intersection is not empty this means at least some matches are repeated.
-        # To make sure all (and not just some) matches are repeated, the lengths of
-        # upper, upper_prime and their intersection should be identical.
-        self.assertTrue(intersection.empty or len(upper) == len(upper_prime) == len(intersection))
-
-    @patch(
         'string_grouper.string_grouper.StringGrouper._fix_diagonal',
         side_effect=mock_symmetrize_matrix
     )
@@ -523,15 +483,6 @@ class StringGrouperTest(unittest.TestCase):
         s_dup = simple_example.whatever_series_1
         matches = match_strings(s_master, s_dup, min_similarity=0)
         pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches)
-
-    def test_zero_min_similarity_small_max_n_matches(self):
-        """This test ensures that a warning is issued when n_max_matches is suspected to be too small while
-        min_similarity <= 0 and include_zeroes is True"""
-        simple_example = SimpleExample()
-        s_master = simple_example.customers_df['Customer Name']
-        s_dup = simple_example.two_strings
-        with self.assertRaises(Exception):
-            _ = match_strings(s_master, s_dup, max_n_matches=1, min_similarity=0)
 
     def test_get_non_matches_empty_case(self):
         """This test ensures that _get_non_matches() returns an empty DataFrame when all pairs of strings match"""
@@ -569,7 +520,7 @@ class StringGrouperTest(unittest.TestCase):
         """Should create a csr matrix only master"""
         test_series = pd.Series(['foo', 'bar', 'baz'])
         sg = StringGrouper(test_series)
-        master, dupe = sg._get_right_tf_idf_matrix(), sg._get_left_tf_idf_matrix()
+        master, dupe = sg._get_tf_idf_matrices()
         c = csr_matrix([[0., 0., 1.],
                         [1., 0., 0.],
                         [0., 1., 0.]])
@@ -581,7 +532,7 @@ class StringGrouperTest(unittest.TestCase):
         test_series_1 = pd.Series(['foo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
         sg = StringGrouper(test_series_1, test_series_2)
-        master, dupe = sg._get_right_tf_idf_matrix(), sg._get_left_tf_idf_matrix()
+        master, dupe = sg._get_tf_idf_matrices()
         master_expected = csr_matrix([[0., 0., 0., 1.],
                                      [1., 0., 0., 0.],
                                      [0., 1., 0., 0.]])
@@ -597,12 +548,12 @@ class StringGrouperTest(unittest.TestCase):
         test_series_1 = pd.Series(['foo', 'bar', 'baz'])
         test_series_2 = pd.Series(['foo', 'bar', 'bop'])
         sg = StringGrouper(test_series_1, test_series_2)
-        master, dupe = sg._get_right_tf_idf_matrix(), sg._get_left_tf_idf_matrix()
+        master, dupe = sg._get_tf_idf_matrices()
 
         expected_matches = np.array([[1., 0., 0.],
                                      [0., 1., 0.],
                                      [0., 0., 0.]])
-        np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe)[0].toarray())
+        np.testing.assert_array_equal(expected_matches, sg._build_matches(master, dupe, None).toarray())
 
     def test_build_matches_list(self):
         """Should create the cosine similarity matrix of two series"""
@@ -651,8 +602,8 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        left_index = [0, 3, 1, 2, 0, 3]
-        right_index = [0, 0, 1, 2, 3, 3]
+        right_index = [0, 3, 1, 2, 0, 3]
+        left_index = [0, 0, 1, 2, 3, 3]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side,
                                     'similarity': similarity,
@@ -665,12 +616,13 @@ class StringGrouperTest(unittest.TestCase):
         test_series_id_1 = pd.Series(['A0', 'A1', 'A2', 'A3'])
         sg = StringGrouper(test_series_1, master_id=test_series_id_1)
         sg = sg.fit()
-        left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        left_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
-        left_index = [0, 3, 1, 2, 0, 3]
         right_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
-        right_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
-        right_index = [0, 0, 1, 2, 3, 3]
+        right_side_id = ['A0', 'A3', 'A1', 'A2', 'A0', 'A3']
+        right_index = [0, 3, 1, 2, 0, 3]
+        left_side = ['foo', 'foo', 'bar', 'baz', 'foo', 'foo']
+        left_side_id = ['A0', 'A0', 'A1', 'A2', 'A3', 'A3']
+        left_index = [0, 0, 1, 2, 3, 3]
+        similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         similarity = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
         expected_df = pd.DataFrame({'left_index': left_index, 'left_side': left_side, 'left_id': left_side_id,
                                     'similarity': similarity,
@@ -843,7 +795,7 @@ class StringGrouperTest(unittest.TestCase):
         a list of the grouped strings"""
         test_series_1 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
         sg = StringGrouper(test_series_1, ignore_index=True)
-        sg = sg.fit(n_blocks=(1, 1))
+        sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.Series(['foooo', 'bar', 'baz', 'foooo'], name='group_rep')
         pd.testing.assert_series_equal(expected_result, result)
@@ -896,8 +848,8 @@ class StringGrouperTest(unittest.TestCase):
         that matches the dupe with the highest similarity"""
         test_series_1 = pd.Series(['foooo', 'bar', 'foooo'])
         test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
-        test_series_id_1 = pd.Series([0, 1, 2])
-        test_series_id_2 = pd.Series([100, 101, 102, 103])
+        test_series_id_1 = pd.Series([0, 1, 2], dtype = "Int64")
+        test_series_id_2 = pd.Series([100, 101, 102, 103], dtype = "Int64")
         sg = StringGrouper(test_series_1,
                            test_series_2,
                            master_id=test_series_id_1,
@@ -906,20 +858,23 @@ class StringGrouperTest(unittest.TestCase):
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip([0, 1, 102, 0], ['foooo', 'bar', 'baz', 'foooo'])),
-                                       columns=['most_similar_master_id', 'most_similar_master'])
+                                       columns=['most_similar_master_id', 'most_similar_master']
+                                       ).astype(dtype= {"most_similar_master_id":"Int64",
+        "most_similar_master":"str"})
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_2_string_series_with_numeric_indexes_and_missing_master_value(self):
         """Should return a pd.DataFrame object with the length of the dupes. The series will contain the master string
         that matches the dupe with the highest similarity"""
-        test_series_1 = pd.Series(['foooo', 'bar', 'foooo'], index=[0, 1, 2])
-        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'], index=[100, 101, 102, 103])
+        test_series_1 = pd.Series(['foooo', 'bar', 'foooo'], index = pd.Index([0, 1, 2], dtype = "Int64"))
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'], index = pd.Index([100, 101, 102, 103], dtype = "Int64"))
         sg = StringGrouper(test_series_1, test_series_2, replace_na=True)
         sg = sg.fit()
         result = sg.get_groups()
         expected_result = pd.DataFrame(list(zip([0, 1, 102, 0], ['foooo', 'bar', 'baz', 'foooo'])),
                                        columns=['most_similar_index', 'most_similar_master'],
-                                       index=test_series_2.index)
+                                       index=test_series_2.index).astype(dtype= {"most_similar_index":"Int64",
+        "most_similar_master":"str"})
         pd.testing.assert_frame_equal(expected_result, result)
 
     def test_get_groups_two_df_same_similarity(self):

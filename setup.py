@@ -9,7 +9,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name='string_grouper',
-    version='0.6.1',
+    version='0.7.0',
     packages=['string_grouper', 'string_grouper_utils'],
     license='MIT License',
     description='String grouper contains functions to do string matching using TF-IDF and the cossine similarity. '
@@ -21,11 +21,12 @@ setup(
     url='https://github.com/Bergvca/string_grouper',
     zip_safe=False,
     python_requires='>3.7',
-    install_requires=['pandas>=0.25.3'
-                      , 'scipy'
-                      , 'scikit-learn'
-                      , 'numpy'
-                      , 'sparse_dot_topn_for_blocks>=0.3.1'
-                      , 'topn>=0.0.7'
+    install_requires=['pandas>=2.0'
+                      , 'scipy>=1.4.1'
+                      , 'scikit-learn>=1.4.0'
+                      , 'numpy>=1.26.0, < 2.0'
+                      , 'sparse_dot_topn>=1.1.0'
+                      , 'loguru>=0.7'
                       ]
 )
+

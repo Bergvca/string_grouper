@@ -1,0 +1,40 @@
+site_name: String Grouper  
+
+repo_url: https://github.com/GuillaumePressiat/string_grouper
+
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+#    - navigation.tabs.sticky
+
+nav:
+  - Home:
+    - index.md
+  - References:
+    - references/match_strings.md
+    - references/match_most_similar.md
+    - references/group_similar_strings.md
+    - references/compute_pairwise_similarities.md
+    - references/options_kwargs.md
+    - references/sg_class.md
+  - Examples:
+    - examples.md
+  - Performance:
+    - performance.md
+
+
+markdown_extensions:
+  - toc:
+      toc_depth: 3
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
