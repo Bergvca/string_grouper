@@ -33,8 +33,8 @@ DEFAULT_GROUP_REP: str = GROUP_REP_CENTROID  # chooses group centroid as group-r
 DEFAULT_FORCE_SYMMETRIES: bool = True  # Option value to specify whether corrections should be made to the results
 # to account for symmetry thus compensating for those numerical errors that violate symmetry due to loss of
 # significance
-DEFAULT_N_BLOCKS: Tuple[int, int] = None  # Option value to use to split dataset(s) into roughly equal-sized blocks
-DEFAULT_NORMALIZE_TO_ASCII: bool = True; 
+DEFAULT_N_BLOCKS: Optional[Tuple[int, int]] = None  # Option value to use to split dataset(s) into roughly equal-sized blocks
+DEFAULT_NORMALIZE_TO_ASCII: bool = True
 
 # The following string constants are used by (but aren't [yet] options passed to) StringGrouper
 DEFAULT_COLUMN_NAME: str = 'side'   # used to name non-index columns of the output of StringGrouper.get_matches
@@ -319,7 +319,6 @@ class StringGrouper(object):
         :param duplicates: pandas.Series. If set, for each string in duplicates a similar string is searched in Master.
         :param master_id: pandas.Series. If set, contains ID values for each row in master Series.
         :param duplicates_id: pandas.Series. If set, contains ID values for each row in duplicates Series.
-        :param kwargs: All other keyword arguments are passed to StringGrouperConfig
         """
         self._set_data(master, duplicates, master_id, duplicates_id)
 
@@ -771,7 +770,7 @@ class StringGrouper(object):
         missing_pairs = all_pairs.difference(matched_pairs)
         if missing_pairs.empty:
             return pd.DataFrame()
-        if (self._max_n_matches < self._true_max_n_matches):
+        if self._max_n_matches < self._true_max_n_matches:
             raise Exception(f'\nERROR: Cannot return zero-similarity matches since \n'
                             f'\t\t max_n_matches={self._max_n_matches} is too small!\n'
                             f'\t\t Try setting max_n_matches={self._true_max_n_matches} (the \n'
