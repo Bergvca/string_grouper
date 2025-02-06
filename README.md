@@ -35,10 +35,30 @@ The power of `string_grouper` is discernible from this image: in large datasets,
 
 ```python
 import pandas as pd
-from string_grouper import match_strings, match_most_similar, \
-	group_similar_strings, compute_pairwise_similarities, \
-	StringGrouper
+from string_grouper import match_strings
+
+import pandas as pd
+from string_grouper import match_strings
+
+company_names = 'sec__edgar_company_info.csv'
+companies = pd.read_csv(company_names)
+# Create all matches:
+matches = match_strings(companies['Company Name'])
+# Look at only the non-exact matches:
+matches[matches['left_Company Name'] != matches['right_Company Name']].head()
 ```
+
+|     |   left_index | left_Company Name                                           |   similarity | right_Company Name                      |   right_index |
+|----:|-------------:|:------------------------------------------------------------|-------------:|:----------------------------------------|--------------:|
+|  15 |           14 | 0210, LLC                                                   |     0.870291 | 90210 LLC                               |          4211 |
+| 167 |          165 | 1 800 MUTUALS ADVISOR SERIES                                |     0.931615 | 1 800 MUTUALS ADVISORS SERIES           |           166 |
+| 168 |          166 | 1 800 MUTUALS ADVISORS SERIES                               |     0.931615 | 1 800 MUTUALS ADVISOR SERIES            |           165 |
+| 172 |          168 | 1 800 RADIATOR FRANCHISE INC                                |     1        | 1-800-RADIATOR FRANCHISE INC.           |           201 |
+| 178 |          173 | 1 FINANCIAL MARKETPLACE SECURITIES LLC                  /BD |     0.949364 | 1 FINANCIAL MARKETPLACE SECURITIES, LLC |           174 |
+
+## Documentation
+
+The documentation can be found [here](https://bergvca.github.io/string_grouper/)
 
 As shown above, the library may be used together with `pandas`, and contains four high level functions (`match_strings`, `match_most_similar`, `group_similar_strings`, and `compute_pairwise_similarities`) that can be used directly, and one class (`StringGrouper`) that allows for a more interactive approach. 
 
