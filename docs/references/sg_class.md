@@ -2,6 +2,7 @@
 title: String Grouper Class
 ---
 
+
 ## Concept 
 
 All functions are built using a class **`StringGrouper`**. This class can be used through pre-defined functions, for example the four high level functions above, as well as using a more interactive approach where matches can be added or removed if needed by calling the **`StringGrouper`** class directly.
@@ -9,7 +10,20 @@ All functions are built using a class **`StringGrouper`**. This class can be use
 
 The four functions mentioned above all create a `StringGrouper` object behind the scenes and call different functions on it. The `StringGrouper` class keeps track of all tuples of similar strings and creates the groups out of these. Since matches are often not perfect, a common workflow is to:
 
-## Example
+## Example 1 - reuse the same tf-idf corpus without rebuilding
+
+```python
+# Build a corpus using strings in the pandas Series master:
+sg = StringGrouper(master)
+# The following method-calls will compare strings first in
+# pandas Series new_master_1 and next in new_master_2
+# using the corpus already built above without rebuilding or
+# changing it in any way:
+matches1 = sg.match_strings(new_master_1)
+matches2 = sg.match_strings(new_master_2)
+```
+
+## Example 2 - add and remove matches
 
 1. Create matches
 2. Manually inspect the results

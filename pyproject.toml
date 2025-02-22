@@ -1,13 +1,14 @@
 [tool.poetry]
 name = "string_grouper"
-version = "0.7.0.7"
+version = "0.7.1"
 description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity."
 authors = [
     "Chris van den Berg",
     "ParticularMiner"
 ]
 maintainers = [
-    "Guillaume Pressiat"
+    "Guillaume Pressiat",
+    "Chris van den Berg"
 ]
 
 license = "MIT License"
