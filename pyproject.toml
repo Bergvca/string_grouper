@@ -12,11 +12,6 @@ maintainers = [
     {name = "Guillaume Pressiat"},
 ]
 
-[project.urls]
-Homepage = "https://github.com/Bergvca/string_grouper"
-Documentation = "https://bergvca.github.io/string_grouper/"
-Issues = "https://github.com/Bergvca/string_grouper/issues"
-Source = "https://github.com/Bergvca/string_grouper"
 
 license = "MIT License"
 readme = "README.md"
