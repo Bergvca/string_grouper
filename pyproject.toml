@@ -1,4 +1,4 @@
-[tool.poetry]
+[project]
 name = "string_grouper"
 version = "0.7.1"
 description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity."
