@@ -4,12 +4,7 @@ title: String Grouper
 
 **`string_grouper`** is a library that makes finding groups of similar strings within a single, or multiple, lists of strings easy — and fast. **`string_grouper`** uses **tf-idf** to calculate [**cosine similarities**](http://blog.christianperone.com/2013/09/machine-learning-cosine-similarity-for-vector-space-models-part-iii/) within a single list or between two lists of strings. The full process is described in the blog [Super Fast String Matching in Python](https://bergvca.github.io/2017/10/14/super-fast-string-matching.html).
 
-s = datetime.datetime.now()
-matches = match_strings(names['Company Name'], number_of_processes = 4)
-
-e = datetime.datetime.now()
-diff = (e - s)
-str(diff)## Install
+## Install
 
 ```bash
 pip install string-grouper
