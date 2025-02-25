@@ -3,12 +3,13 @@ name = "string_grouper"
 version = "0.7.1"
 description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity."
 authors = [
-    "Chris van den Berg",
-    "ParticularMiner"
+    {name = "Chris van den Berg"},
+    {name = "ParticularMiner"},
 ]
+
 maintainers = [
-    "Guillaume Pressiat",
-    "Chris van den Berg"
+    {name = "Chris van den Berg"},
+    {name = "Guillaume Pressiat"},
 ]
 
 [project.urls]
