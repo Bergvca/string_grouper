@@ -22,7 +22,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 pandas = "^2.0"
 scipy = ">=1.4.1"
 scikit-learn = "^1.4.0"
