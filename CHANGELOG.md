@@ -8,9 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.7.1] - 2025-01-23
 
 ### Changed
-* 
 * Code wise, nothing changed. However, the version number is cleaned up in pyproject.toml
-* Cleaned up documentation and readme.md. Most documentation is moved from the readme to:
+* Cleaned up documentation and readme.md. Most documentation is moved from the `readme.md` to:
   [https://bergvca.github.io/string_grouper](https://bergvca.github.io/string_grouper/). 
 
 
