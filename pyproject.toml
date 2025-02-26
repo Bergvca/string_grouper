@@ -1,14 +1,17 @@
-[tool.poetry]
+[project]
 name = "string_grouper"
-version = "0.7.0.7"
+version = "0.7.1"
 description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity."
 authors = [
-    "Chris van den Berg",
-    "ParticularMiner"
+    {name = "Chris van den Berg"},
+    {name = "ParticularMiner"},
 ]
+
 maintainers = [
-    "Guillaume Pressiat"
+    {name = "Chris van den Berg"},
+    {name = "Guillaume Pressiat"},
 ]
+
 
 license = "MIT License"
 readme = "README.md"
@@ -19,7 +22,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 pandas = "^2.0"
 scipy = ">=1.4.1"
 scikit-learn = "^1.4.0"
