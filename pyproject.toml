@@ -1,6 +1,6 @@
 [project]
 name = "string_grouper"
-version = "0.7.1"
+version = "0.7.2"
 description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity."
 authors = [
     {name = "Chris van den Berg"},
@@ -14,7 +14,7 @@ maintainers = [
     {name = "Vincent Chalmel"},
 ]
 
-license = "MIT License"
+license = "MIT"
 readme = "README.md"
 
 packages = [
@@ -32,3 +32,7 @@ dependencies = [
     "sparse-dot-topn>=1.1.0",
     "loguru>0.7.0",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
