@@ -22,13 +22,13 @@ packages = [
     { include = "string_grouper_utils" },
 ]
 
-requires-python = "<4.0,>=3.9"
+requires-python = "<4.0,>=3.10"
 
 dependencies = [
     "pandas<3.0,>=2.0",
-    "scipy>=1.4.1",
-    "scikit-learn<2.0.0,>=1.4.0",
-    "numpy<2.0.0,>=1.26.0",
+    "scipy>=1.15",
+    "scikit-learn>=1.4.0",
+    "numpy>=2.0",
     "sparse-dot-topn>=1.1.0",
     "loguru>0.7.0",
 ]
