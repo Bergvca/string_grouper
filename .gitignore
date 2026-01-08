@@ -1,4 +1,4 @@
-
+.idea/
 
 __pycache__
 */__pycache__/
@@ -16,5 +16,6 @@ build/
 
 site/
 
-
 tests.txt
+
+uv.lock
