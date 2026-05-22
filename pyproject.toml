@@ -1,19 +1,20 @@
 [project]
 name = "string_grouper"
-version = "0.7.1"
+version = "0.7.2"
 description = "String grouper contains functions to do string matching using TF-IDF and the cossine similarity."
 authors = [
     {name = "Chris van den Berg"},
     {name = "ParticularMiner"},
+    {name = "Vincent Chalmel"},
 ]
 
 maintainers = [
     {name = "Chris van den Berg"},
     {name = "Guillaume Pressiat"},
+    {name = "Vincent Chalmel"},
 ]
 
-
-license = "MIT License"
+license = "MIT"
 readme = "README.md"
 
 packages = [
@@ -21,15 +22,17 @@ packages = [
     { include = "string_grouper_utils" },
 ]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-pandas = "^2.0"
-scipy = ">=1.4.1"
-scikit-learn = "^1.4.0"
-numpy = "^1.26.0"
-sparse_dot_topn = ">=1.1.0"
-loguru = ">0.7.0"
+requires-python = "<4.0,>=3.10"
+
+dependencies = [
+    "pandas<3.0,>=2.0",
+    "scipy>=1.15",
+    "scikit-learn>=1.4.0",
+    "numpy>=2.0",
+    "sparse-dot-topn>=1.1.0",
+    "loguru>0.7.0",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
