@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-05-22
+
+### Changed
+
+* Dependencies bumped: `numpy>=2.0` (cap on `<2.0` removed), `scipy>=1.15`, `pandas<3.0`, `scikit-learn` upper-bound removed.
+* Minimum supported Python is now 3.10.
+* Build backend switched from `poetry-core` to `hatchling`.
+* Removed `setup.py`; the package is now built exclusively from `pyproject.toml`.
+
+
+
 ## [0.7.1] - 2025-01-23
 
 ### Changed
