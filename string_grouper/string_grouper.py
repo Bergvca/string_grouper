@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import re
 import multiprocessing
-import warnings
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import vstack
 from scipy.sparse import csr_matrix
@@ -21,6 +20,7 @@ DEFAULT_MAX_N_MATCHES: int = 20 # not optional with sparse_dot_topn
 DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
+DEFAULT_USE_SP_MATMUL_RS: bool = True # use sp_matmul_rs or the sparse_dot_topn as matrix multiplication library
 DEFAULT_DROP_INDEX: bool = False  # includes index-columns in output
 DEFAULT_REPLACE_NA: bool = False    # when finding the most similar strings, does not replace NaN values in most
 # similar string index-columns with corresponding duplicates-index values
@@ -49,7 +49,7 @@ DEFAULT_MASTER_ID_NAME: str = f'{DEFAULT_MASTER_NAME}_{DEFAULT_ID_NAME}'    # us
 GROUP_REP_PREFIX: str = 'group_rep_'    # used to prefix and name columns of the output of StringGrouper._deduplicate
 
 
-# High level functions
+# High-level functions
 
 
 def compute_pairwise_similarities(string_series_1: pd.Series,
@@ -170,6 +170,9 @@ class StringGrouperConfig(NamedTuple):
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
     Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case).
+    use_sp_matmul_rs: bool. Whether or not to use sp_matmul_rs or the sparse_dot_topn as matrix multiplication library.
+    sp_matmul_rs does the chunking internally and has further optimizations, but is not battle-tested as much.
+    Defaults to True.
     :param ignore_index: whether or not to exclude string Series index-columns in output.  Defaults to False.
     :param include_zeroes: when the minimum cosine similarity <=0, determines whether zero-similarity matches
     appear in the output.  Defaults to True.
@@ -193,6 +196,7 @@ class StringGrouperConfig(NamedTuple):
     min_similarity: float = DEFAULT_MIN_SIMILARITY
     number_of_processes: int = DEFAULT_N_PROCESSES
     ignore_case: bool = DEFAULT_IGNORE_CASE
+    use_sp_matmul_rs: bool = DEFAULT_USE_SP_MATMUL_RS
     ignore_index: bool = DEFAULT_DROP_INDEX
     include_zeroes: bool = DEFAULT_INCLUDE_ZEROES
     replace_na: bool = DEFAULT_REPLACE_NA
