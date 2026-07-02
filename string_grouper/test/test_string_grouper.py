@@ -6,7 +6,7 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
     match_most_similar, group_similar_strings, match_strings, \
-    compute_pairwise_similarities
+    compute_pairwise_similarities, DEFAULT_USE_SP_MATMUL_RS
 from unittest.mock import patch, Mock
 
 
@@ -100,6 +100,7 @@ class StringGrouperConfigTest(unittest.TestCase):
         self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
         self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
         self.assertEqual(config.ignore_case, DEFAULT_IGNORE_CASE)
+        self.assertEqual(config.use_sp_matmul_rs, DEFAULT_USE_SP_MATMUL_RS)
 
     def test_config_immutable(self):
         """Configurations should be immutable"""
@@ -133,11 +134,11 @@ class StringGrouperTest(unittest.TestCase):
         df1 = simple_example.customers_df2['Customer Name']
 
         # first do manual blocking
-        sg = StringGrouper(df1, min_similarity=0.1)
+        sg = StringGrouper(df1, min_similarity=0.1, use_sp_matmul_rs=False)
         pd.testing.assert_series_equal(sg.master, df1)
         self.assertEqual(sg.duplicates, None)
 
-        matches = fix_row_order(sg.match_strings(df1, n_blocks=(1, 1)))
+        matches = fix_row_order(sg.match_strings(df1, n_blocks=(1, 1), use_sp_matmul_rs=False))
         self.assertEqual(sg._config.n_blocks, (1, 1))
 
         # Create a custom wrapper for this StringGrouper instance's
@@ -201,43 +202,43 @@ class StringGrouperTest(unittest.TestCase):
         matches11 = fix_row_order(match_strings(df1, min_similarity=0.1))
 
         matches12 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 2), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches12)
 
         matches13 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 3), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 3), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches13)
 
         matches14 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 4), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 4), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches14)
 
         matches15 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 5), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 5), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches15)
 
         matches16 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 6), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 6), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches16)
 
         matches17 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 7), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 7), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches17)
 
         matches18 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 8), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 8), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches18)
 
         matches21 = fix_row_order(
-            match_strings(df1, n_blocks=(2, 1), min_similarity=0.1))
+            match_strings(df1, n_blocks=(2, 1), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches21)
 
         matches22 = fix_row_order(
-            match_strings(df1, n_blocks=(2, 2), min_similarity=0.1))
+            match_strings(df1, n_blocks=(2, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches22)
 
         matches32 = fix_row_order(
-            match_strings(df1, n_blocks=(3, 2), min_similarity=0.1))
+            match_strings(df1, n_blocks=(3, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches32)
 
         # Create a custom wrapper for this StringGrouper instance's
@@ -296,7 +297,7 @@ class StringGrouperTest(unittest.TestCase):
         matches11 = fix_row_order(match_strings(df1, df2, min_similarity=0.1))
 
         matches12 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 2), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches12)
 
         matches13 = fix_row_order(
