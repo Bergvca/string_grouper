@@ -390,9 +390,9 @@ class StringGrouper(object):
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
         if self._config.use_sp_matmul_rs:
-            matches = self._build_matches_rs(duplicate_matrix, master_matrix)
+            matches = self._build_matches_rs(master_matrix, duplicate_matrix)
         else:
-            matches = self._calc_blocks_and_build_matches(duplicate_matrix, master_matrix)
+            matches = self._calc_blocks_and_build_matches(master_matrix, duplicate_matrix)
 
         self._true_max_n_matches = np.diff(matches.indptr).max()
 
@@ -410,7 +410,7 @@ class StringGrouper(object):
         self.is_build = True
         return self
 
-    def _calc_blocks_and_build_matches(self, duplicate_matrix: csr_matrix, master_matrix: csr_matrix) -> csr_matrix:
+    def _calc_blocks_and_build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
         """
         Calculates the optimal blocks and builds matching data from the provided matrices. Uses the legacy
         sp_dot_topn function to calculate matches.

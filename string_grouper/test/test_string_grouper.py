@@ -272,9 +272,9 @@ class StringGrouperTest(unittest.TestCase):
                                     + (1 if len(df1) % n_blocks[1] > 0 else 0))
             if (max_left_block_size + max_right_block_size) > OverflowThreshold:
                 with self.assertRaises(Exception):
-                    _ = sg.match_strings(df1, n_blocks=n_blocks)
+                    _ = sg.match_strings(df1, n_blocks=n_blocks, use_sp_matmul_rs=False)
             else:
-                matches_manual = fix_row_order(sg.match_strings(df1, n_blocks=n_blocks))
+                matches_manual = fix_row_order(sg.match_strings(df1, n_blocks=n_blocks, use_sp_matmul_rs=False))
                 pd.testing.assert_frame_equal(matches11, matches_manual)
 
         test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 1))
@@ -301,39 +301,39 @@ class StringGrouperTest(unittest.TestCase):
         pd.testing.assert_frame_equal(matches11, matches12)
 
         matches13 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 3), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 3), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches13)
 
         matches14 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 4), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 4), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches14)
 
         matches15 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 5), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 5), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches15)
 
         matches16 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 6), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 6), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches16)
 
         matches17 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 7), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 7), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches17)
 
         matches18 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 8), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 8), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches18)
 
         matches21 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(2, 1), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(2, 1), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches21)
 
         matches22 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(2, 2), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(2, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches22)
 
         matches32 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(3, 2), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(3, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches32)
 
     def test_n_blocks_bad_option_value(self):
