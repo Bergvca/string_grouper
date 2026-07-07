@@ -172,7 +172,7 @@ class StringGrouperConfig(NamedTuple):
     Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case).
     :param use_sp_matmul_rs: bool. Whether or not to use sp_matmul_rs or the sparse_dot_topn as matrix multiplication
-    library. sp_matmul_rs does the chunking internally and has further optimizations, but is not battle-tested.
+    library. sp_matmul_rs does the chunking internally and has further optimizations but is not battle-tested.
     Defaults to True.
     :param ignore_index: whether or not to exclude string Series index-columns in output.  Defaults to False.
     :param include_zeroes: when the minimum cosine similarity <=0, determines whether zero-similarity matches

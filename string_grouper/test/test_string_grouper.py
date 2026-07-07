@@ -1045,5 +1045,87 @@ class StringGrouperTest(unittest.TestCase):
         self.assertEqual(1, len(df.deduped.unique()))
 
 
+class SpMatmulRsEquivalenceTest(unittest.TestCase):
+    """Tests that the sp_matmul_rs backend (use_sp_matmul_rs=True) yields the same results
+    as the legacy sparse_dot_topn backend (use_sp_matmul_rs=False)"""
+
+    sort_cols = ['right_index', 'left_index']
+
+    def fix_row_order(self, df):
+        return df.sort_values(self.sort_cols).reset_index(drop=True)
+
+    def test_match_strings_single_series(self):
+        """match_strings on a single Series (self-join) should be backend-independent"""
+        simple_example = SimpleExample()
+        df1 = simple_example.customers_df2['Customer Name']
+        matches_rs = self.fix_row_order(
+            match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=True))
+        matches_legacy = self.fix_row_order(
+            match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=False))
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+
+    def test_match_strings_two_series(self):
+        """match_strings on two Series should be backend-independent"""
+        simple_example = SimpleExample()
+        df1 = simple_example.customers_df['Customer Name']
+        df2 = simple_example.customers_df2['Customer Name']
+        matches_rs = self.fix_row_order(
+            match_strings(df1, df2, min_similarity=0.1, use_sp_matmul_rs=True))
+        matches_legacy = self.fix_row_order(
+            match_strings(df1, df2, min_similarity=0.1, use_sp_matmul_rs=False))
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+
+    def test_match_strings_with_ids(self):
+        """match_strings with master_id and duplicates_id should be backend-independent"""
+        simple_example = SimpleExample()
+        matches_rs = self.fix_row_order(
+            match_strings(simple_example.customers_df['Customer Name'],
+                          simple_example.customers_df2['Customer Name'],
+                          master_id=simple_example.customers_df['Customer ID'],
+                          duplicates_id=simple_example.customers_df2['Customer ID'],
+                          min_similarity=0.1,
+                          use_sp_matmul_rs=True))
+        matches_legacy = self.fix_row_order(
+            match_strings(simple_example.customers_df['Customer Name'],
+                          simple_example.customers_df2['Customer Name'],
+                          master_id=simple_example.customers_df['Customer ID'],
+                          duplicates_id=simple_example.customers_df2['Customer ID'],
+                          min_similarity=0.1,
+                          use_sp_matmul_rs=False))
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+
+    def test_match_most_similar(self):
+        """match_most_similar should be backend-independent"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        result_rs = match_most_similar(test_series_1, test_series_2,
+                                       ignore_index=True, use_sp_matmul_rs=True)
+        result_legacy = match_most_similar(test_series_1, test_series_2,
+                                           ignore_index=True, use_sp_matmul_rs=False)
+        pd.testing.assert_series_equal(result_legacy, result_rs)
+
+    def test_group_similar_strings(self):
+        """group_similar_strings should be backend-independent"""
+        simple_example = SimpleExample()
+        df1 = simple_example.customers_df['Customer Name']
+        result_rs = group_similar_strings(df1, min_similarity=0.6, ignore_index=True,
+                                          use_sp_matmul_rs=True)
+        result_legacy = group_similar_strings(df1, min_similarity=0.6, ignore_index=True,
+                                              use_sp_matmul_rs=False)
+        pd.testing.assert_series_equal(result_legacy, result_rs)
+        # sanity-check against the known expected grouping
+        pd.testing.assert_series_equal(simple_example.expected_result_centroid, result_rs)
+
+    def test_zero_min_similarity(self):
+        """zero-similarity matches should be included by both backends when min_similarity <= 0"""
+        simple_example = SimpleExample()
+        s_master = simple_example.customers_df['Customer Name']
+        s_dup = simple_example.whatever_series_1
+        matches_rs = match_strings(s_master, s_dup, min_similarity=0, use_sp_matmul_rs=True)
+        matches_legacy = match_strings(s_master, s_dup, min_similarity=0, use_sp_matmul_rs=False)
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+        pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches_rs)
+
+
 if __name__ == '__main__':
     unittest.main()
