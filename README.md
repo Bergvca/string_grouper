@@ -36,24 +36,24 @@ within a single list or between two lists of strings. The full process is descri
 
 ## Speed
 
-**`string_grouper`** leverages the blazingly fast [sparse_dot_topn](https://github.com/ing-bank/sparse_dot_topn) libary
+**`string_grouper`** leverages the blazingly fast [sp_matmul_rs](https://github.com/Bergvca/sp_matmul_rs) (originally based on: [sparse_dot_topn](https://github.com/ing-bank/sparse_dot_topn))
 to calculate cosine similarities. 
 
 ```python
 s = datetime.datetime.now()
-matches = match_strings(names['Company Name'], number_of_processes = 4)
-
+matches = match_strings(names["name"], number_of_processes=15)
 e = datetime.datetime.now()
-diff = (e - s)
-str(diff)
+
+diff = e - s
+print(diff)
 ```
 Results in: 
 
-`00:05:34.65` On an Intel i7-6500U CPU @ 2.50GHz, where `len(names)` = 663 000
+`00:17.80` On an m5 pro, where `len(names)` = 663 000
 
 *in other words*,
-the library is able to perform fuzzy matching of 663 000 names in _five and a half minutes_
-on a 2015 consumer CPU using 4 cores. 
+the library is able to perform fuzzy matching of 663 000 names in _less then 18 seconds_
+on a 2026 consumer CPU using 15 cores. 
 
 ## Simple Match
 
@@ -100,3 +100,10 @@ companies.groupby('name_deduped')['Line Number'].count().sort_values(ascending=F
 ## Documentation
 
 The documentation can be found [here](https://bergvca.github.io/string_grouper/)
+
+## Backends
+
+The library was originally developed using the [sparse_dot_topn](https://github.com/ing-bank/sparse_dot_topn) library,
+but has since been rewritten to use the [sp_matmul_rs](https://github.com/Bergvca/sp_matmul_rs) library, which is a Rust 
+implementation of the sparse matrix multiplication algorithm optimized with _Claude Fable_. To run the library with the
+original sparse_dot_topn backend, set `use_sp_matmul_rs` to `False`.
