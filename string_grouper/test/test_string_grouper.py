@@ -1126,6 +1126,25 @@ class SpMatmulRsEquivalenceTest(unittest.TestCase):
         pd.testing.assert_frame_equal(matches_legacy, matches_rs)
         pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches_rs)
 
+    def test_chunk_cols_result_invariant(self):
+        """chunk_cols is an sp_matmul_rs performance knob only: any value must yield identical results"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        base = self.fix_row_order(match_strings(df1, min_similarity=0.1))
+        for chunk_cols in (1, 7, 64, 100000):
+            tuned = self.fix_row_order(match_strings(df1, min_similarity=0.1, chunk_cols=chunk_cols))
+            pd.testing.assert_frame_equal(base, tuned)
+
+    def test_chunk_cols_validation(self):
+        """chunk_cols must be None or a positive int, and only valid with the sp_matmul_rs backend"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        # chunk_cols applies only to the sp_matmul_rs backend
+        with self.assertRaises(Exception):
+            match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=False, n_blocks=(1, 1), chunk_cols=64)
+        # chunk_cols must be a positive integer
+        for bad in (0, -1, 2.5, 'x'):
+            with self.assertRaises(Exception):
+                match_strings(df1, min_similarity=0.1, chunk_cols=bad)
+
 
 if __name__ == '__main__':
     unittest.main()

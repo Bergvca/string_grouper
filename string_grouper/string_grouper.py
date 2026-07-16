@@ -35,6 +35,7 @@ DEFAULT_FORCE_SYMMETRIES: bool = True  # Option value to specify whether correct
 # to account for symmetry thus compensating for those numerical errors that violate symmetry due to loss of
 # significance
 DEFAULT_N_BLOCKS: Optional[Tuple[int, int]] = None  # Option value to use to split dataset(s) into roughly equal-sized blocks
+DEFAULT_CHUNK_COLS: Optional[int] = None  # sp_matmul_rs cache-tile width; None auto-derives from the L1d cache size
 DEFAULT_NORMALIZE_TO_ASCII: bool = True
 
 # The following string constants are used by (but aren't [yet] options passed to) StringGrouper
@@ -187,7 +188,12 @@ class StringGrouperConfig(NamedTuple):
     :param n_blocks: (int, int) This parameter is provided to help boost performance, if possible, of
     processing large DataFrames, by splitting the DataFrames into n_blocks[0] blocks for the left
     operand (of the underlying matrix multiplication) and into n_blocks[1] blocks for the right operand
-    before performing the string-comparisons block-wise.  Defaults to None.
+    before performing the string-comparisons block-wise.  Only applies to the sparse_dot_topn backend
+    (use_sp_matmul_rs=False).  Defaults to None.
+    :param chunk_cols: int. The sp_matmul_rs counterpart to n_blocks: the column-chunk width of the
+    cache-blocked kernel. This is a performance knob only; any value yields identical results. Only
+    applies to the sp_matmul_rs backend (use_sp_matmul_rs=True). Defaults to None, which lets
+    sp_matmul_rs derive the width from the detected L1d cache size.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -204,6 +210,7 @@ class StringGrouperConfig(NamedTuple):
     group_rep: str = DEFAULT_GROUP_REP
     force_symmetries: bool = DEFAULT_FORCE_SYMMETRIES
     n_blocks: Tuple[int, int] = DEFAULT_N_BLOCKS
+    chunk_cols: Optional[int] = DEFAULT_CHUNK_COLS
     normalize_to_ascii: bool = DEFAULT_NORMALIZE_TO_ASCII
 
 def validate_is_fit(f):
@@ -305,6 +312,7 @@ class StringGrouper(object):
         self._validate_tfidf_matrix_dtype()
         self._validate_replace_na_and_drop()
         self._validate_n_blocks()
+        self._validate_chunk_cols()
         self.is_build = False
 
     def _build_corpus(self):
@@ -779,7 +787,8 @@ class StringGrouper(object):
             top_n = self._max_n_matches,
             threshold = self._config.min_similarity,
             sort = True,
-            n_threads = self._config.number_of_processes
+            n_threads = self._config.number_of_processes,
+            chunk_cols = self._config.chunk_cols
         )
 
     def _get_matches_list(self,
@@ -981,6 +990,14 @@ class StringGrouper(object):
             raise Exception(errmsg)
         if (self._config.n_blocks[0] < 1) or (self._config.n_blocks[1] < 1):
             raise Exception(errmsg)
+
+    def _validate_chunk_cols(self):
+        if self._config.chunk_cols is None:
+            return
+        if not self._config.use_sp_matmul_rs:
+            raise Exception("chunk_cols only applies when use_sp_matmul_rs is True.")
+        if not isinstance(self._config.chunk_cols, int) or self._config.chunk_cols < 1:
+            raise Exception("Invalid option value for parameter chunk_cols: chunk_cols must be None or an integer greater than 0.")
 
     @staticmethod
     def _fix_diagonal(m: lil_matrix) -> lil_matrix:
