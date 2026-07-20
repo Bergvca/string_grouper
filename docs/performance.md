@@ -1,5 +1,10 @@
 ## Performance
 
+> **Note:** this page describes the `n_blocks` block-splitting mechanism of the legacy
+> `sparse_dot_topn` backend, which is used only when `use_sp_matmul_rs=False`.  The default
+> `sp_matmul_rs` backend (since version 0.8.0) performs block/chunk splitting internally and
+> ignores `n_blocks` (with a warning); its performance can instead be tuned with the
+> `chunk_cols` option.
 
 <b><a name="Semilogx"></a>Semilogx plots of run-times of `match_strings()` vs the number of blocks (`n_blocks[1]`) into which the right matrix-operand of the dataset (663 000 strings from sec__edgar_company_info.csv) was split before performing the string comparison.  As shown in the legend, each plot corresponds to the number `n_blocks[0]` of blocks into which the left matrix-operand was split.</b>
 ![Semilogx](https://raw.githubusercontent.com/Bergvca/string_grouper/master/images/BlockNumberSpaceExploration1.png)

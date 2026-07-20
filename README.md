@@ -52,7 +52,7 @@ Results in:
 `00:17.80` On an m5 pro, where `len(names)` = 663 000
 
 *in other words*,
-the library is able to perform fuzzy matching of 663 000 names in _less then 18 seconds_
+the library is able to perform fuzzy matching of 663 000 names in _less than 18 seconds_
 on a 2026 consumer CPU using 15 cores. 
 
 ## Simple Match

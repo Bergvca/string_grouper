@@ -4,7 +4,6 @@ import re
 import multiprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import vstack, csr_matrix
-from scipy.sparse import csr_matrix
 from scipy.sparse import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
@@ -188,12 +187,13 @@ class StringGrouperConfig(NamedTuple):
     :param n_blocks: (int, int) This parameter is provided to help boost performance, if possible, of
     processing large DataFrames, by splitting the DataFrames into n_blocks[0] blocks for the left
     operand (of the underlying matrix multiplication) and into n_blocks[1] blocks for the right operand
-    before performing the string-comparisons block-wise.  Only applies to the sparse_dot_topn backend
-    (use_sp_matmul_rs=False).  Defaults to None.
+    before performing the string-comparisons block-wise.  Only used by the sparse_dot_topn backend
+    (use_sp_matmul_rs=False); ignored, with a warning, when use_sp_matmul_rs=True.  Defaults to None.
     :param chunk_cols: int. The sp_matmul_rs counterpart to n_blocks: the column-chunk width of the
     cache-blocked kernel. This is a performance knob only; any value yields identical results. Only
-    applies to the sp_matmul_rs backend (use_sp_matmul_rs=True). Defaults to None, which lets
-    sp_matmul_rs derive the width from the detected L1d cache size.
+    used by the sp_matmul_rs backend (use_sp_matmul_rs=True); ignored, with a warning, when
+    use_sp_matmul_rs=False. Defaults to None, which lets sp_matmul_rs derive the width from the
+    detected L1d cache size.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -270,8 +270,6 @@ class StringGrouper(object):
         self._max_n_matches: int = 0
 
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
-
-        self._n_blocks = self._config.n_blocks
 
         # initialize the members:
         self._set_data(master, duplicates, master_id, duplicates_id)
@@ -398,7 +396,7 @@ class StringGrouper(object):
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
         if self._config.use_sp_matmul_rs:
-            matches = self._build_matches_rs(master_matrix, duplicate_matrix)
+            matches = self._build_matches_rs_with_recovery(master_matrix, duplicate_matrix)
         else:
             matches = self._calc_blocks_and_build_matches(master_matrix, duplicate_matrix)
 
@@ -427,33 +425,28 @@ class StringGrouper(object):
         b_right = max(1, round(len(self._right_Series) / 4e3))  # based on tests and observations
         size_guess_block = (b_left, b_right)  # inversion of left and right series was introduced in 0.6 ?
 
-        if self._n_blocks is None:
+        n_blocks = self._config.n_blocks
+        if n_blocks is None:
             if size_guess_block != (1, 1):
                 logger.info(
                     "n_blocks parameter is not set so data will be split into smaller chunks, n_blocks = ("
                     + str(size_guess_block[0]) + "," + str(size_guess_block[1]) + ")")
-            self._n_blocks = size_guess_block
+            n_blocks = size_guess_block
 
         # do the matching
-        if self._n_blocks == (1, 1):
+        if n_blocks == (1, 1):
             try:
-                matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
+                matches = self._build_matches(master_matrix, duplicate_matrix, n_blocks)
             except OverflowError:
                 logger.warning(
-                    "An OverflowError occurred but is being " +
-                    "handled.  The input data will be automatically " +
-                    "split-up into smaller chunks which will then be " +
-                    "processed one chunk at a time.  To prevent " +
-                    "OverflowError, use the n_blocks parameter to split-up " +
-                    "the data manually into small enough chunks" +
-                    ", n_blocks = (" +
-                    str(size_guess_block[0]),
-                    ",",
-                    str(size_guess_block[1]) + ")"
-                )
+                    "An OverflowError occurred but is being handled.  The input data will be "
+                    "automatically split-up into smaller chunks which will then be processed one "
+                    "chunk at a time.  To prevent OverflowError, use the n_blocks parameter to "
+                    "split-up the data manually into small enough chunks, "
+                    f"n_blocks = ({size_guess_block[0]},{size_guess_block[1]})")
                 matches = self._build_matches(master_matrix, duplicate_matrix, size_guess_block)
         else:
-            matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
+            matches = self._build_matches(master_matrix, duplicate_matrix, n_blocks)
         return matches
 
     def dot(self) -> pd.Series:
@@ -735,7 +728,7 @@ class StringGrouper(object):
     def _build_matches(self,
                        master_matrix: csr_matrix, duplicate_matrix: csr_matrix,
                        n_blocks: Tuple[int, int]) -> csr_matrix:
-        """Builds the cossine similarity matrix of two csr matrices"""
+        """Builds the cosine similarity matrix of two csr matrices"""
         
         def define_chunks(length_to_split, n_chunks):
 
@@ -779,8 +772,13 @@ class StringGrouper(object):
 
     def _build_matches_rs(self,
                        master_matrix: csr_matrix,
-                       duplicate_matrix: csr_matrix) -> csr_matrix:
-        """Builds the cossine similarity matrix of two csr matrices using sp_matmul_topn_rs for faster computation"""
+                       duplicate_matrix: csr_matrix,
+                       idx_dtype=None) -> csr_matrix:
+        """Builds the cosine similarity matrix of two csr matrices using sp_matmul_topn_rs for faster computation.
+
+        idx_dtype controls the integer width of the result's index arrays; None (the default) lets
+        sp_matmul_rs use 32-bit indices, and np.int64 is used to retry after a 32-bit index overflow.
+        """
         return sp_matmul_topn_rs(
             master_matrix,
             duplicate_matrix.transpose(),
@@ -788,8 +786,38 @@ class StringGrouper(object):
             threshold = self._config.min_similarity,
             sort = True,
             n_threads = self._config.number_of_processes,
-            chunk_cols = self._config.chunk_cols
+            chunk_cols = self._config.chunk_cols,
+            idx_dtype = idx_dtype
         )
+
+    def _build_matches_rs_with_recovery(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
+        """Runs the sp_matmul_rs backend, recovering from failures without leaving the fast path when possible.
+
+        On an OverflowError (the result's 32-bit index arrays overflowed) the multiplication is retried
+        with 64-bit indices, which addresses larger result matrices while staying on the Rust backend.
+        A MemoryError, or a failure that persists with 64-bit indices, falls back to the blocked
+        sparse_dot_topn backend, whose automatic chunk-splitting keeps peak memory bounded.
+        """
+        try:
+            return self._build_matches_rs(master_matrix, duplicate_matrix)
+        except OverflowError:
+            logger.warning(
+                "The sp_matmul_rs backend overflowed its 32-bit result indices; retrying with 64-bit "
+                "indices (idx_dtype=np.int64).")
+            try:
+                return self._build_matches_rs(master_matrix, duplicate_matrix, idx_dtype=np.int64)
+            except (OverflowError, MemoryError) as error:
+                logger.warning(
+                    f"The sp_matmul_rs backend still failed with 64-bit indices ({error!r}); falling back to "
+                    "the sparse_dot_topn backend with automatic block splitting.  Set use_sp_matmul_rs=False "
+                    "(optionally with the n_blocks parameter) to skip the failing backend on future runs.")
+                return self._calc_blocks_and_build_matches(master_matrix, duplicate_matrix)
+        except MemoryError as error:
+            logger.warning(
+                f"The sp_matmul_rs backend ran out of memory ({error!r}); falling back to the sparse_dot_topn "
+                "backend with automatic block splitting.  Set use_sp_matmul_rs=False (optionally with the "
+                "n_blocks parameter) to skip the failing backend on future runs.")
+            return self._calc_blocks_and_build_matches(master_matrix, duplicate_matrix)
 
     def _get_matches_list(self,
                           matches: csr_matrix
@@ -976,12 +1004,10 @@ class StringGrouper(object):
             )
 
     def _validate_n_blocks(self):
-        errmsg = "Invalid option value for parameter n_blocks: "
-        "n_blocks must be None or a tuple of 2 integers greater than 0."
+        errmsg = ("Invalid option value for parameter n_blocks: "
+                  "n_blocks must be None or a tuple of 2 integers greater than 0.")
         if self._config.n_blocks is None:
             return
-        if self._config.n_blocks is not None and self._config.use_sp_matmul_rs:
-            raise Exception("If sp_matmul_rs is True, n_blocks is cannot be set and is calculated automatically.")
         if not isinstance(self._config.n_blocks, tuple):
             raise Exception(errmsg)
         if len(self._config.n_blocks) != 2:
@@ -990,14 +1016,22 @@ class StringGrouper(object):
             raise Exception(errmsg)
         if (self._config.n_blocks[0] < 1) or (self._config.n_blocks[1] < 1):
             raise Exception(errmsg)
+        if self._config.use_sp_matmul_rs:
+            logger.warning(
+                "n_blocks is ignored when use_sp_matmul_rs=True: block splitting is handled internally by "
+                "sp_matmul_rs.  Set use_sp_matmul_rs=False to use n_blocks with the sparse_dot_topn backend.")
 
     def _validate_chunk_cols(self):
         if self._config.chunk_cols is None:
             return
+        if (isinstance(self._config.chunk_cols, bool)
+                or not isinstance(self._config.chunk_cols, (int, np.integer))
+                or self._config.chunk_cols < 1):
+            raise Exception("Invalid option value for parameter chunk_cols: "
+                            "chunk_cols must be None or an integer greater than 0.")
         if not self._config.use_sp_matmul_rs:
-            raise Exception("chunk_cols only applies when use_sp_matmul_rs is True.")
-        if not isinstance(self._config.chunk_cols, int) or self._config.chunk_cols < 1:
-            raise Exception("Invalid option value for parameter chunk_cols: chunk_cols must be None or an integer greater than 0.")
+            logger.warning(
+                "chunk_cols is ignored when use_sp_matmul_rs=False: it only applies to the sp_matmul_rs backend.")
 
     @staticmethod
     def _fix_diagonal(m: lil_matrix) -> lil_matrix:
