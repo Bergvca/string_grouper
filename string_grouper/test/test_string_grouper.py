@@ -6,12 +6,17 @@ from string_grouper.string_grouper import DEFAULT_MIN_SIMILARITY, \
     DEFAULT_REGEX, DEFAULT_NGRAM_SIZE, DEFAULT_N_PROCESSES, DEFAULT_IGNORE_CASE, \
     StringGrouperConfig, StringGrouper, StringGrouperNotFitException, \
     match_most_similar, group_similar_strings, match_strings, \
-    compute_pairwise_similarities
+    compute_pairwise_similarities, DEFAULT_USE_SP_MATMUL_RS
 from unittest.mock import patch, Mock
 
 
 def mock_symmetrize_matrix(x: csr_matrix) -> csr_matrix:
     return x
+
+
+def fix_row_order(df):
+    """Sorts match rows canonically so DataFrames can be compared independently of row order"""
+    return df.sort_values(['right_index', 'left_index']).reset_index(drop=True)
 
 
 class SimpleExample(object):
@@ -100,6 +105,7 @@ class StringGrouperConfigTest(unittest.TestCase):
         self.assertEqual(config.ngram_size, DEFAULT_NGRAM_SIZE)
         self.assertEqual(config.number_of_processes, DEFAULT_N_PROCESSES)
         self.assertEqual(config.ignore_case, DEFAULT_IGNORE_CASE)
+        self.assertEqual(config.use_sp_matmul_rs, DEFAULT_USE_SP_MATMUL_RS)
 
     def test_config_immutable(self):
         """Configurations should be immutable"""
@@ -124,20 +130,15 @@ class StringGrouperTest(unittest.TestCase):
         # OverflowThreshold.  This will in turn trigger automatic splitting
         # of the Series/matrices into smaller blocks when n_blocks = None
 
-        sort_cols = ['right_index', 'left_index']
-
-        def fix_row_order(df):
-            return df.sort_values(sort_cols).reset_index(drop=True)
-
         simple_example = SimpleExample()
         df1 = simple_example.customers_df2['Customer Name']
 
         # first do manual blocking
-        sg = StringGrouper(df1, min_similarity=0.1)
+        sg = StringGrouper(df1, min_similarity=0.1, use_sp_matmul_rs=False)
         pd.testing.assert_series_equal(sg.master, df1)
         self.assertEqual(sg.duplicates, None)
 
-        matches = fix_row_order(sg.match_strings(df1, n_blocks=(1, 1)))
+        matches = fix_row_order(sg.match_strings(df1, n_blocks=(1, 1), use_sp_matmul_rs=False))
         self.assertEqual(sg._config.n_blocks, (1, 1))
 
         # Create a custom wrapper for this StringGrouper instance's
@@ -190,54 +191,49 @@ class StringGrouperTest(unittest.TestCase):
 
     def test_n_blocks_single_DataFrame(self):
         """tests whether manual blocking yields consistent results"""
-        sort_cols = ['right_index', 'left_index']
-
-        def fix_row_order(df):
-            return df.sort_values(sort_cols).reset_index(drop=True)
-
         simple_example = SimpleExample()
         df1 = simple_example.customers_df2['Customer Name']
 
         matches11 = fix_row_order(match_strings(df1, min_similarity=0.1))
 
         matches12 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 2), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches12)
 
         matches13 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 3), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 3), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches13)
 
         matches14 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 4), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 4), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches14)
 
         matches15 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 5), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 5), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches15)
 
         matches16 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 6), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 6), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches16)
 
         matches17 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 7), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 7), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches17)
 
         matches18 = fix_row_order(
-            match_strings(df1, n_blocks=(1, 8), min_similarity=0.1))
+            match_strings(df1, n_blocks=(1, 8), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches18)
 
         matches21 = fix_row_order(
-            match_strings(df1, n_blocks=(2, 1), min_similarity=0.1))
+            match_strings(df1, n_blocks=(2, 1), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches21)
 
         matches22 = fix_row_order(
-            match_strings(df1, n_blocks=(2, 2), min_similarity=0.1))
+            match_strings(df1, n_blocks=(2, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches22)
 
         matches32 = fix_row_order(
-            match_strings(df1, n_blocks=(3, 2), min_similarity=0.1))
+            match_strings(df1, n_blocks=(3, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches32)
 
         # Create a custom wrapper for this StringGrouper instance's
@@ -271,9 +267,9 @@ class StringGrouperTest(unittest.TestCase):
                                     + (1 if len(df1) % n_blocks[1] > 0 else 0))
             if (max_left_block_size + max_right_block_size) > OverflowThreshold:
                 with self.assertRaises(Exception):
-                    _ = sg.match_strings(df1, n_blocks=n_blocks)
+                    _ = sg.match_strings(df1, n_blocks=n_blocks, use_sp_matmul_rs=False)
             else:
-                matches_manual = fix_row_order(sg.match_strings(df1, n_blocks=n_blocks))
+                matches_manual = fix_row_order(sg.match_strings(df1, n_blocks=n_blocks, use_sp_matmul_rs=False))
                 pd.testing.assert_frame_equal(matches11, matches_manual)
 
         test_overflow_error_with(OverflowThreshold=20, n_blocks=(1, 1))
@@ -284,11 +280,6 @@ class StringGrouperTest(unittest.TestCase):
 
     def test_n_blocks_both_DataFrames(self):
         """tests whether manual blocking yields consistent results"""
-        sort_cols = ['right_index', 'left_index']
-
-        def fix_row_order(df):
-            return df.sort_values(sort_cols).reset_index(drop=True)
-
         simple_example = SimpleExample()
         df1 = simple_example.customers_df['Customer Name']
         df2 = simple_example.customers_df2['Customer Name']
@@ -296,59 +287,54 @@ class StringGrouperTest(unittest.TestCase):
         matches11 = fix_row_order(match_strings(df1, df2, min_similarity=0.1))
 
         matches12 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 2), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches12)
 
         matches13 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 3), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 3), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches13)
 
         matches14 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 4), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 4), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches14)
 
         matches15 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 5), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 5), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches15)
 
         matches16 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 6), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 6), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches16)
 
         matches17 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 7), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 7), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches17)
 
         matches18 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(1, 8), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(1, 8), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches18)
 
         matches21 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(2, 1), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(2, 1), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches21)
 
         matches22 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(2, 2), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(2, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches22)
 
         matches32 = fix_row_order(
-            match_strings(df1, df2, n_blocks=(3, 2), min_similarity=0.1))
+            match_strings(df1, df2, n_blocks=(3, 2), min_similarity=0.1, use_sp_matmul_rs=False))
         pd.testing.assert_frame_equal(matches11, matches32)
 
     def test_n_blocks_bad_option_value(self):
-        """Tests that bad option values for n_blocks are caught"""
+        """Tests that bad option values for n_blocks are caught, regardless of the backend"""
         simple_example = SimpleExample()
         df1 = simple_example.customers_df2['Customer Name']
-        with self.assertRaises(Exception):
-            _ = match_strings(df1, n_blocks=2)
-        with self.assertRaises(Exception):
-            _ = match_strings(df1, n_blocks=(0, 2))
-        with self.assertRaises(Exception):
-            _ = match_strings(df1, n_blocks=(1, 2.5))
-        with self.assertRaises(Exception):
-            _ = match_strings(df1, n_blocks=(1, 2, 3))
-        with self.assertRaises(Exception):
-            _ = match_strings(df1, n_blocks=(1, ))
+        for use_rs in (True, False):
+            for bad_n_blocks in (2, (0, 2), (1, 2.5), (1, 2, 3), (1, )):
+                with self.assertRaises(Exception) as cm:
+                    _ = match_strings(df1, n_blocks=bad_n_blocks, use_sp_matmul_rs=use_rs)
+                self.assertIn('tuple of 2 integers greater than 0', str(cm.exception))
 
     def test_tfidf_dtype_bad_option_value(self):
         """Tests that bad option values for n_blocks are caught"""
@@ -1042,6 +1028,174 @@ class StringGrouperTest(unittest.TestCase):
         df['deduped'] = sg.get_groups()
         # All strings should now match to the same "master" string
         self.assertEqual(1, len(df.deduped.unique()))
+
+
+class SpMatmulRsEquivalenceTest(unittest.TestCase):
+    """Tests that the sp_matmul_rs backend (use_sp_matmul_rs=True) yields the same results
+    as the legacy sparse_dot_topn backend (use_sp_matmul_rs=False)"""
+
+    def test_match_strings_single_series(self):
+        """match_strings on a single Series (self-join) should be backend-independent"""
+        simple_example = SimpleExample()
+        df1 = simple_example.customers_df2['Customer Name']
+        matches_rs = fix_row_order(
+            match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=True))
+        matches_legacy = fix_row_order(
+            match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=False))
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+
+    def test_match_strings_two_series(self):
+        """match_strings on two Series should be backend-independent"""
+        simple_example = SimpleExample()
+        df1 = simple_example.customers_df['Customer Name']
+        df2 = simple_example.customers_df2['Customer Name']
+        matches_rs = fix_row_order(
+            match_strings(df1, df2, min_similarity=0.1, use_sp_matmul_rs=True))
+        matches_legacy = fix_row_order(
+            match_strings(df1, df2, min_similarity=0.1, use_sp_matmul_rs=False))
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+
+    def test_match_strings_with_ids(self):
+        """match_strings with master_id and duplicates_id should be backend-independent"""
+        simple_example = SimpleExample()
+        matches_rs = fix_row_order(
+            match_strings(simple_example.customers_df['Customer Name'],
+                          simple_example.customers_df2['Customer Name'],
+                          master_id=simple_example.customers_df['Customer ID'],
+                          duplicates_id=simple_example.customers_df2['Customer ID'],
+                          min_similarity=0.1,
+                          use_sp_matmul_rs=True))
+        matches_legacy = fix_row_order(
+            match_strings(simple_example.customers_df['Customer Name'],
+                          simple_example.customers_df2['Customer Name'],
+                          master_id=simple_example.customers_df['Customer ID'],
+                          duplicates_id=simple_example.customers_df2['Customer ID'],
+                          min_similarity=0.1,
+                          use_sp_matmul_rs=False))
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+
+    def test_match_most_similar(self):
+        """match_most_similar should be backend-independent"""
+        test_series_1 = pd.Series(['foooo', 'bar', 'baz'])
+        test_series_2 = pd.Series(['foooo', 'bar', 'baz', 'foooob'])
+        result_rs = match_most_similar(test_series_1, test_series_2,
+                                       ignore_index=True, use_sp_matmul_rs=True)
+        result_legacy = match_most_similar(test_series_1, test_series_2,
+                                           ignore_index=True, use_sp_matmul_rs=False)
+        pd.testing.assert_series_equal(result_legacy, result_rs)
+
+    def test_group_similar_strings(self):
+        """group_similar_strings should be backend-independent"""
+        simple_example = SimpleExample()
+        df1 = simple_example.customers_df['Customer Name']
+        result_rs = group_similar_strings(df1, min_similarity=0.6, ignore_index=True,
+                                          use_sp_matmul_rs=True)
+        result_legacy = group_similar_strings(df1, min_similarity=0.6, ignore_index=True,
+                                              use_sp_matmul_rs=False)
+        pd.testing.assert_series_equal(result_legacy, result_rs)
+        # sanity-check against the known expected grouping
+        pd.testing.assert_series_equal(simple_example.expected_result_centroid, result_rs)
+
+    def test_zero_min_similarity(self):
+        """zero-similarity matches should be included by both backends when min_similarity <= 0"""
+        simple_example = SimpleExample()
+        s_master = simple_example.customers_df['Customer Name']
+        s_dup = simple_example.whatever_series_1
+        matches_rs = match_strings(s_master, s_dup, min_similarity=0, use_sp_matmul_rs=True)
+        matches_legacy = match_strings(s_master, s_dup, min_similarity=0, use_sp_matmul_rs=False)
+        pd.testing.assert_frame_equal(matches_legacy, matches_rs)
+        pd.testing.assert_frame_equal(simple_example.expected_result_with_zeroes, matches_rs)
+
+    def test_chunk_cols_result_invariant(self):
+        """chunk_cols is an sp_matmul_rs performance knob only: any value must yield identical results"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        base = fix_row_order(match_strings(df1, min_similarity=0.1))
+        for chunk_cols in (1, 7, 64, 100000):
+            tuned = fix_row_order(match_strings(df1, min_similarity=0.1, chunk_cols=chunk_cols))
+            pd.testing.assert_frame_equal(base, tuned)
+
+    def test_chunk_cols_validation(self):
+        """chunk_cols must be None or a positive int; the legacy backend ignores it with a warning"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        # chunk_cols is ignored (with a warning) by the sparse_dot_topn backend
+        base = fix_row_order(
+            match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=False, n_blocks=(1, 1)))
+        ignored = fix_row_order(
+            match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=False, n_blocks=(1, 1), chunk_cols=64))
+        pd.testing.assert_frame_equal(base, ignored)
+        # chunk_cols must be a positive integer (bools are not integers here)
+        for bad in (0, -1, 2.5, 'x', True):
+            with self.assertRaises(Exception):
+                match_strings(df1, min_similarity=0.1, chunk_cols=bad)
+        # numpy integers are valid
+        rs_base = fix_row_order(match_strings(df1, min_similarity=0.1))
+        np_tuned = fix_row_order(match_strings(df1, min_similarity=0.1, chunk_cols=np.int64(64)))
+        pd.testing.assert_frame_equal(rs_base, np_tuned)
+
+    def test_rs_backend_retries_with_64bit_indices_on_overflow(self):
+        """An OverflowError (32-bit index overflow) must be recovered by retrying sp_matmul_rs
+        with idx_dtype=np.int64, staying on the fast backend rather than falling back"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        expected = fix_row_order(match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=False))
+
+        original_build = StringGrouper._build_matches_rs
+        idx_dtypes = []
+
+        def flaky(self, master_matrix, duplicate_matrix, idx_dtype=None):
+            idx_dtypes.append(idx_dtype)
+            if len(idx_dtypes) == 1:  # first (32-bit) attempt overflows
+                raise OverflowError
+            return original_build(self, master_matrix, duplicate_matrix, idx_dtype=idx_dtype)
+
+        with patch.object(StringGrouper, '_build_matches_rs', autospec=True, side_effect=flaky):
+            result = fix_row_order(match_strings(df1, min_similarity=0.1))
+        pd.testing.assert_frame_equal(expected, result)
+        # the first attempt used default (32-bit) indices, the retry used 64-bit indices
+        self.assertEqual(idx_dtypes, [None, np.int64])
+
+    def test_rs_backend_falls_back_when_recovery_exhausted(self):
+        """fit() must fall back to the blocked sparse_dot_topn path when sp_matmul_rs keeps failing
+        (OverflowError even at 64-bit) or runs out of memory, yielding the same results"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        expected = fix_row_order(match_strings(df1, min_similarity=0.1, use_sp_matmul_rs=False))
+        for error in (OverflowError, MemoryError):
+            with patch.object(StringGrouper, '_build_matches_rs', side_effect=error):
+                fallback = fix_row_order(match_strings(df1, min_similarity=0.1))
+            pd.testing.assert_frame_equal(expected, fallback)
+
+    def test_n_blocks_ignored_by_rs_backend(self):
+        """n_blocks is ignored (with a warning) by the sp_matmul_rs backend instead of raising,
+        so pre-0.8 code that tunes n_blocks keeps working under the new default backend"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        base = fix_row_order(match_strings(df1, min_similarity=0.1))
+        with_n_blocks = fix_row_order(match_strings(df1, min_similarity=0.1, n_blocks=(1, 2)))
+        pd.testing.assert_frame_equal(base, with_n_blocks)
+        # malformed n_blocks values are still rejected, regardless of backend
+        with self.assertRaises(Exception):
+            match_strings(df1, min_similarity=0.1, n_blocks=(0, 2))
+
+    def test_backend_switch_on_reused_instance(self):
+        """switching backends via the instance methods must not trip validators on options
+        carried over from earlier calls (n_blocks / chunk_cols of the other backend)"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        sg = StringGrouper(df1, min_similarity=0.1)
+        legacy = fix_row_order(sg.match_strings(df1, use_sp_matmul_rs=False, n_blocks=(1, 2)))
+        # stale n_blocks from the previous call must not raise under the rs backend
+        rs = fix_row_order(sg.match_strings(df1, use_sp_matmul_rs=True))
+        pd.testing.assert_frame_equal(legacy, rs)
+        # and stale chunk_cols must not raise when switching back to the legacy backend
+        sg2 = StringGrouper(df1, min_similarity=0.1, chunk_cols=64)
+        back_to_legacy = fix_row_order(sg2.match_strings(df1, use_sp_matmul_rs=False))
+        pd.testing.assert_frame_equal(legacy, back_to_legacy)
+
+    def test_n_blocks_honored_via_instance_methods(self):
+        """n_blocks passed through an instance method must reach the legacy matmul, not a stale
+        value captured at construction time"""
+        df1 = SimpleExample().customers_df2['Customer Name']
+        sg = StringGrouper(df1, min_similarity=0.1, use_sp_matmul_rs=False)
+        with patch.object(sg, '_build_matches', wraps=sg._build_matches) as spy:
+            sg.match_strings(df1, use_sp_matmul_rs=False, n_blocks=(1, 2))
+        self.assertEqual(spy.call_args.args[2], (1, 2))
 
 
 if __name__ == '__main__':

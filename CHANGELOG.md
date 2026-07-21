@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - Unreleased
+
+### Added
+
+* New [sp_matmul_rs](https://github.com/Bergvca/sp_matmul_rs) backend for the cosine-similarity calculation — a Rust
+  reimplementation of the sparse top-n matrix multiplication. It performs the block/chunk splitting internally and
+  adds further optimizations. This is now the **default** backend.
+* New `use_sp_matmul_rs` configuration keyword (default `True`). Set it to `False` to fall back to the original
+  `sparse_dot_topn` backend. This is slower but battle tested and thus more stable. 
+* New dependency on `sp_matmul_rs>=0.2.1`.
+* Added a test suite verifying that the `sp_matmul_rs` and `sparse_dot_topn` backends produce equivalent results.
+* New `chunk_cols` configuration keyword (default `None`) — the `sp_matmul_rs` counterpart to `n_blocks`. It sets the
+  column-chunk width of the backend's cache-blocked kernel. `chunk_cols` can be used to tune performance for matrices that
+are denser than the matrices normally expected in the string-matching use case. Only used when `use_sp_matmul_rs=True`
+(ignored, with a warning, by the `sparse_dot_topn` backend); `None` lets the backend derive the width from the detected
+L1d cache size.
+
+### Changed
+
+* Cosine similarities are now computed with `sp_matmul_rs` by default, yielding a large speed-up (e.g. fuzzy matching
+  of 663 000 names in under 18 seconds on a m5 pro using 15 cores).
+* When `use_sp_matmul_rs=True`, block splitting is handled internally by the backend; the automatic `n_blocks`
+  guesstimate and `OverflowError` fallback are only used with the `sparse_dot_topn` backend. Should the
+  `sp_matmul_rs` backend overflow its 32-bit result indices (`OverflowError`), `fit()` transparently retries it
+  with 64-bit indices (`idx_dtype=np.int64`), staying on the fast backend. Only if that retry still fails, or on
+  a `MemoryError`, does `fit()` fall back to the `sparse_dot_topn` backend with automatic block splitting.
+* Setting `n_blocks` explicitly while `use_sp_matmul_rs=True` logs a warning and ignores `n_blocks`, since blocking is
+  calculated automatically by `sp_matmul_rs`. Existing code that tunes `n_blocks` keeps working; set
+  `use_sp_matmul_rs=False` to make `n_blocks` effective again.
+
+### Fixed
+
+* `n_blocks` passed through the instance-method variants (e.g. `StringGrouper.match_strings`) is now honored; previously
+  a stale value captured at construction time (or a prior fit's automatic guess) was silently used instead.
+
+
 ## [0.7.2] - 2026-05-22
 
 ### Changed

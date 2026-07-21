@@ -2,14 +2,13 @@ import pandas as pd
 import numpy as np
 import re
 import multiprocessing
-import warnings
 from sklearn.feature_extraction.text import TfidfVectorizer
-from scipy.sparse import vstack
-from scipy.sparse import csr_matrix
+from scipy.sparse import vstack, csr_matrix
 from scipy.sparse import lil_matrix
 from scipy.sparse.csgraph import connected_components
 from typing import Tuple, NamedTuple, List, Optional, Union
 from sparse_dot_topn import sp_matmul_topn, zip_sp_matmul_topn
+from sp_matmul_rs import sp_matmul_topn as sp_matmul_topn_rs
 from functools import wraps
 from unicodedata import normalize
 from loguru import logger
@@ -21,6 +20,7 @@ DEFAULT_MAX_N_MATCHES: int = 20 # not optional with sparse_dot_topn
 DEFAULT_MIN_SIMILARITY: float = 0.8  # minimum cosine similarity for an item to be considered a match
 DEFAULT_N_PROCESSES: int = multiprocessing.cpu_count() - 1
 DEFAULT_IGNORE_CASE: bool = True  # ignores case by default
+DEFAULT_USE_SP_MATMUL_RS: bool = True # use sp_matmul_rs or the sparse_dot_topn as matrix multiplication library
 DEFAULT_DROP_INDEX: bool = False  # includes index-columns in output
 DEFAULT_REPLACE_NA: bool = False    # when finding the most similar strings, does not replace NaN values in most
 # similar string index-columns with corresponding duplicates-index values
@@ -34,6 +34,7 @@ DEFAULT_FORCE_SYMMETRIES: bool = True  # Option value to specify whether correct
 # to account for symmetry thus compensating for those numerical errors that violate symmetry due to loss of
 # significance
 DEFAULT_N_BLOCKS: Optional[Tuple[int, int]] = None  # Option value to use to split dataset(s) into roughly equal-sized blocks
+DEFAULT_CHUNK_COLS: Optional[int] = None  # sp_matmul_rs cache-tile width; None auto-derives from the L1d cache size
 DEFAULT_NORMALIZE_TO_ASCII: bool = True
 
 # The following string constants are used by (but aren't [yet] options passed to) StringGrouper
@@ -49,7 +50,7 @@ DEFAULT_MASTER_ID_NAME: str = f'{DEFAULT_MASTER_NAME}_{DEFAULT_ID_NAME}'    # us
 GROUP_REP_PREFIX: str = 'group_rep_'    # used to prefix and name columns of the output of StringGrouper._deduplicate
 
 
-# High level functions
+# High-level functions
 
 
 def compute_pairwise_similarities(string_series_1: pd.Series,
@@ -170,6 +171,9 @@ class StringGrouperConfig(NamedTuple):
     :param number_of_processes: int. The number of processes used by the cosine similarity calculation.
     Defaults to number of cores on a machine - 1.
     :param ignore_case: bool. Whether or not case should be ignored. Defaults to True (ignore case).
+    :param use_sp_matmul_rs: bool. Whether or not to use sp_matmul_rs or the sparse_dot_topn as matrix multiplication
+    library. sp_matmul_rs does the chunking internally and has further optimizations but is not battle-tested.
+    Defaults to True.
     :param ignore_index: whether or not to exclude string Series index-columns in output.  Defaults to False.
     :param include_zeroes: when the minimum cosine similarity <=0, determines whether zero-similarity matches
     appear in the output.  Defaults to True.
@@ -183,7 +187,13 @@ class StringGrouperConfig(NamedTuple):
     :param n_blocks: (int, int) This parameter is provided to help boost performance, if possible, of
     processing large DataFrames, by splitting the DataFrames into n_blocks[0] blocks for the left
     operand (of the underlying matrix multiplication) and into n_blocks[1] blocks for the right operand
-    before performing the string-comparisons block-wise.  Defaults to None.
+    before performing the string-comparisons block-wise.  Only used by the sparse_dot_topn backend
+    (use_sp_matmul_rs=False); ignored, with a warning, when use_sp_matmul_rs=True.  Defaults to None.
+    :param chunk_cols: int. The sp_matmul_rs counterpart to n_blocks: the column-chunk width of the
+    cache-blocked kernel. This is a performance knob only; any value yields identical results. Only
+    used by the sp_matmul_rs backend (use_sp_matmul_rs=True); ignored, with a warning, when
+    use_sp_matmul_rs=False. Defaults to None, which lets sp_matmul_rs derive the width from the
+    detected L1d cache size.
     """
 
     ngram_size: int = DEFAULT_NGRAM_SIZE
@@ -193,12 +203,14 @@ class StringGrouperConfig(NamedTuple):
     min_similarity: float = DEFAULT_MIN_SIMILARITY
     number_of_processes: int = DEFAULT_N_PROCESSES
     ignore_case: bool = DEFAULT_IGNORE_CASE
+    use_sp_matmul_rs: bool = DEFAULT_USE_SP_MATMUL_RS
     ignore_index: bool = DEFAULT_DROP_INDEX
     include_zeroes: bool = DEFAULT_INCLUDE_ZEROES
     replace_na: bool = DEFAULT_REPLACE_NA
     group_rep: str = DEFAULT_GROUP_REP
     force_symmetries: bool = DEFAULT_FORCE_SYMMETRIES
     n_blocks: Tuple[int, int] = DEFAULT_N_BLOCKS
+    chunk_cols: Optional[int] = DEFAULT_CHUNK_COLS
     normalize_to_ascii: bool = DEFAULT_NORMALIZE_TO_ASCII
 
 def validate_is_fit(f):
@@ -259,8 +271,6 @@ class StringGrouper(object):
 
         self._config: StringGrouperConfig = StringGrouperConfig(**kwargs)
 
-        self._n_blocks = self._config.n_blocks
-
         # initialize the members:
         self._set_data(master, duplicates, master_id, duplicates_id)
         self._set_options(**kwargs)
@@ -299,7 +309,8 @@ class StringGrouper(object):
         self._validate_group_rep_specs()
         self._validate_tfidf_matrix_dtype()
         self._validate_replace_na_and_drop()
-        StringGrouper._validate_n_blocks(self._config.n_blocks)
+        self._validate_n_blocks()
+        self._validate_chunk_cols()
         self.is_build = False
 
     def _build_corpus(self):
@@ -384,35 +395,10 @@ class StringGrouper(object):
         """
         master_matrix, duplicate_matrix = self._get_tf_idf_matrices()
 
-        b_left = max(1, round(len(self._left_Series)/1e6))     # arbitrary, big enough not to split both left and right often
-        b_right = max(1, round(len(self._right_Series)/4e3)) # based on tests and observations
-        size_guess_block = (b_left, b_right) # inversion of left and right series was introduced in 0.6 ?
-      
-        if self._n_blocks is None:
-            if size_guess_block != (1,1):
-                logger.info("n_blocks parameter is not set so data will be split into smaller chunks, n_blocks = (" + str(size_guess_block[0]) +","+ str(size_guess_block[1])+")")
-            self._n_blocks = size_guess_block
-
-        # do the matching
-        if self._n_blocks == (1,1):
-            try:
-                matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
-            except OverflowError:
-                logger.warning(
-                              "An OverflowError occurred but is being " +
-                              "handled.  The input data will be automatically " +
-                              "split-up into smaller chunks which will then be " +
-                              "processed one chunk at a time.  To prevent " +
-                              "OverflowError, use the n_blocks parameter to split-up " +
-                              "the data manually into small enough chunks" +
-                              ", n_blocks = (" +
-                              str(size_guess_block[0]),
-                              ",",
-                              str(size_guess_block[1])+")"
-                             )
-                matches = self._build_matches(master_matrix, duplicate_matrix, size_guess_block)
+        if self._config.use_sp_matmul_rs:
+            matches = self._build_matches_rs_with_recovery(master_matrix, duplicate_matrix)
         else:
-            matches = self._build_matches(master_matrix, duplicate_matrix, self._n_blocks)
+            matches = self._calc_blocks_and_build_matches(master_matrix, duplicate_matrix)
 
         self._true_max_n_matches = np.diff(matches.indptr).max()
 
@@ -429,6 +415,39 @@ class StringGrouper(object):
         self._matches_list = self._get_matches_list(matches)
         self.is_build = True
         return self
+
+    def _calc_blocks_and_build_matches(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
+        """
+        Calculates the optimal blocks and builds matching data from the provided matrices. Uses the legacy
+        sp_dot_topn function to calculate matches.
+        """
+        b_left = max(1, round(len(self._left_Series) / 1e6))  # arbitrary, big enough not to split both left and right often
+        b_right = max(1, round(len(self._right_Series) / 4e3))  # based on tests and observations
+        size_guess_block = (b_left, b_right)  # inversion of left and right series was introduced in 0.6 ?
+
+        n_blocks = self._config.n_blocks
+        if n_blocks is None:
+            if size_guess_block != (1, 1):
+                logger.info(
+                    "n_blocks parameter is not set so data will be split into smaller chunks, n_blocks = ("
+                    + str(size_guess_block[0]) + "," + str(size_guess_block[1]) + ")")
+            n_blocks = size_guess_block
+
+        # do the matching
+        if n_blocks == (1, 1):
+            try:
+                matches = self._build_matches(master_matrix, duplicate_matrix, n_blocks)
+            except OverflowError:
+                logger.warning(
+                    "An OverflowError occurred but is being handled.  The input data will be "
+                    "automatically split-up into smaller chunks which will then be processed one "
+                    "chunk at a time.  To prevent OverflowError, use the n_blocks parameter to "
+                    "split-up the data manually into small enough chunks, "
+                    f"n_blocks = ({size_guess_block[0]},{size_guess_block[1]})")
+                matches = self._build_matches(master_matrix, duplicate_matrix, size_guess_block)
+        else:
+            matches = self._build_matches(master_matrix, duplicate_matrix, n_blocks)
+        return matches
 
     def dot(self) -> pd.Series:
         """Computes the row-wise similarity scores between strings in _master and _duplicates"""
@@ -709,7 +728,7 @@ class StringGrouper(object):
     def _build_matches(self,
                        master_matrix: csr_matrix, duplicate_matrix: csr_matrix,
                        n_blocks: Tuple[int, int]) -> csr_matrix:
-        """Builds the cossine similarity matrix of two csr matrices"""
+        """Builds the cosine similarity matrix of two csr matrices"""
         
         def define_chunks(length_to_split, n_chunks):
 
@@ -751,6 +770,54 @@ class StringGrouper(object):
             
             return C
 
+    def _build_matches_rs(self,
+                       master_matrix: csr_matrix,
+                       duplicate_matrix: csr_matrix,
+                       idx_dtype=None) -> csr_matrix:
+        """Builds the cosine similarity matrix of two csr matrices using sp_matmul_topn_rs for faster computation.
+
+        idx_dtype controls the integer width of the result's index arrays; None (the default) lets
+        sp_matmul_rs use 32-bit indices, and np.int64 is used to retry after a 32-bit index overflow.
+        """
+        return sp_matmul_topn_rs(
+            master_matrix,
+            duplicate_matrix.transpose(),
+            top_n = self._max_n_matches,
+            threshold = self._config.min_similarity,
+            sort = True,
+            n_threads = self._config.number_of_processes,
+            chunk_cols = self._config.chunk_cols,
+            idx_dtype = idx_dtype
+        )
+
+    def _build_matches_rs_with_recovery(self, master_matrix: csr_matrix, duplicate_matrix: csr_matrix) -> csr_matrix:
+        """Runs the sp_matmul_rs backend, recovering from failures without leaving the fast path when possible.
+
+        On an OverflowError (the result's 32-bit index arrays overflowed) the multiplication is retried
+        with 64-bit indices, which addresses larger result matrices while staying on the Rust backend.
+        A MemoryError, or a failure that persists with 64-bit indices, falls back to the blocked
+        sparse_dot_topn backend, whose automatic chunk-splitting keeps peak memory bounded.
+        """
+        try:
+            return self._build_matches_rs(master_matrix, duplicate_matrix)
+        except OverflowError:
+            logger.warning(
+                "The sp_matmul_rs backend overflowed its 32-bit result indices; retrying with 64-bit "
+                "indices (idx_dtype=np.int64).")
+            try:
+                return self._build_matches_rs(master_matrix, duplicate_matrix, idx_dtype=np.int64)
+            except (OverflowError, MemoryError) as error:
+                logger.warning(
+                    f"The sp_matmul_rs backend still failed with 64-bit indices ({error!r}); falling back to "
+                    "the sparse_dot_topn backend with automatic block splitting.  Set use_sp_matmul_rs=False "
+                    "(optionally with the n_blocks parameter) to skip the failing backend on future runs.")
+                return self._calc_blocks_and_build_matches(master_matrix, duplicate_matrix)
+        except MemoryError as error:
+            logger.warning(
+                f"The sp_matmul_rs backend ran out of memory ({error!r}); falling back to the sparse_dot_topn "
+                "backend with automatic block splitting.  Set use_sp_matmul_rs=False (optionally with the "
+                "n_blocks parameter) to skip the failing backend on future runs.")
+            return self._calc_blocks_and_build_matches(master_matrix, duplicate_matrix)
 
     def _get_matches_list(self,
                           matches: csr_matrix
@@ -936,20 +1003,35 @@ class StringGrouper(object):
                 "index if the number of index-levels does not equal the number of index-columns."
             )
 
-    @staticmethod
-    def _validate_n_blocks(n_blocks):
-        errmsg = "Invalid option value for parameter n_blocks: "
-        "n_blocks must be None or a tuple of 2 integers greater than 0."
-        if n_blocks is None:
+    def _validate_n_blocks(self):
+        errmsg = ("Invalid option value for parameter n_blocks: "
+                  "n_blocks must be None or a tuple of 2 integers greater than 0.")
+        if self._config.n_blocks is None:
             return
-        if not isinstance(n_blocks, tuple):
+        if not isinstance(self._config.n_blocks, tuple):
             raise Exception(errmsg)
-        if len(n_blocks) != 2:
+        if len(self._config.n_blocks) != 2:
             raise Exception(errmsg)
-        if not (isinstance(n_blocks[0], int) and isinstance(n_blocks[1], int)):
+        if not (isinstance(self._config.n_blocks[0], int) and isinstance(self._config.n_blocks[1], int)):
             raise Exception(errmsg)
-        if (n_blocks[0] < 1) or (n_blocks[1] < 1):
+        if (self._config.n_blocks[0] < 1) or (self._config.n_blocks[1] < 1):
             raise Exception(errmsg)
+        if self._config.use_sp_matmul_rs:
+            logger.warning(
+                "n_blocks is ignored when use_sp_matmul_rs=True: block splitting is handled internally by "
+                "sp_matmul_rs.  Set use_sp_matmul_rs=False to use n_blocks with the sparse_dot_topn backend.")
+
+    def _validate_chunk_cols(self):
+        if self._config.chunk_cols is None:
+            return
+        if (isinstance(self._config.chunk_cols, bool)
+                or not isinstance(self._config.chunk_cols, (int, np.integer))
+                or self._config.chunk_cols < 1):
+            raise Exception("Invalid option value for parameter chunk_cols: "
+                            "chunk_cols must be None or an integer greater than 0.")
+        if not self._config.use_sp_matmul_rs:
+            logger.warning(
+                "chunk_cols is ignored when use_sp_matmul_rs=False: it only applies to the sp_matmul_rs backend.")
 
     @staticmethod
     def _fix_diagonal(m: lil_matrix) -> lil_matrix:
@@ -1008,3 +1090,4 @@ class StringGrouper(object):
             raise Exception('Both master and master_id must be pandas.Series of the same length.')
         if duplicates is not None and duplicates_id is not None and len(duplicates) != len(duplicates_id):
             raise Exception('Both duplicates and duplicates_id must be pandas.Series of the same length.')
+
