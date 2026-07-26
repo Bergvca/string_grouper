@@ -55,9 +55,6 @@ Results in:
 the library is able to perform fuzzy matching of 663 000 names in _less than 18 seconds_
 on a 2026 consumer CPU using 15 cores. 
 
-**The latest version (0.8.0) with a significant speed up is not released on pypi yet.** Use this repository to install
-if you want to use the latest and greatest. 
-
 ## Simple Match
 
 ```python

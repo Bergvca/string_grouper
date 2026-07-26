@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.0] - Unreleased
+## [0.8.0] - 2026-07-26
 
 ### Added
 
@@ -39,6 +39,11 @@ L1d cache size.
 
 * `n_blocks` passed through the instance-method variants (e.g. `StringGrouper.match_strings`) is now honored; previously
   a stale value captured at construction time (or a prior fit's automatic guess) was silently used instead.
+* The `string_grouper_utils` package is included in the distribution again. Since 0.7.0 the `packages` list lived under
+  `[project]` in `pyproject.toml`, where it is not a recognized key, so both poetry-core and hatchling ignored it and
+  built a wheel containing only `string_grouper`. Installing from PyPI therefore raised `ImportError` on
+  `from string_grouper_utils import ...` in 0.7.0-0.7.2. The packages are now declared under
+  `[tool.hatch.build.targets.wheel]`.
 
 
 ## [0.7.2] - 2026-05-22
